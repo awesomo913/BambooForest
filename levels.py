@@ -14,10 +14,10 @@ from sprites import (
     SafeZone, SlimeEnemy,
 )
 from biomes import (
-    AshBat, BasaltGolem, BrineShard, CactusScorpion, Crystal,
-    CrumblingPlatform, DustDevil, FalseGlowworm, Geyser, IcePlatform,
-    KelpCrab, NPC, ReflectionPhantom, StalactiteSpider, SulfurSlime,
-    ThermalUpdraft, WindZone,
+    AshBat, BasaltGolem, BiomeMovingPlatform, BiomePlatform, BrineShard,
+    CactusScorpion, Crystal, CrumblingPlatform, DustDevil, FalseGlowworm,
+    Geyser, IcePlatform, KelpCrab, NPC, ReflectionPhantom,
+    StalactiteSpider, SulfurSlime, ThermalUpdraft, WindZone,
 )
 
 
@@ -68,9 +68,19 @@ class LevelDef:
 
 def _scatter_bamboos(platforms: list[PlatformDef], world_width: int,
                      floor_y: int, target_count: int) -> list[tuple[int, int]]:
-    """Generate bamboo positions attached to platforms only."""
+    """Generate bamboo positions attached to STATIC platforms only.
+    Moving platforms are excluded -- bamboo would float when they move.
+    """
     positions: list[tuple[int, int]] = []
-    sorted_plats = sorted(platforms, key=lambda p: p.x)
+    # Exclude moving platforms from placement
+    static_plats = [p for p in platforms if not p.moving]
+    sorted_plats = sorted(static_plats, key=lambda p: p.x)
+    if not sorted_plats:
+        # Fallback: scatter on floor
+        for i in range(target_count):
+            bx = 200 + (world_width - 400) * i // max(1, target_count - 1)
+            positions.append((bx, floor_y))
+        return positions
     for p in sorted_plats:
         margin = min(25, p.w // 4)
         bx = p.x + random.randint(margin, max(margin, p.w - margin))
@@ -80,7 +90,7 @@ def _scatter_bamboos(platforms: list[PlatformDef], world_width: int,
             bx = p.x + random.randint(10, p.w // 3)
             positions.append((bx, p.y))
     plat_idx = 0
-    while len(positions) < target_count and sorted_plats:
+    while len(positions) < target_count:
         p = sorted_plats[plat_idx % len(sorted_plats)]
         bx = p.x + random.randint(0, p.w)
         positions.append((bx, floor_y))
@@ -119,20 +129,34 @@ class LevelState:
         self.is_dark = level_def.is_dark
         self.is_icy = level_def.is_icy
 
-        # Floor
-        floor = Platform(0, FLOOR_Y, level_def.world_width, SCREEN_HEIGHT - FLOOR_Y)
+        # Floor (biome-themed)
+        use_biome = self.biome != "forest"
+        if use_biome:
+            floor = BiomePlatform(0, FLOOR_Y, level_def.world_width,
+                                  SCREEN_HEIGHT - FLOOR_Y, self.biome)
+        else:
+            floor = Platform(0, FLOOR_Y, level_def.world_width,
+                             SCREEN_HEIGHT - FLOOR_Y)
         self.platforms.add(floor)
         self.all_sprites.add(floor)
 
-        # Standard platforms
+        # Standard platforms (biome-themed)
         for pd in level_def.platforms:
             if pd.moving:
-                mp = MovingPlatform(pd.x, pd.y, pd.w, pd.h, pd.axis, pd.distance)
+                if use_biome:
+                    mp = BiomeMovingPlatform(pd.x, pd.y, pd.w, pd.h,
+                                             pd.axis, pd.distance, self.biome)
+                else:
+                    mp = MovingPlatform(pd.x, pd.y, pd.w, pd.h,
+                                        pd.axis, pd.distance)
                 self.moving_platforms.add(mp)
                 self.platforms.add(mp)
                 self.all_sprites.add(mp)
             else:
-                p = Platform(pd.x, pd.y, pd.w, pd.h)
+                if use_biome:
+                    p = BiomePlatform(pd.x, pd.y, pd.w, pd.h, self.biome)
+                else:
+                    p = Platform(pd.x, pd.y, pd.w, pd.h)
                 self.platforms.add(p)
                 self.all_sprites.add(p)
 

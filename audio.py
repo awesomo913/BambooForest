@@ -80,14 +80,33 @@ def _to_sound(buf: array.array) -> pygame.mixer.Sound:
     return pygame.mixer.Sound(buffer=buf)
 
 
+# Per-sound minimum replay interval (seconds). Prevents rapid stacking.
+_MIN_INTERVAL: dict[str, float] = {
+    "collect": 0.05,   # 50ms -- still audibly distinct but no harsh stacking
+    "stomp": 0.08,
+    "jump": 0.10,
+    "hit": 0.15,
+    "boss_hit": 0.20,
+    "geyser": 0.25,
+    "crystal": 0.10,
+    "crumble": 0.30,
+    "wind": 0.50,
+    "ice_slide": 0.20,
+}
+_DEFAULT_INTERVAL: float = 0.05
+
+
 class AudioManager:
     """Generates and caches all game sounds at init."""
 
     def __init__(self) -> None:
         self.enabled = True
         self.sounds: dict[str, pygame.mixer.Sound] = {}
+        self._last_play_time: dict[str, float] = {}
         try:
             pygame.mixer.init(SAMPLE_RATE, -16, 1, 512)
+            # Reserve 12 channels for polyphony (pygame default is 8)
+            pygame.mixer.set_num_channels(16)
         except pygame.error:
             self.enabled = False
             return
@@ -163,9 +182,28 @@ class AudioManager:
         )
 
     def play(self, name: str) -> None:
-        """Play a named sound if enabled."""
-        if self.enabled and name in self.sounds:
-            self.sounds[name].play()
+        """Play a sound with rate limiting to prevent harsh stacking.
+
+        Each sound has a minimum replay interval. If the same sound fires
+        faster than that, the new play is skipped. Additionally, volume is
+        reduced slightly when an overlap is close to avoid pile-up volume.
+        """
+        if not self.enabled or name not in self.sounds:
+            return
+        now = pygame.time.get_ticks() / 1000.0
+        last = self._last_play_time.get(name, -999.0)
+        elapsed = now - last
+        min_gap = _MIN_INTERVAL.get(name, _DEFAULT_INTERVAL)
+        if elapsed < min_gap:
+            return  # skip this play -- too close to last one
+        sound = self.sounds[name]
+        # Reduce volume slightly for rapid successive plays (within 200ms)
+        if elapsed < 0.2:
+            sound.set_volume(0.7)
+        else:
+            sound.set_volume(1.0)
+        sound.play()
+        self._last_play_time[name] = now
 
     def toggle(self) -> None:
         """Toggle sound on/off."""

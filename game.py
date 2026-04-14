@@ -16,7 +16,8 @@ from config import (
     SULFUR_TRAIL_DMG, THERMAL_FORCE, TITLE, BOSS_KILL_SCORE,
 )
 from audio import AudioManager
-from engine import Camera, ParallaxBackground, ParticleSystem, ScreenShake
+from backgrounds import BiomeBackground
+from engine import Camera, ParticleSystem, ScreenShake
 from levels import build_level_state, LevelState
 from save import save_high_score
 from sprites import Player
@@ -39,7 +40,7 @@ class Game:
         self.clock = pygame.time.Clock()
 
         self.audio = AudioManager()
-        self.background = ParallaxBackground()
+        self.background: BiomeBackground = BiomeBackground("forest")
         self.shake = ScreenShake()
 
         self.title_screen = TitleScreen()
@@ -136,12 +137,12 @@ class Game:
     def _load_level(self, level_num: int) -> None:
         self.level = build_level_state(level_num)
         self.camera = Camera(self.level.world_width, SCREEN_HEIGHT)
+        self.background = BiomeBackground(self.level.biome)
         self.respawn_x = self.level.player_start[0]
         self.respawn_y = self.level.player_start[1]
         self.player = Player(self.respawn_x, self.respawn_y)
         if level_num >= DOUBLE_JUMP_LEVEL:
             self.player.has_double_jump = True
-        # Ice physics for salt flat biome
         if self.level.is_icy:
             self.player.friction_mode = "ice"
         self.player.score = self._total_score
@@ -171,6 +172,7 @@ class Game:
                     activated_xs.add(cp.spawn_x)
         self.level = build_level_state(self.current_level)
         self.camera = Camera(self.level.world_width, SCREEN_HEIGHT)
+        self.background = BiomeBackground(self.level.biome)
         for cp in self.level.checkpoints:
             if cp.spawn_x in activated_xs:
                 cp.activate()

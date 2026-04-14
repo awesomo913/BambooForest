@@ -24,6 +24,217 @@ from config import (
 )
 
 # ===================================================================
+# BIOME-THEMED PLATFORM TILES
+# ===================================================================
+
+def generate_volcanic_tile(width: int, height: int) -> pygame.Surface:
+    """Dark volcanic basalt with orange lava crack highlights."""
+    surf = pygame.Surface((width, height))
+    # Dark rock base
+    for y in range(height):
+        t = y / max(1, height)
+        c = (int(45 - 15 * t), int(30 - 10 * t), int(25 - 5 * t))
+        pygame.draw.line(surf, (max(0, c[0]), max(0, c[1]), max(0, c[2])),
+                         (0, y), (width, y))
+    # Top crust (cooled lava)
+    pygame.draw.rect(surf, (80, 50, 40), (0, 0, width, 4))
+    pygame.draw.rect(surf, (120, 70, 40), (0, 0, width, 2))
+    # Lava cracks (random horizontal squiggles)
+    for _ in range(width // 20):
+        cx = random.randint(0, width - 10)
+        cy = random.randint(6, height - 4)
+        cw = random.randint(6, 14)
+        pygame.draw.line(surf, (220, 80, 30), (cx, cy), (cx + cw, cy + 2), 1)
+        pygame.draw.line(surf, (255, 150, 60), (cx, cy), (cx + cw, cy + 2), 1)
+    # Pumice specks
+    for _ in range(width * height // 50):
+        nx = random.randint(1, width - 2)
+        ny = random.randint(5, height - 2)
+        surf.set_at((nx, ny), (80, 60, 55))
+    # Edge
+    pygame.draw.rect(surf, (20, 15, 20), (0, 0, 2, height))
+    pygame.draw.rect(surf, (20, 15, 20), (width - 2, 0, 2, height))
+    return surf
+
+
+def generate_basalt_tile(width: int, height: int) -> pygame.Surface:
+    """Hexagonal basalt columns -- dark gray with top lip."""
+    surf = pygame.Surface((width, height))
+    # Deep gray body
+    for y in range(height):
+        t = y / max(1, height)
+        c = (int(70 - 20 * t), int(75 - 20 * t), int(90 - 20 * t))
+        pygame.draw.line(surf, c, (0, y), (width, y))
+    # Hex top stripe (lighter)
+    pygame.draw.rect(surf, (100, 105, 120), (0, 0, width, 3))
+    # Vertical column lines (every 40px)
+    for cx in range(0, width, 40):
+        pygame.draw.line(surf, (40, 45, 55), (cx, 3), (cx, height), 1)
+        pygame.draw.line(surf, (90, 95, 110), (cx + 1, 3), (cx + 1, height), 1)
+    # Subtle horizontal banding
+    for by in range(8, height, 12):
+        pygame.draw.line(surf, (55, 60, 75), (0, by), (width, by), 1)
+    # Edge
+    pygame.draw.rect(surf, (30, 30, 40), (0, 0, 2, height))
+    pygame.draw.rect(surf, (30, 30, 40), (width - 2, 0, 2, height))
+    return surf
+
+
+def generate_sandstone_tile(width: int, height: int) -> pygame.Surface:
+    """Layered tan sandstone with erosion marks."""
+    surf = pygame.Surface((width, height))
+    # Layered bands of varying tan
+    band_colors = [
+        (210, 175, 120), (195, 160, 105), (180, 145, 90),
+        (170, 135, 85), (160, 125, 80),
+    ]
+    band_h = max(2, height // len(band_colors))
+    for i, c in enumerate(band_colors):
+        pygame.draw.rect(surf, c, (0, i * band_h, width, band_h))
+    # Top lighter stripe (wind-polished)
+    pygame.draw.rect(surf, (225, 195, 140), (0, 0, width, 3))
+    # Erosion divots
+    for _ in range(width // 15):
+        ex = random.randint(2, width - 4)
+        ey = random.randint(4, height - 2)
+        pygame.draw.ellipse(surf, (150, 115, 75), (ex, ey, 4, 2))
+    # Specks
+    for _ in range(width * height // 60):
+        nx = random.randint(1, width - 2)
+        ny = random.randint(3, height - 2)
+        shade = random.randint(-15, 15)
+        surf.set_at((nx, ny),
+                    (max(0, min(255, 180 + shade)),
+                     max(0, min(255, 145 + shade)),
+                     max(0, min(255, 90 + shade))))
+    pygame.draw.rect(surf, (120, 95, 60), (0, 0, 2, height))
+    pygame.draw.rect(surf, (120, 95, 60), (width - 2, 0, 2, height))
+    return surf
+
+
+def generate_limestone_tile(width: int, height: int) -> pygame.Surface:
+    """Pale gray-tan limestone cave floor with fossil marks."""
+    surf = pygame.Surface((width, height))
+    for y in range(height):
+        t = y / max(1, height)
+        c = (int(170 - 30 * t), int(165 - 30 * t), int(150 - 30 * t))
+        pygame.draw.line(surf, c, (0, y), (width, y))
+    pygame.draw.rect(surf, (190, 180, 165), (0, 0, width, 3))
+    # Fossil impressions (small curved lines)
+    for _ in range(width // 25):
+        fx = random.randint(4, width - 8)
+        fy = random.randint(6, height - 4)
+        pygame.draw.arc(surf, (120, 115, 100), (fx, fy, 6, 4), 0, 3.14, 1)
+    # Specks
+    for _ in range(width * height // 70):
+        nx = random.randint(1, width - 2)
+        ny = random.randint(3, height - 2)
+        shade = random.randint(-15, 10)
+        surf.set_at((nx, ny),
+                    (max(0, min(255, 155 + shade)),
+                     max(0, min(255, 150 + shade)),
+                     max(0, min(255, 135 + shade))))
+    pygame.draw.rect(surf, (90, 85, 75), (0, 0, 2, height))
+    pygame.draw.rect(surf, (90, 85, 75), (width - 2, 0, 2, height))
+    return surf
+
+
+def generate_salt_tile(width: int, height: int) -> pygame.Surface:
+    """Pale blue-white salt crystal surface, reflective."""
+    surf = pygame.Surface((width, height))
+    # Near-white body with pale blue hint
+    for y in range(height):
+        t = y / max(1, height)
+        c = (int(220 - 20 * t), int(235 - 15 * t), int(250 - 10 * t))
+        pygame.draw.line(surf, c, (0, y), (width, y))
+    # Bright top
+    pygame.draw.rect(surf, (245, 250, 255), (0, 0, width, 4))
+    # Crystal facet lines
+    for cx in range(0, width, random.randint(20, 35)):
+        pygame.draw.line(surf, (180, 210, 235), (cx, 4),
+                         (cx + random.randint(-3, 3), height), 1)
+    # Sparkle highlights
+    for _ in range(width // 10):
+        sx = random.randint(1, width - 2)
+        sy = random.randint(3, height - 2)
+        surf.set_at((sx, sy), (255, 255, 255))
+    pygame.draw.rect(surf, (160, 190, 220), (0, 0, 2, height))
+    pygame.draw.rect(surf, (160, 190, 220), (width - 2, 0, 2, height))
+    return surf
+
+
+_TILE_GENERATORS = {
+    "volcanic": generate_volcanic_tile,
+    "basalt": generate_basalt_tile,
+    "desert": generate_sandstone_tile,
+    "cave": generate_limestone_tile,
+    "salt": generate_salt_tile,
+}
+
+
+class BiomePlatform(pygame.sprite.Sprite):
+    """Platform with biome-specific tile art."""
+
+    def __init__(self, x: int, y: int, w: int, h: int = 20,
+                 biome: str = "forest") -> None:
+        super().__init__()
+        gen = _TILE_GENERATORS.get(biome)
+        if gen:
+            self.image = gen(w, h)
+        else:
+            from sprites import generate_platform_tile
+            self.image = generate_platform_tile(w, h)
+        self.rect = self.image.get_rect(topleft=(x, y))
+
+
+class BiomeMovingPlatform(pygame.sprite.Sprite):
+    """Moving platform with biome-specific tile art."""
+
+    def __init__(self, x: int, y: int, w: int, h: int,
+                 axis: str = "horizontal", distance: float = 150.0,
+                 biome: str = "forest") -> None:
+        super().__init__()
+        gen = _TILE_GENERATORS.get(biome)
+        if gen:
+            self.image = gen(w, h)
+        else:
+            from sprites import generate_platform_tile
+            self.image = generate_platform_tile(w, h)
+        self.rect = self.image.get_rect(topleft=(x, y))
+        self.origin_x = float(x)
+        self.origin_y = float(y)
+        self.axis = axis
+        self.distance = distance
+        self.direction: float = 1.0
+        self.pos_x = float(x)
+        self.pos_y = float(y)
+
+    def update_moving(self, dt: float) -> tuple[float, float]:
+        from config import MOVING_PLAT_SPEED
+        old_x, old_y = self.pos_x, self.pos_y
+        step = MOVING_PLAT_SPEED * self.direction * dt
+        if self.axis == "horizontal":
+            self.pos_x += step
+            if self.pos_x > self.origin_x + self.distance:
+                self.pos_x = self.origin_x + self.distance
+                self.direction = -1.0
+            elif self.pos_x < self.origin_x - self.distance:
+                self.pos_x = self.origin_x - self.distance
+                self.direction = 1.0
+        else:
+            self.pos_y += step
+            if self.pos_y > self.origin_y + self.distance:
+                self.pos_y = self.origin_y + self.distance
+                self.direction = -1.0
+            elif self.pos_y < self.origin_y - self.distance:
+                self.pos_y = self.origin_y - self.distance
+                self.direction = 1.0
+        self.rect.x = _fl(self.pos_x)
+        self.rect.y = _fl(self.pos_y)
+        return (self.pos_x - old_x, self.pos_y - old_y)
+
+
+# ===================================================================
 # MECHANIC SPRITES
 # ===================================================================
 
@@ -33,22 +244,53 @@ class Geyser(pygame.sprite.Sprite):
 
     def __init__(self, x: int, y: int) -> None:
         super().__init__()
-        self.image = pygame.Surface((40, 20), pygame.SRCALPHA)
-        pygame.draw.rect(self.image, COL_LAVA, (0, 0, 40, 20), border_radius=4)
-        self._img_off = self.image.copy()
-        self._img_on = pygame.Surface((40, 20), pygame.SRCALPHA)
-        pygame.draw.rect(self._img_on, (255, 100, 30), (0, 0, 40, 20), border_radius=4)
+        # Dormant: dark rock opening with faint orange glow
+        self._img_off = pygame.Surface((44, 24), pygame.SRCALPHA)
+        pygame.draw.ellipse(self._img_off, (40, 25, 30), (0, 8, 44, 16))
+        pygame.draw.ellipse(self._img_off, (80, 45, 35), (4, 10, 36, 12))
+        pygame.draw.ellipse(self._img_off, (180, 80, 40), (8, 12, 28, 8))
+        pygame.draw.ellipse(self._img_off, (60, 35, 30), (2, 18, 40, 6))  # rock lip
+        # Erupting: tall steam+lava column
+        self._img_on = pygame.Surface((44, 200), pygame.SRCALPHA)
+        # Base glow
+        pygame.draw.ellipse(self._img_on, (40, 25, 30), (0, 184, 44, 16))
+        pygame.draw.ellipse(self._img_on, (255, 100, 30), (4, 186, 36, 12))
+        # Rising jet (narrowing toward top)
+        for y in range(0, 185):
+            t = y / 185.0
+            w = int(8 + 24 * t)  # wider at bottom
+            xc = 22
+            alpha = int(200 - 150 * (1 - t))
+            if y < 40:
+                c = (255, 240, 180, min(255, alpha))
+            elif y < 100:
+                c = (255, 180, 80, min(255, alpha))
+            else:
+                c = (255, 120, 50, min(255, alpha))
+            pygame.draw.rect(self._img_on, c, (xc - w // 2, y, w, 1))
+        # Steam puffs at top
+        for _ in range(8):
+            px = random.randint(8, 36)
+            py = random.randint(0, 40)
+            pygame.draw.circle(self._img_on, (240, 230, 220, 180), (px, py),
+                               random.randint(4, 8))
+        self.image = self._img_off
         self.rect = self.image.get_rect(bottomleft=(x, y))
+        self._off_rect = self.image.get_rect(bottomleft=(x, y))
+        self._on_rect = self._img_on.get_rect(bottomleft=(x, y))
         self.erupt_timer: float = random.uniform(0, GEYSER_INTERVAL)
         self.erupt_remaining: float = 0.0
 
     def update(self, dt: float) -> None:
         if self.erupt_remaining > 0:
             self.erupt_remaining -= dt
-            self.image = self._img_on
+            if self.image is not self._img_on:
+                self.image = self._img_on
+                self.rect = self._on_rect.copy()
             if self.erupt_remaining <= 0:
                 self.erupt_timer = GEYSER_INTERVAL
                 self.image = self._img_off
+                self.rect = self._off_rect.copy()
         else:
             self.erupt_timer -= dt
             if self.erupt_timer <= 0:
@@ -63,13 +305,22 @@ class ToxicTrail(pygame.sprite.Sprite):
 
     def __init__(self, x: int, y: int) -> None:
         super().__init__()
-        self.image = pygame.Surface((20, 6), pygame.SRCALPHA)
-        pygame.draw.rect(self.image, COL_TOXIC, (0, 0, 20, 6))
+        self.image = pygame.Surface((22, 8), pygame.SRCALPHA)
+        # Goo puddle with bubbles
+        pygame.draw.ellipse(self.image, (100, 160, 40), (0, 2, 22, 6))
+        pygame.draw.ellipse(self.image, (160, 220, 60), (2, 3, 18, 3))
+        # Bubbles
+        pygame.draw.circle(self.image, (220, 255, 120), (6, 3), 1)
+        pygame.draw.circle(self.image, (220, 255, 120), (14, 4), 1)
         self.rect = self.image.get_rect(bottomleft=(x, y))
         self.lifetime: float = SULFUR_TRAIL_LIFE
 
     def update(self, dt: float) -> None:  # type: ignore[override]
         self.lifetime -= dt
+        # Fade as it ages
+        if self.lifetime < 1.0:
+            alpha = int(255 * self.lifetime)
+            self.image.set_alpha(alpha)
         if self.lifetime <= 0:
             self.kill()
 
