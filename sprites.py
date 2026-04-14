@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import random
+from math import floor as _fl
 
 import pygame
 
@@ -169,66 +170,125 @@ def generate_platform_tile(width: int, height: int) -> pygame.Surface:
 
 
 def generate_safe_zone(height: int) -> pygame.Surface:
-    """Wide safe forest clearing that replaces the goal flag.
-    Bright grass, flowers, butterflies, sunbeam feel."""
+    """Natural forest clearing that the panda runs into to complete the level."""
     w = SAFE_ZONE_WIDTH
     surf = pygame.Surface((w, height), pygame.SRCALPHA)
+    ground_y = height - 18
 
-    # Bright grass ground
-    grass_col = (60, 180, 60)
-    pygame.draw.rect(surf, grass_col, (0, height - 20, w, 20))
+    # Ground: gradient transition from dirt to lush green
+    for gy in range(ground_y, height):
+        t = (gy - ground_y) / max(1, height - ground_y)
+        r = int(80 - 40 * t)
+        g = int(140 + 50 * t)
+        b = int(50 - 20 * t)
+        pygame.draw.line(surf, (r, g, b), (0, gy), (w, gy))
 
-    # Tree arch framing the zone (left and right)
-    trunk_col = (110, 75, 40)
-    canopy_col = (50, 150, 50)
-    for tx in (10, w - 20):
-        pygame.draw.rect(surf, trunk_col, (tx, 0, 12, height - 15))
-        for cy_off in range(0, height // 2, 20):
-            r = random.randint(18, 30)
-            pygame.draw.circle(surf, canopy_col,
-                               (tx + 6 + random.randint(-8, 8), cy_off + random.randint(-5, 5)), r)
+    # Clearing path in center (lighter earthy tone)
+    path_w = 60
+    path_x = w // 2 - path_w // 2
+    for gy in range(ground_y, height):
+        pygame.draw.rect(surf, (110, 160, 80), (path_x, gy, path_w, 1))
 
-    # Canopy arch across top
-    for cx in range(30, w - 30, 12):
-        r = random.randint(15, 25)
-        shade = random.randint(-10, 15)
-        c = (50 + shade, 150 + shade, 50 + shade)
-        pygame.draw.circle(surf, c, (cx, random.randint(10, 35)), r)
+    # Dense grass blades along ground
+    for gx in range(0, w, 3):
+        gh = random.randint(6, 14)
+        shade = random.randint(-15, 15)
+        gc = (40 + shade, 140 + shade, 35 + shade)
+        pygame.draw.line(surf, gc, (gx, ground_y),
+                         (gx + random.randint(-2, 2), ground_y - gh), 1)
 
-    # Flowers on ground
-    flower_colors = [(255, 80, 80), (255, 200, 50), (200, 100, 255),
-                     (255, 150, 200), (100, 200, 255)]
-    for _ in range(12):
-        fx = random.randint(30, w - 30)
-        fy = height - random.randint(22, 35)
-        fc = random.choice(flower_colors)
-        # Stem
-        pygame.draw.line(surf, (40, 130, 40), (fx, fy + 8), (fx, fy), 2)
-        # Petals
-        for angle in range(0, 360, 72):
-            px = fx + int(3 * math.cos(math.radians(angle)))
-            py = fy + int(3 * math.sin(math.radians(angle)))
-            pygame.draw.circle(surf, fc, (px, py), 2)
-        pygame.draw.circle(surf, (255, 220, 50), (fx, fy), 2)  # center
+    # Trees: varied heights, proper trunks + layered canopy
+    tree_defs = [(30, 0.9), (w // 2 - 50, 0.7), (w // 2 + 40, 0.75), (w - 45, 0.85)]
+    for tx, scale in tree_defs:
+        th = int(height * scale * 0.6)
+        trunk_w = int(8 + 6 * scale)
+        trunk_h = int(th * 0.45)
+        trunk_top = ground_y - th
 
-    # Sunbeam rays (semi-transparent yellow lines from top)
+        # Trunk
+        tc = (85 + random.randint(-10, 10), 58 + random.randint(-8, 8),
+              32 + random.randint(-5, 5))
+        pygame.draw.rect(surf, tc,
+                         (tx - trunk_w // 2, trunk_top + th - trunk_h,
+                          trunk_w, trunk_h), border_radius=2)
+        # Bark lines
+        for by in range(trunk_top + th - trunk_h, ground_y, 8):
+            pygame.draw.line(surf, (tc[0] - 15, tc[1] - 12, tc[2] - 8),
+                             (tx - trunk_w // 4, by), (tx + trunk_w // 4, by + 4), 1)
+
+        # Canopy: 3 layered triangles (pine) or circles (oak), alternating
+        canopy_c = (35 + random.randint(-8, 12), 120 + random.randint(-15, 20),
+                    35 + random.randint(-8, 12))
+        cw = int(22 + 18 * scale)
+        if random.random() > 0.5:
+            # Pine tree (triangles)
+            for li, (ly_f, lw_f) in enumerate([(0.6, 1.0), (0.38, 0.8), (0.16, 0.6)]):
+                ly = trunk_top + int(th * ly_f)
+                lw = int(cw * lw_f)
+                s = li * 10
+                lc = (min(255, canopy_c[0] + s), min(255, canopy_c[1] + s),
+                      min(255, canopy_c[2] + s))
+                pygame.draw.polygon(surf, lc, [
+                    (tx - lw, ly), (tx, trunk_top + int(th * 0.1 * (li + 1))),
+                    (tx + lw, ly)])
+        else:
+            # Oak tree (overlapping circles)
+            for _ in range(6):
+                ox = random.randint(-cw, cw)
+                oy = random.randint(-cw // 2, cw // 3)
+                cr = random.randint(int(cw * 0.5), int(cw * 0.8))
+                s = random.randint(-8, 8)
+                lc = (min(255, canopy_c[0] + s), min(255, canopy_c[1] + s),
+                      min(255, canopy_c[2] + s))
+                pygame.draw.circle(surf, lc, (tx + ox, trunk_top + int(th * 0.3) + oy), cr)
+
+    # Flower clusters (groups of 2-3 near each other)
+    flower_colors = [(255, 90, 90), (255, 210, 60), (220, 120, 255),
+                     (255, 160, 200), (120, 210, 255)]
     for _ in range(5):
-        rx = random.randint(40, w - 40)
-        beam = pygame.Surface((8, height // 2), pygame.SRCALPHA)
-        beam.fill((255, 255, 180, 25))
-        surf.blit(beam, (rx, 0))
+        cluster_x = random.randint(40, w - 40)
+        cluster_y = ground_y
+        for fi in range(random.randint(2, 3)):
+            fx = cluster_x + random.randint(-15, 15)
+            fy = cluster_y - random.randint(4, 12)
+            fc = random.choice(flower_colors)
+            pygame.draw.line(surf, (40, 120, 35), (fx, cluster_y), (fx, fy), 1)
+            for angle in range(0, 360, 72):
+                px = fx + int(3 * math.cos(math.radians(angle)))
+                py = fy + int(3 * math.sin(math.radians(angle)))
+                pygame.draw.circle(surf, fc, (px, py), 2)
+            pygame.draw.circle(surf, (255, 220, 50), (fx, fy), 1)
+
+    # Sunbeam rays (wide diagonal golden shafts)
+    for _ in range(4):
+        rx = random.randint(20, w - 20)
+        beam = pygame.Surface((18, height), pygame.SRCALPHA)
+        for by in range(height):
+            alpha = max(0, int(30 * (1 - by / height)))
+            pygame.draw.line(beam, (255, 245, 180, alpha), (0, by), (18, by))
+        surf.blit(beam, (rx + random.randint(-10, 10), 0))
 
     # Butterflies
-    bf_colors = [(255, 140, 200), (140, 200, 255), (255, 255, 140)]
-    for _ in range(4):
-        bx = random.randint(40, w - 40)
-        by = random.randint(40, height - 60)
+    bf_colors = [(255, 140, 200), (140, 200, 255), (255, 255, 140),
+                 (200, 255, 180), (255, 180, 120)]
+    for _ in range(6):
+        bx = random.randint(30, w - 30)
+        by = random.randint(30, ground_y - 20)
         bc = random.choice(bf_colors)
-        # Wings
-        pygame.draw.ellipse(surf, bc, (bx - 4, by - 3, 5, 6))
-        pygame.draw.ellipse(surf, bc, (bx + 1, by - 3, 5, 6))
-        # Body
-        pygame.draw.line(surf, COL_BLACK, (bx, by - 2), (bx, by + 3), 1)
+        pygame.draw.ellipse(surf, bc, (bx - 5, by - 3, 6, 7))
+        pygame.draw.ellipse(surf, bc, (bx + 1, by - 3, 6, 7))
+        pygame.draw.line(surf, (60, 40, 30), (bx, by - 3), (bx, by + 4), 1)
+
+    # Small ferns along ground edges
+    for fx in range(10, w - 10, 20):
+        fh = random.randint(6, 12)
+        fc = (30 + random.randint(-5, 10), 110 + random.randint(-10, 15),
+              30 + random.randint(-5, 5))
+        # Two frond curves
+        for side in (-1, 1):
+            pts = [(fx, ground_y), (fx + side * fh // 2, ground_y - fh),
+                   (fx + side * fh, ground_y - fh // 2)]
+            pygame.draw.lines(surf, fc, False, pts, 1)
 
     return surf
 
@@ -514,7 +574,7 @@ class Player(pygame.sprite.Sprite):
             self.velocity_x = PLAYER_SPEED
             self.facing_right = True
 
-        self.rect.x += int(self.velocity_x * dt)
+        self.rect.x += _fl(self.velocity_x * dt)
         for hit in pygame.sprite.spritecollide(self, platforms, False):
             if self.velocity_x > 0:
                 self.rect.right = hit.rect.left
@@ -524,7 +584,7 @@ class Player(pygame.sprite.Sprite):
         self.velocity_y += GRAVITY * dt
         if self.velocity_y > TERMINAL_VELOCITY:
             self.velocity_y = TERMINAL_VELOCITY
-        self.rect.y += int(self.velocity_y * dt)
+        self.rect.y += _fl(self.velocity_y * dt)
 
         self.is_on_ground = False
         for hit in pygame.sprite.spritecollide(self, platforms, False):
@@ -619,20 +679,26 @@ class MovingPlatform(pygame.sprite.Sprite):
         self.pos_y = float(y)
 
     def update_moving(self, dt: float) -> tuple[float, float]:
-        speed = MOVING_PLAT_SPEED * self.direction * dt
         old_x, old_y = self.pos_x, self.pos_y
+        step = MOVING_PLAT_SPEED * self.direction * dt
         if self.axis == "horizontal":
-            self.pos_x += speed
-            if abs(self.pos_x - self.origin_x) > self.distance:
-                self.direction *= -1
-                self.pos_x = self.origin_x + self.distance * (1 if self.direction > 0 else -1)
+            self.pos_x += step
+            if self.pos_x > self.origin_x + self.distance:
+                self.pos_x = self.origin_x + self.distance
+                self.direction = -1.0
+            elif self.pos_x < self.origin_x - self.distance:
+                self.pos_x = self.origin_x - self.distance
+                self.direction = 1.0
         else:
-            self.pos_y += speed
-            if abs(self.pos_y - self.origin_y) > self.distance:
-                self.direction *= -1
-                self.pos_y = self.origin_y + self.distance * (1 if self.direction > 0 else -1)
-        self.rect.x = int(self.pos_x)
-        self.rect.y = int(self.pos_y)
+            self.pos_y += step
+            if self.pos_y > self.origin_y + self.distance:
+                self.pos_y = self.origin_y + self.distance
+                self.direction = -1.0
+            elif self.pos_y < self.origin_y - self.distance:
+                self.pos_y = self.origin_y - self.distance
+                self.direction = 1.0
+        self.rect.x = _fl(self.pos_x)
+        self.rect.y = _fl(self.pos_y)
         return (self.pos_x - old_x, self.pos_y - old_y)
 
 
@@ -647,7 +713,7 @@ class Bamboo(pygame.sprite.Sprite):
 
     def update(self, dt: float) -> None:  # type: ignore[override]
         self.bob_timer += dt * 3
-        self.rect.y = int(self.base_y + math.sin(self.bob_timer) * 3)
+        self.rect.y = _fl(self.base_y + math.sin(self.bob_timer) * 3)
 
 
 class HealingItem(pygame.sprite.Sprite):
@@ -692,11 +758,11 @@ class PatrolEnemy(pygame.sprite.Sprite):
         self.pos_x += ENEMY_PATROL_SPEED * self.direction * dt
         if abs(self.pos_x - self.origin_x) > self.patrol_width:
             self.direction *= -1
-        self.rect.x = int(self.pos_x)
+        self.rect.x = _fl(self.pos_x)
         self.velocity_y += GRAVITY * dt
         if self.velocity_y > TERMINAL_VELOCITY:
             self.velocity_y = TERMINAL_VELOCITY
-        self.rect.y += int(self.velocity_y * dt)
+        self.rect.y += _fl(self.velocity_y * dt)
         for hit in pygame.sprite.spritecollide(self, platforms, False):
             if self.velocity_y > 0:
                 self.rect.bottom = hit.rect.top
@@ -733,15 +799,15 @@ class ChaserEnemy(pygame.sprite.Sprite):
         dy_abs = abs(player.rect.centery - self.rect.centery)
         if abs(dx) < ENEMY_CHASE_RANGE and dy_abs < ENEMY_CHASE_Y_RANGE:
             if dx > 0:
-                self.rect.x += int(ENEMY_CHASE_SPEED * dt)
+                self.rect.x += _fl(ENEMY_CHASE_SPEED * dt)
                 self.facing_right = True
             elif dx < 0:
-                self.rect.x -= int(ENEMY_CHASE_SPEED * dt)
+                self.rect.x -= _fl(ENEMY_CHASE_SPEED * dt)
                 self.facing_right = False
         self.velocity_y += GRAVITY * dt
         if self.velocity_y > TERMINAL_VELOCITY:
             self.velocity_y = TERMINAL_VELOCITY
-        self.rect.y += int(self.velocity_y * dt)
+        self.rect.y += _fl(self.velocity_y * dt)
         for hit in pygame.sprite.spritecollide(self, platforms, False):
             if self.velocity_y > 0:
                 self.rect.bottom = hit.rect.top
@@ -782,7 +848,7 @@ class SlimeEnemy(pygame.sprite.Sprite):
         self.pos_x += SLIME_BOUNCE_SPEED * self.direction * dt
         if abs(self.pos_x - self.origin_x) > self.patrol_width:
             self.direction *= -1
-        self.rect.x = int(self.pos_x)
+        self.rect.x = _fl(self.pos_x)
         # Hop periodically
         self.hop_timer += dt
         if self.on_ground and self.hop_timer > 0.8:
@@ -793,7 +859,7 @@ class SlimeEnemy(pygame.sprite.Sprite):
         self.velocity_y += GRAVITY * dt
         if self.velocity_y > TERMINAL_VELOCITY:
             self.velocity_y = TERMINAL_VELOCITY
-        self.rect.y += int(self.velocity_y * dt)
+        self.rect.y += _fl(self.velocity_y * dt)
         self.on_ground = False
         for hit in pygame.sprite.spritecollide(self, platforms, False):
             if self.velocity_y > 0:
@@ -836,8 +902,8 @@ class FlyingEnemy(pygame.sprite.Sprite):
         if abs(self.pos_x - self.origin_x) > self.flight_range:
             self.direction *= -1
         self.time += dt * FLYING_ENEMY_FREQ * 2 * math.pi
-        self.rect.x = int(self.pos_x)
-        self.rect.y = int(self.origin_y + math.sin(self.time) * FLYING_ENEMY_AMP)
+        self.rect.x = _fl(self.pos_x)
+        self.rect.y = _fl(self.origin_y + math.sin(self.time) * FLYING_ENEMY_AMP)
         self.anim_timer += dt
         idx = int(self.anim_timer * 6) % 2
         frame = self._frames[idx]
@@ -882,7 +948,7 @@ class Boss(pygame.sprite.Sprite):
         elif self.state == "charging":
             dx = self.charge_target_x - self.rect.centerx
             if abs(dx) > 10:
-                self.rect.x += int(BOSS_CHARGE_SPEED * dt * (1 if dx > 0 else -1))
+                self.rect.x += _fl(BOSS_CHARGE_SPEED * dt * (1 if dx > 0 else -1))
                 self.facing_right = dx > 0
             else:
                 self.state = "stunned"
@@ -897,7 +963,7 @@ class Boss(pygame.sprite.Sprite):
         self.velocity_y += GRAVITY * dt
         if self.velocity_y > TERMINAL_VELOCITY:
             self.velocity_y = TERMINAL_VELOCITY
-        self.rect.y += int(self.velocity_y * dt)
+        self.rect.y += _fl(self.velocity_y * dt)
         for hit in pygame.sprite.spritecollide(self, platforms, False):
             if self.velocity_y > 0:
                 self.rect.bottom = hit.rect.top

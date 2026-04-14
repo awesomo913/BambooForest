@@ -33,7 +33,7 @@ FLYING_ENEMY_AMP: float = 60.0
 FLYING_ENEMY_FREQ: float = 2.0
 SLIME_BOUNCE_SPEED: float = 150.0
 SLIME_HOP_POWER: float = -350.0
-SAFE_ZONE_WIDTH: int = 300
+SAFE_ZONE_WIDTH: int = 400
 
 # --- Boss ---
 BOSS_HP: int = 10
