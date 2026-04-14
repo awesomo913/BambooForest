@@ -712,8 +712,8 @@ class Bamboo(pygame.sprite.Sprite):
         self.bob_timer: float = random.uniform(0, 6.28)
 
     def update(self, dt: float) -> None:  # type: ignore[override]
-        self.bob_timer += dt * 3
-        self.rect.y = _fl(self.base_y + math.sin(self.bob_timer) * 3)
+        self.bob_timer += dt * 2
+        self.rect.y = _fl(self.base_y + math.sin(self.bob_timer) * 1.5)
 
 
 class HealingItem(pygame.sprite.Sprite):

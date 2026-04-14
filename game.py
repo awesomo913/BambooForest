@@ -30,7 +30,11 @@ class Game:
 
     def __init__(self) -> None:
         pygame.init()
-        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        self.screen = pygame.display.set_mode(
+            (SCREEN_WIDTH, SCREEN_HEIGHT),
+            pygame.DOUBLEBUF | pygame.HWSURFACE,
+            vsync=1,
+        )
         pygame.display.set_caption(TITLE)
         self.clock = pygame.time.Clock()
 
@@ -254,14 +258,20 @@ class Game:
                 self._respawn_at_checkpoint()
                 return
 
-        # Moving platforms
+        # Moving platforms: save old rect, move, apply exact pixel delta to rider
         for mp in self.level.moving_platforms:
-            pdelta = mp.update_moving(effective_dt)
+            old_mx, old_my = mp.rect.x, mp.rect.y
+            # Check if player is standing on this platform BEFORE it moves
+            riding = False
             if self.player.is_on_ground:
                 feet = self.player.get_stomp_rect()
-                if feet.colliderect(mp.rect.inflate(4, 8)):
-                    self.player.rect.x += int(pdelta[0])
-                    self.player.rect.y += int(pdelta[1])
+                test_rect = pygame.Rect(old_mx - 2, old_my - 4, mp.rect.w + 4, 8)
+                riding = feet.colliderect(test_rect)
+            mp.update_moving(effective_dt)
+            if riding:
+                # Apply exact integer pixel change (rect is always int)
+                self.player.rect.x += mp.rect.x - old_mx
+                self.player.rect.y += mp.rect.y - old_my
 
         # Player
         keys = pygame.key.get_pressed()

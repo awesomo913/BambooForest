@@ -130,35 +130,36 @@ class LevelState:
 
 def _scatter_bamboos(platforms: list[PlatformDef], world_width: int,
                      floor_y: int, target_count: int) -> list[tuple[int, int]]:
-    """Generate varied bamboo positions: on platforms + clusters on floor."""
+    """Generate bamboo positions attached to platforms only.
+
+    Every bamboo sits on top of a platform surface -- none floating in air.
+    Platforms with more width get more bamboos. Floor gets a few near platforms.
+    """
     positions: list[tuple[int, int]] = []
 
-    # One bamboo per platform, randomized within platform width
-    for p in platforms:
-        bx = p.x + random.randint(20, max(20, p.w - 30))
+    # Sort platforms left to right for even distribution
+    sorted_plats = sorted(platforms, key=lambda p: p.x)
+
+    # First pass: 1 bamboo per platform, randomized x within width
+    for p in sorted_plats:
+        margin = min(25, p.w // 4)
+        bx = p.x + random.randint(margin, max(margin, p.w - margin))
         positions.append((bx, p.y))
 
-    # Floor clusters in gaps between platforms, spread across the level
-    # Find open floor areas (200px+ gaps between platform x ranges)
-    occupied = sorted([(p.x, p.x + p.w) for p in platforms])
-    gaps: list[tuple[int, int]] = []
-    prev_end = 100
-    for start, end in occupied:
-        if start - prev_end > 250:
-            gaps.append((prev_end + 50, start - 50))
-        prev_end = max(prev_end, end)
-    if world_width - prev_end > 250:
-        gaps.append((prev_end + 50, world_width - 200))
+    # Second pass: wide platforms get a 2nd bamboo
+    for p in sorted_plats:
+        if p.w >= 220 and len(positions) < target_count:
+            bx = p.x + random.randint(10, p.w // 3)
+            positions.append((bx, p.y))
 
-    # Fill gaps with bamboo clusters until we hit target count
-    while len(positions) < target_count and gaps:
-        gap = random.choice(gaps)
-        cluster_x = random.randint(gap[0], gap[1])
-        cluster_size = random.randint(1, 3)
-        for ci in range(cluster_size):
-            bx = cluster_x + ci * random.randint(25, 45)
-            if bx < gap[1] and len(positions) < target_count:
-                positions.append((bx, floor_y))
+    # Third pass: place remaining bamboos on the floor directly below platforms
+    # so they look grounded near a landmark, not floating in empty space
+    plat_idx = 0
+    while len(positions) < target_count and sorted_plats:
+        p = sorted_plats[plat_idx % len(sorted_plats)]
+        bx = p.x + random.randint(0, p.w)
+        positions.append((bx, floor_y))
+        plat_idx += 1
 
     return positions
 
