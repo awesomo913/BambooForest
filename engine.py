@@ -18,11 +18,20 @@ from config import (
 # ---------------------------------------------------------------------------
 
 class Camera:
-    """Smooth-follow camera with world bounds clamping."""
+    """Smooth-follow camera. Logic state is float, render state is int.
+
+    offset_x / offset_y: float -- smooth lerp tracking (logic camera).
+    render_x / render_y: int   -- math.floor of offset (render camera).
+
+    All sprites and tiles are drawn relative to render_x/render_y,
+    which locks everything to the same integer pixel grid.
+    """
 
     def __init__(self, world_width: int, world_height: int) -> None:
         self.offset_x: float = 0.0
         self.offset_y: float = 0.0
+        self.render_x: int = 0
+        self.render_y: int = 0
         self.world_width = world_width
         self.world_height = world_height
 
@@ -31,18 +40,20 @@ class Camera:
         goal_y = -target.rect.centery + SCREEN_HEIGHT // 2
         self.offset_x += (goal_x - self.offset_x) * min(1.0, 8 * dt)
         self.offset_y += (goal_y - self.offset_y) * min(1.0, 8 * dt)
-        # Camera stays FLOAT -- smooth lerp preserved
-        self.offset_x = max(-(self.world_width - SCREEN_WIDTH), min(0, self.offset_x))
-        self.offset_y = max(-(self.world_height - SCREEN_HEIGHT), min(0, self.offset_y))
+        self.offset_x = max(float(-(self.world_width - SCREEN_WIDTH)), min(0.0, self.offset_x))
+        self.offset_y = max(float(-(self.world_height - SCREEN_HEIGHT)), min(0.0, self.offset_y))
+        # Derive render camera: math.floor guarantees consistent rounding
+        self.render_x = math.floor(self.offset_x)
+        self.render_y = math.floor(self.offset_y)
 
     def apply(self, entity: pygame.sprite.Sprite) -> pygame.Rect:
-        return entity.rect.move(int(self.offset_x), int(self.offset_y))
+        return entity.rect.move(math.floor(self.offset_x), math.floor(self.offset_y))
 
     def apply_pos(self, x: float, y: float) -> tuple[float, float]:
         return (x + self.offset_x, y + self.offset_y)
 
     def get_visible_rect(self) -> pygame.Rect:
-        return pygame.Rect(-self.offset_x, -self.offset_y, SCREEN_WIDTH, SCREEN_HEIGHT)
+        return pygame.Rect(-self.render_x, -self.render_y, SCREEN_WIDTH, SCREEN_HEIGHT)
 
 
 # ---------------------------------------------------------------------------
@@ -217,19 +228,13 @@ class ParallaxBackground:
         self.sky = self._build_sky()
 
     def draw(self, screen: pygame.Surface, camera_x: float) -> None:
-        # Architecture: camera_x is a FLOAT. Parallax factor produces a FLOAT.
-        # Cast to int ONCE at the very end to get the anchor pixel.
-        # Adjacent tiles are placed at anchor +/- tile_width (both ints),
-        # so seam gap is mathematically impossible.
-        tw = self.w  # tile width -- constant int (960)
+        bg_w = self.combined.get_width()
         for surface, factor in self.layers:
-            parallax_float = -camera_x * factor     # float precision preserved
-            base_x = int(parallax_float) % tw       # single int anchor
-            anchor = -base_x                        # screen-space anchor
-            # Draw anchor tile and one neighbor on each side
-            screen.blit(surface, (anchor - tw, 0))
-            screen.blit(surface, (anchor, 0))
-            screen.blit(surface, (anchor + tw, 0))
+            parallax_x = camera_x * factor
+            offset_x = -(parallax_x % bg_w)
+            draw_x = math.floor(offset_x)
+            screen.blit(surface, (draw_x, 0))
+            screen.blit(surface, (draw_x + bg_w, 0))
 
     def _build_sky(self) -> pygame.Surface:
         """Static sky gradient + clouds -- never scrolls so no tiling needed."""

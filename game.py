@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import sys
 
 import pygame
@@ -412,11 +413,14 @@ class Game:
             return
 
         shake_off = self.shake.update(0)
+
+        # Background gets the FLOAT logic camera for smooth parallax
         self.background.draw(self.screen, self.camera.offset_x)
 
-        # Cast camera float to int at RENDER TIME ONLY -- single conversion
-        cam_x = int(self.camera.offset_x) + shake_off[0]
-        cam_y = int(self.camera.offset_y) + shake_off[1]
+        render_cam_x = math.floor(self.camera.offset_x)
+        render_cam_y = math.floor(self.camera.offset_y)
+        cam_x = render_cam_x + shake_off[0]
+        cam_y = render_cam_y + shake_off[1]
         visible = self.camera.get_visible_rect().inflate(100, 100)
 
         for dec in self.level.decorations:
