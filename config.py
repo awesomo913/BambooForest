@@ -21,9 +21,10 @@ PLAYER_MAX_HP: int = 100
 PLAYER_INVINCIBLE_SEC: float = 0.5
 PLAYER_DAMAGE: int = 25
 HEAL_AMOUNT: int = 25
-DOUBLE_JUMP_LEVEL: int = 0  # always available
+DOUBLE_JUMP_LEVEL: int = 0
+STARTING_LIVES: int = 3
 
-# --- Enemy ---
+# --- Enemy (shared) ---
 ENEMY_PATROL_SPEED: float = 120.0
 ENEMY_CHASE_SPEED: float = 180.0
 ENEMY_CHASE_RANGE: float = 500.0
@@ -48,7 +49,6 @@ COMBO_MULTIPLIERS: list[int] = [1, 2, 3, 4]
 BAMBOO_SCORE: int = 100
 STOMP_SCORE: int = 200
 BOSS_KILL_SCORE: int = 1000
-STARTING_LIVES: int = 3
 
 # --- Moving Platforms ---
 MOVING_PLAT_SPEED: float = 80.0
@@ -59,6 +59,49 @@ SPARKLE_LIFE: float = 0.4
 DUST_LIFE: float = 0.3
 SHAKE_INTENSITY: int = 8
 SHAKE_DURATION: float = 0.2
+
+# --- Level 4: Caldera (Volcanic) ---
+GEYSER_INTERVAL: float = 3.0
+GEYSER_DURATION: float = 1.0
+GEYSER_LAUNCH: float = -900.0
+SULFUR_SPEED: float = 60.0
+SULFUR_TRAIL_DMG: int = 10
+SULFUR_TRAIL_LIFE: float = 3.0
+ASH_BAT_SWOOP: float = 200.0
+ASH_BAT_RANGE: float = 300.0
+
+# --- Level 5: Basalt Columns ---
+CRUMBLE_DELAY: float = 1.0
+CRUMBLE_RESPAWN: float = 4.0
+KELP_CRAB_SPEED: float = 80.0
+GOLEM_STRIKE_RANGE: float = 80.0
+GOLEM_STRIKE_SPEED: float = 250.0
+GOLEM_COOLDOWN: float = 2.0
+
+# --- Level 6: Arid Rift (Desert) ---
+WIND_PUSH: float = 200.0
+THERMAL_FORCE: float = -500.0
+DUST_DEVIL_SPEED: float = 150.0
+SCORPION_FIRE_RATE: float = 2.0
+SCORPION_PROJ_SPEED: float = 250.0
+
+# --- Level 7: Karst Caves (Darkness) ---
+DARK_RADIUS: int = 120
+CRYSTAL_RADIUS: int = 250
+CRYSTAL_LIGHT_TIME: float = 8.0
+SPIDER_DROP_RANGE: float = 100.0
+SPIDER_DROP_SPEED: float = 400.0
+GLOWWORM_SNAP_RANGE: float = 60.0
+
+# --- Level 8: Salt Flats (Ice) ---
+ICE_FRICTION: float = 0.92
+ICE_ACCEL: float = 120.0
+BRINE_GROW_RATE: float = 0.5
+BRINE_DMG_RADIUS: float = 40.0
+PHANTOM_SPEED: float = 100.0
+
+# --- NPC ---
+NPC_RANGE: float = 60.0
 
 # --- Colors ---
 COL_SKY = (135, 206, 235)
@@ -83,11 +126,23 @@ COL_MENU_BG = (20, 40, 20)
 COL_WHITE = (255, 255, 255)
 COL_RED = (255, 0, 0)
 COL_BLACK = (0, 0, 0)
+COL_LAVA = (180, 80, 40)
+COL_BASALT = (60, 60, 70)
+COL_SANDSTONE = (194, 160, 100)
+COL_LIMESTONE = (180, 175, 160)
+COL_SALT = (200, 220, 240)
+COL_TOXIC = (120, 200, 40)
+COL_ICE = (180, 220, 255)
+COL_CRYSTAL = (100, 200, 255)
 
 # --- Levels ---
-LEVEL_COUNT: int = 3
-LEVEL_WIDTHS: list[int] = [3000, 4500, 6000]
-LEVEL_NAMES: list[str] = ["Bamboo Grove", "Mountain Pass", "Mutant Lair"]
+LEVEL_COUNT: int = 8
+LEVEL_WIDTHS: list[int] = [3000, 4500, 6000, 5500, 5000, 6500, 5500, 7000]
+LEVEL_NAMES: list[str] = [
+    "Bamboo Grove", "Mountain Pass", "Mutant Lair",
+    "The Caldera", "Basalt Columns", "The Arid Rift",
+    "Karst Caves", "Salt Flats",
+]
 FLOOR_Y: int = 490
 
 # --- Game States ---
@@ -99,12 +154,10 @@ ST_VICTORY = "VICTORY"
 ST_LEVEL_TRANS = "LEVEL_TRANS"
 
 # --- Paths ---
-# PyInstaller bundles files into a temp _MEIPASS dir; use it if available
 if getattr(sys, "frozen", False):
     BASE_DIR: str = sys._MEIPASS  # type: ignore[attr-defined]
 else:
     BASE_DIR: str = os.path.dirname(os.path.abspath(__file__))
-# Save file goes next to the exe (or script), not in temp dir
 _EXE_DIR: str = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else BASE_DIR
 SAVE_FILE: str = os.path.join(_EXE_DIR, "highscores.json")
 MUTANT_PNG: str = os.path.join(BASE_DIR, "mutant.png")

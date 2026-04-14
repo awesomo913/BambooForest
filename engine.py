@@ -36,13 +36,13 @@ class Camera:
         self.world_height = world_height
 
     def update(self, target: pygame.sprite.Sprite, dt: float) -> None:
+        # Lock camera directly to player -- no lerp, no float drift.
+        # Player rect is always integer, so goal is always integer,
+        # which means offset is always integer. Zero sub-pixel jitter.
         goal_x = -target.rect.centerx + SCREEN_WIDTH // 2
         goal_y = -target.rect.centery + SCREEN_HEIGHT // 2
-        self.offset_x += (goal_x - self.offset_x) * min(1.0, 8 * dt)
-        self.offset_y += (goal_y - self.offset_y) * min(1.0, 8 * dt)
-        self.offset_x = max(float(-(self.world_width - SCREEN_WIDTH)), min(0.0, self.offset_x))
-        self.offset_y = max(float(-(self.world_height - SCREEN_HEIGHT)), min(0.0, self.offset_y))
-        # Derive render camera: math.floor guarantees consistent rounding
+        self.offset_x = float(max(-(self.world_width - SCREEN_WIDTH), min(0, goal_x)))
+        self.offset_y = float(max(-(self.world_height - SCREEN_HEIGHT), min(0, goal_y)))
         self.render_x = math.floor(self.offset_x)
         self.render_y = math.floor(self.offset_y)
 

@@ -142,6 +142,25 @@ class AudioManager:
         self.sounds["death"] = _to_sound(
             _apply_envelope(_sweep_samples(400, 80, 0.5, 0.3), 0.01, 0.1)
         )
+        # Biome sounds
+        self.sounds["geyser"] = _to_sound(
+            _apply_envelope(_sweep_samples(100, 400, 0.3, 0.4), 0.02, 0.1)
+        )
+        self.sounds["crumble"] = _to_sound(
+            _apply_envelope(_noise_samples(0.4, 0.3), 0.01, 0.15)
+        )
+        self.sounds["wind"] = _to_sound(
+            _apply_envelope(_noise_samples(0.6, 0.15), 0.1, 0.2)
+        )
+        self.sounds["crystal"] = _to_sound(
+            _apply_envelope(
+                _concat(_sine_samples(1000, 0.08, 0.4), _sine_samples(1500, 0.12, 0.3)),
+                0.005, 0.04,
+            )
+        )
+        self.sounds["ice_slide"] = _to_sound(
+            _apply_envelope(_sweep_samples(800, 200, 0.2, 0.2), 0.01, 0.08)
+        )
 
     def play(self, name: str) -> None:
         """Play a named sound if enabled."""

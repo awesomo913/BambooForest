@@ -551,6 +551,7 @@ class Player(pygame.sprite.Sprite):
         self.has_double_jump: bool = False
         self.jumps_remaining: int = 1
 
+        self.friction_mode: str = "normal"  # "normal" or "ice"
         self.dead = False
 
     def update(self, dt: float, keys: pygame.key.ScancodeWrapper,
@@ -566,13 +567,27 @@ class Player(pygame.sprite.Sprite):
             if self.combo_timer <= 0:
                 self.combo_count = 0
 
-        self.velocity_x = 0.0
-        if keys[pygame.K_LEFT] or keys[pygame.K_a]:
-            self.velocity_x = -PLAYER_SPEED
-            self.facing_right = False
-        if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
-            self.velocity_x = PLAYER_SPEED
-            self.facing_right = True
+        if self.friction_mode == "ice":
+            from config import ICE_ACCEL, ICE_FRICTION
+            if keys[pygame.K_LEFT] or keys[pygame.K_a]:
+                self.velocity_x -= ICE_ACCEL * dt
+                self.facing_right = False
+            if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
+                self.velocity_x += ICE_ACCEL * dt
+                self.facing_right = True
+            self.velocity_x *= ICE_FRICTION
+            max_v = PLAYER_SPEED * 1.5
+            self.velocity_x = max(-max_v, min(max_v, self.velocity_x))
+            if abs(self.velocity_x) < 5:
+                self.velocity_x = 0.0
+        else:
+            self.velocity_x = 0.0
+            if keys[pygame.K_LEFT] or keys[pygame.K_a]:
+                self.velocity_x = -PLAYER_SPEED
+                self.facing_right = False
+            if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
+                self.velocity_x = PLAYER_SPEED
+                self.facing_right = True
 
         self.rect.x += _fl(self.velocity_x * dt)
         for hit in pygame.sprite.spritecollide(self, platforms, False):
