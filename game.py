@@ -120,8 +120,10 @@ class Game:
                 if event.key in (pygame.K_SPACE, pygame.K_UP, pygame.K_w):
                     self._jump_pressed = False
             if event.type == pygame.MOUSEBUTTONDOWN:
-                # Left click = swing bamboo staff
-                if event.button == 1 and self.state == ST_PLAYING:
+                if event.button == 1 and self.state == ST_MENU:
+                    # Clicking a character card opens the detail popup
+                    self.title_screen.handle_click(event.pos)
+                elif event.button == 1 and self.state == ST_PLAYING:
                     if self.player and self.player.attack():
                         self.audio.play("stomp")
                         self._weapon_used = True
@@ -152,6 +154,9 @@ class Game:
 
     def _on_key_down(self, key: int) -> None:
         if self.state == ST_MENU:
+            # If title screen detail popup is open, ESC closes it (not app)
+            if self.title_screen.handle_key(key):
+                return
             if key == pygame.K_RETURN:
                 self._start_game()
                 self.audio.play("menu_select")

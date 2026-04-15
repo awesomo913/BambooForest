@@ -250,38 +250,75 @@ def _get_sprite_cache() -> dict[str, pygame.Surface]:
 
 
 _CHARACTERS = [
-    {"name": "Pain-da",    "role": "HERO",    "desc": "Exiled warrior of the grove",          "key": "panda",    "color": (220, 240, 220)},
-    {"name": "Shroomba",   "role": "PATROL",  "desc": "Twisted fungus guardian",              "key": "mushroom", "color": (220, 100, 100)},
-    {"name": "Shadow",     "role": "CHASER",  "desc": "Shadowblade of the forest",            "key": "panther",  "color": (180, 255, 100)},
-    {"name": "Blobby",     "role": "BOUNCER", "desc": "Cute acid jelly",                      "key": "slime",    "color": (100, 230, 140)},
-    {"name": "Nightwing",  "role": "FLYER",   "desc": "Spiked bat -- can't be stomped",       "key": "bat",      "color": (170, 120, 230)},
-    {"name": "The Mutant", "role": "BOSS",    "desc": "Stomp only when stunned",              "key": "boss",     "color": (255, 120, 120)},
-    # Level 4-8 biome enemies
-    {"name": "Sulfurite",  "role": "TOXIC",   "desc": "Leaves poison trail",                  "key": "sulfur",   "color": (200, 200, 40)},
-    {"name": "Ash-Swoop",  "role": "SWOOPER", "desc": "Dives at airborne prey",               "key": "ashbat",   "color": (120, 80, 70)},
-    {"name": "Kelp-Shell", "role": "ARMORED", "desc": "Side hits bounce. Stomp only!",        "key": "crab",     "color": (180, 80, 60)},
-    {"name": "Column-Doom","role": "AMBUSH",  "desc": "Pillar that strikes when close",       "key": "golem",    "color": (90, 90, 110)},
-    {"name": "Duster",     "role": "DODGE",   "desc": "Invincible vortex -- dodge!",          "key": "dust",     "color": (200, 180, 140)},
-    {"name": "Needler",    "role": "RANGED",  "desc": "Fires 45-degree thorns",               "key": "scorp",    "color": (160, 120, 60)},
-    {"name": "Driptop",    "role": "CEILING", "desc": "Drops from above when you pass",       "key": "spider",   "color": (80, 60, 60)},
-    {"name": "Lure-Bug",   "role": "TRAP",    "desc": "Pretty light that snaps shut",         "key": "glow",     "color": (150, 255, 100)},
-    {"name": "Brine-Star", "role": "STATIC",  "desc": "Grows larger the longer you stand",    "key": "brine",    "color": (200, 220, 255)},
-    {"name": "Phantom",    "role": "MIRROR",  "desc": "Only visible in reflection",           "key": "phantom",  "color": (220, 220, 240)},
+    {"name": "Pain-da", "role": "HERO", "desc": "Exiled warrior of the grove",
+     "key": "panda", "color": (220, 240, 220),
+     "story": "Once the protector of the sacred Bamboo Grove, Pain-da was cast out when corruption tainted the forest. Armed only with bamboo, fury, and a questionable haircut, he returns to reclaim every biome from the mutant invaders. He jumps twice, dashes through danger, glides over pits, slams from above, and throws bamboo shurikens. He also dances when he wins.\n\nTIP: Stomp enemies from above. Pick up the bamboo staff to swing melee."},
+    {"name": "Shroomba", "role": "PATROL", "desc": "Twisted fungus guardian",
+     "key": "mushroom", "color": (220, 100, 100),
+     "story": "A once-peaceful mushroom, corrupted by the spores of the Mutant King. Walks back and forth along a short patrol route, scowling. Slow but hits hard if you bump into its cap.\n\nHOW TO BEAT: Jump on its head. One stomp kills it. Avoid running into its side."},
+    {"name": "Shadow", "role": "CHASER", "desc": "Shadowblade of the forest",
+     "key": "panther", "color": (180, 255, 100),
+     "story": "A sleek panther that slipped into the grove from the shadow realm. Its glowing eyes lock onto Pain-da whenever he's nearby -- it chases fast and doesn't stop until it catches you or you lose it.\n\nHOW TO BEAT: Jump over its head when it closes in, then stomp. Dash to escape if cornered."},
+    {"name": "Blobby", "role": "BOUNCER", "desc": "Cute acid jelly",
+     "key": "slime", "color": (100, 230, 140),
+     "story": "Don't let the smile fool you. Blobby bounces in random arcs and leaves no trail -- but contact is lethal acid. The Mutant's bioweapon, too cute to hate, too dangerous to ignore.\n\nHOW TO BEAT: Time your jump for when Blobby is mid-hop. Stomp on the top of the bounce."},
+    {"name": "Nightwing", "role": "FLYER", "desc": "Spiked bat -- can't be stomped",
+     "key": "bat", "color": (170, 120, 230),
+     "story": "Razor-winged bat with poisonous spikes on its back. Cannot be stomped -- try and you'll impale yourself. Flies in loose sine patterns through the sky.\n\nHOW TO BEAT: Do NOT jump on it. Use the bamboo staff (E) or shuriken (Q) from a safe distance, or just avoid it."},
+    {"name": "The Mutant", "role": "BOSS", "desc": "Stomp only when stunned",
+     "key": "boss", "color": (255, 120, 120),
+     "story": "The fallen king of the forest, twisted by dark spores into a hulking mutant. Patrols, then charges at Pain-da. After each charge it stuns itself -- that's your only window to hit it.\n\nHOW TO BEAT: Dodge the charge, then stomp the BLUE (stunned) boss. 5 hits to defeat. Landing on its head at any other time is safe but deals no damage."},
+    {"name": "Sulfurite", "role": "TOXIC", "desc": "Leaves poison trail",
+     "key": "sulfur", "color": (200, 200, 40),
+     "story": "A volcanic slime of liquid sulfur. Crawls slowly but drools an acid pool behind it that burns for 3 seconds. The Caldera's living trap.\n\nHOW TO BEAT: Stomp it directly. Jump OVER the yellow puddles it leaves -- don't step in them."},
+    {"name": "Ash-Swoop", "role": "SWOOPER", "desc": "Dives at airborne prey",
+     "key": "ashbat", "color": (120, 80, 70),
+     "story": "Born of volcanic ash. Hovers in place until it senses you in the air -- then swoops down in a straight dive at your jump apex. A punishment for clumsy platforming.\n\nHOW TO BEAT: Jump at it to stomp on the way down. If it's swooping, dash under it horizontally."},
+    {"name": "Kelp-Shell", "role": "ARMORED", "desc": "Stomp only -- sides bounce you off!",
+     "key": "crab", "color": (180, 80, 60),
+     "story": "Armored basalt crab with an impenetrable hard shell on all sides but the top. Side collisions do damage AND bounce you off.\n\nHOW TO BEAT: Come from above. Side hits = YOU take damage. The bamboo staff hits from the side work fine though."},
+    {"name": "Column-Doom", "role": "AMBUSH", "desc": "Pillar that strikes when close",
+     "key": "golem", "color": (90, 90, 110),
+     "story": "Disguised as a harmless basalt column. When Pain-da comes within 80 pixels, it reveals glowing eyes and lunges horizontally toward him at high speed. Then cools for 2 seconds before retracting.\n\nHOW TO BEAT: Approach cautiously. When it telegraphs (reveals eyes), JUMP -- either over it or onto its head to stomp."},
+    {"name": "Duster", "role": "DODGE", "desc": "Invincible vortex -- dodge!",
+     "key": "dust", "color": (200, 180, 140),
+     "story": "A desert dust-devil animated by old magic. Completely invincible. Moves in erratic sine-wave patterns across the rift. Does damage on contact.\n\nHOW TO BEAT: You can't kill it. You MUST evade. Watch its movement pattern, wait for a gap, dash through."},
+    {"name": "Needler", "role": "RANGED", "desc": "Fires 45-degree thorns",
+     "key": "scorp", "color": (160, 120, 60),
+     "story": "Cactus-scorpion hybrid with a thorn-loaded tail. Fires a projectile every 2 seconds at a 45-degree upward arc.\n\nHOW TO BEAT: Stomp it from above. Watch for incoming thorns -- you can dash past them or duck by sliding on ice."},
+    {"name": "Driptop", "role": "CEILING", "desc": "Drops from above when you pass",
+     "key": "spider", "color": (80, 60, 60),
+     "story": "Clings silently to cave ceilings. When Pain-da passes below, it drops straight down on a silk thread. Lands, then patrols the floor.\n\nHOW TO BEAT: Best handled mid-air -- hit its descent with a jump-stomp. Or dash past before it drops."},
+    {"name": "Lure-Bug", "role": "TRAP", "desc": "Pretty light that snaps shut",
+     "key": "glow", "color": (150, 255, 100),
+     "story": "Glows a soft inviting green in the dark caves -- you'll be tempted to touch it. When you're within 60 pixels, it SNAPS to red and bites for 0.5s.\n\nHOW TO BEAT: It's invincible. Keep your distance. Green = safe, red = damage."},
+    {"name": "Brine-Star", "role": "STATIC", "desc": "Grows if you stand still",
+     "key": "brine", "color": (200, 220, 255),
+     "story": "A salt crystal that responds to stillness. It grows larger the longer Pain-da stands near it motionless. At full size, it damages on contact.\n\nHOW TO BEAT: Keep moving! On the ice physics level, this is a test of control. The crystal is invincible -- never stand still near it."},
+    {"name": "Phantom", "role": "MIRROR", "desc": "Only visible in reflection",
+     "key": "phantom", "color": (220, 220, 240),
+     "story": "A translucent spectre that roams the salt flats. Hard to see in the real world -- watch the mirror surface to spot them. Still does damage even when invisible.\n\nHOW TO BEAT: Use the reflection on the salt surface to track it. Stomp from above when you know where it is."},
 ]
 
 
 def _draw_card(screen: pygame.Surface, char: dict,
                x: int, y: int, w: int, h: int,
-               timer: float, idx: int) -> None:
-    """Draw one character card with sprite, name, role, and description."""
+               timer: float, idx: int, hovered: bool = False) -> None:
+    """Draw one character card. Hovered cards are highlighted."""
     sprites = _get_sprite_cache()
 
-    # Card bg
+    # Card bg -- brighter when hovered
     card = pygame.Surface((w, h), pygame.SRCALPHA)
-    card.fill((12, 25, 12, 210))
-    pygame.draw.rect(card, (40, 70, 40, 180), (0, 0, w, h), 1, border_radius=6)
+    if hovered:
+        card.fill((30, 55, 30, 240))
+        pygame.draw.rect(card, (*char["color"], 255),
+                         (0, 0, w, h), 2, border_radius=6)
+    else:
+        card.fill((12, 25, 12, 210))
+        pygame.draw.rect(card, (40, 70, 40, 180), (0, 0, w, h), 1, border_radius=6)
     # Colored accent bar at top
-    pygame.draw.rect(card, (*char["color"], 140), (0, 0, w, 3), border_radius=6)
+    pygame.draw.rect(card, (*char["color"], 200 if hovered else 140),
+                     (0, 0, w, 3), border_radius=6)
     screen.blit(card, (x, y))
 
     # Sprite preview -- scale to fit if card is small
@@ -328,12 +365,36 @@ class TitleScreen:
         self.title_y: float = -60.0
         self.title_target_y: float = SCREEN_HEIGHT * 0.09
         self.prompt_timer: float = 0.0
-        # Pre-render background once
         self._bg: pygame.Surface | None = None
+        # Interactive character selection
+        self._card_rects: list[tuple[pygame.Rect, dict]] = []
+        self.selected_char: dict | None = None
 
     def update(self, dt: float) -> None:
         self.title_y += (self.title_target_y - self.title_y) * min(1.0, 4 * dt)
         self.prompt_timer += dt
+
+    def handle_click(self, pos: tuple[int, int]) -> bool:
+        """Handle mouse click. Returns True if consumed (don't start game)."""
+        # If detail panel open, click anywhere closes it
+        if self.selected_char is not None:
+            self.selected_char = None
+            return True
+        # Check if click landed on a character card
+        for rect, char in self._card_rects:
+            if rect.collidepoint(pos):
+                self.selected_char = char
+                return True
+        return False
+
+    def handle_key(self, key: int) -> bool:
+        """Returns True if the key was consumed (don't start game)."""
+        if self.selected_char is not None:
+            if key in (pygame.K_ESCAPE, pygame.K_BACKSPACE, pygame.K_RETURN):
+                self.selected_char = None
+                return True
+            return True  # any key closes
+        return False
 
     def _ensure_bg(self) -> pygame.Surface:
         """Pre-render the static background."""
@@ -382,13 +443,24 @@ class TitleScreen:
         start_x = (SCREEN_WIDTH - total_w) // 2
         start_y = int(SCREEN_HEIGHT * 0.18)
 
+        # Record card rects for click detection + check hover
+        self._card_rects.clear()
+        mouse_pos = pygame.mouse.get_pos()
         for i, char in enumerate(_CHARACTERS):
             col = i % cols
             row = i // cols
             cx = start_x + col * (card_w + gap_x)
             cy = start_y + row * (card_h + gap_y)
+            rect = pygame.Rect(cx, cy, card_w, card_h)
+            self._card_rects.append((rect, char))
+            hovered = rect.collidepoint(mouse_pos)
             _draw_card(screen, char, cx, cy, card_w, card_h,
-                       self.prompt_timer, i)
+                       self.prompt_timer, i, hovered=hovered)
+
+        # Hint text under cards
+        hint_y = start_y + rows * (card_h + gap_y) - 6
+        draw_text(screen, "CLICK any character to read their story",
+                  14, (180, 210, 180), SCREEN_WIDTH // 2, hint_y)
 
         # Pulsing prompt (below the character grid)
         prompt_y = start_y + rows * (card_h + gap_y) + 18
@@ -406,6 +478,92 @@ class TitleScreen:
         if best > 0:
             draw_text_shadow(screen, f"Best: {best}", 18, COL_GOLD,
                              SCREEN_WIDTH // 2, SCREEN_HEIGHT - 10)
+
+        # Detail popup on top of everything
+        if self.selected_char is not None:
+            self._draw_detail(screen)
+
+    def _draw_detail(self, screen: pygame.Surface) -> None:
+        """Draw detail popup for the selected character."""
+        char = self.selected_char
+        # Dim the background
+        dim = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+        dim.fill((0, 0, 0, 200))
+        screen.blit(dim, (0, 0))
+
+        # Panel
+        pw, ph = 720, 440
+        px = (SCREEN_WIDTH - pw) // 2
+        py = (SCREEN_HEIGHT - ph) // 2
+        panel = pygame.Surface((pw, ph), pygame.SRCALPHA)
+        panel.fill((15, 28, 18, 250))
+        pygame.draw.rect(panel, char["color"], (0, 0, pw, ph), 3, border_radius=10)
+        # Accent bar
+        pygame.draw.rect(panel, (*char["color"], 220), (0, 0, pw, 8),
+                        border_radius=10)
+        screen.blit(panel, (px, py))
+
+        # Big sprite (centered left side)
+        sprites = _get_sprite_cache()
+        sprite = sprites.get(char["key"])
+        if sprite:
+            sw, sh = sprite.get_size()
+            scale = min(200 / sw, 200 / sh)
+            big = pygame.transform.scale(sprite,
+                                        (int(sw * scale), int(sh * scale)))
+            bw, bh = big.get_size()
+            screen.blit(big, (px + 40 + (200 - bw) // 2,
+                             py + 80 + (200 - bh) // 2))
+
+        # Name (big)
+        draw_text_shadow(screen, char["name"], 42, char["color"],
+                        px + pw // 2, py + 40, bold=True)
+
+        # Role tag
+        role_font = get_font(14, bold=True)
+        role_surf = role_font.render(char["role"], True, (30, 50, 30))
+        rw, rh = role_surf.get_size()
+        tag_bg = pygame.Surface((rw + 16, rh + 6), pygame.SRCALPHA)
+        tag_bg.fill((*char["color"], 220))
+        screen.blit(tag_bg, (px + pw // 2 - (rw + 16) // 2, py + 66))
+        screen.blit(role_surf, (px + pw // 2 - rw // 2, py + 68))
+
+        # Story (word-wrapped)
+        story = char.get("story", char.get("desc", ""))
+        body_font = get_font(16)
+        story_x = px + 280
+        story_y = py + 100
+        max_w = pw - 280 - 40
+        self._draw_wrapped(screen, story, body_font, (220, 235, 220),
+                          story_x, story_y, max_w)
+
+        # Close hint
+        hint = get_font(14).render(
+            "Click anywhere or press ESC to close", True, (180, 180, 180))
+        screen.blit(hint, hint.get_rect(
+            center=(px + pw // 2, py + ph - 20)))
+
+    def _draw_wrapped(self, screen: pygame.Surface, text: str,
+                     font: pygame.font.Font, color: tuple,
+                     x: int, y: int, max_width: int) -> None:
+        """Draw text with word wrapping + paragraph support."""
+        for paragraph in text.split("\n\n"):
+            words = paragraph.split(" ")
+            line: list[str] = []
+            for w in words:
+                test = " ".join(line + [w])
+                if font.size(test)[0] > max_width and line:
+                    line_surf = font.render(" ".join(line), True, color)
+                    screen.blit(line_surf, (x, y))
+                    y += font.get_height() + 2
+                    line = [w]
+                else:
+                    line.append(w)
+            if line:
+                line_surf = font.render(" ".join(line), True, color)
+                screen.blit(line_surf, (x, y))
+                y += font.get_height() + 2
+            y += 8  # paragraph spacing
 
 
 # ---------------------------------------------------------------------------
