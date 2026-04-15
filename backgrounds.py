@@ -75,7 +75,8 @@ class ForestBackground(_BaseBackground):
 
     def _build(self) -> pygame.Surface:
         surf = pygame.Surface((self.w, SCREEN_HEIGHT))
-        self._sky_gradient(surf, (120, 185, 235), (200, 230, 250))
+        # Yoshi's Island: soft peach-tinted sky fading to cream horizon
+        self._sky_gradient(surf, (165, 210, 240), (255, 225, 215))
         random.seed(42)
         # Clouds
         for _ in range(5):
@@ -113,81 +114,107 @@ class ForestBackground(_BaseBackground):
                                [(x - base_w // 2, SCREEN_HEIGHT),
                                 (x, top_y),
                                 (x + base_w // 2, SCREEN_HEIGHT)])
-        # Asian forest: 3 parallax layers of bamboo + cherry blossom trees
-        # Back layer: distant dark bamboo grove (thin stalks)
-        for i in range(24):
-            bx = int(i * self.w / 20) + random.randint(-15, 15)
-            bh = random.randint(70, 110)
-            by_top = SCREEN_HEIGHT - bh - 25
-            stalk_c = (30, 80, 30)
-            joint_c = (18, 55, 18)
+        # Yoshi's Island dreamy pastel forest -- 3 depth layers with
+        # strong tonal contrast: hazy teal back, soft pink mid, vibrant
+        # lime front. Each layer gets warmer and more saturated as it
+        # comes toward the camera (atmospheric perspective).
+
+        # BACK LAYER -- dusty teal bamboo, blended into sky haze
+        for i in range(30):
+            bx = int(i * self.w / 24) + random.randint(-12, 12)
+            bh = random.randint(55, 95)
+            by_top = SCREEN_HEIGHT - bh - 40
+            stalk_c = (130, 170, 155)   # dusty teal
+            joint_c = (95, 135, 130)
             for dx in (-self.w, 0, self.w):
                 pygame.draw.rect(surf, stalk_c, (bx - 1 + dx, by_top, 2, bh))
-                for jy in range(by_top + 12, SCREEN_HEIGHT - 25, 20):
+                for jy in range(by_top + 12, SCREEN_HEIGHT - 40, 22):
                     pygame.draw.rect(surf, joint_c,
                                      (bx - 2 + dx, jy, 4, 1))
-            # Tiny leaf at top
             for dx in (-self.w, 0, self.w):
-                pygame.draw.polygon(surf, (35, 90, 25),
-                                    [(bx + dx, by_top),
+                pygame.draw.polygon(surf, (150, 190, 175),
+                                    [(bx + dx, by_top - 1),
                                      (bx + 5 + dx, by_top + 3),
                                      (bx + dx, by_top + 5)])
-        # Mid layer: cherry blossom trees with pink clouds
+
+        # MID LAYER -- soft-pink cherry blossom trees (Yoshi's Island candy)
         for i in range(5):
             tx = int(i * self.w / 4) + random.randint(-35, 35)
             tree_h = random.randint(85, 115)
-            trunk_top = SCREEN_HEIGHT - tree_h - 5
+            trunk_top = SCREEN_HEIGHT - tree_h - 8
             trunk_w = 6
-            trunk_c = (55, 35, 22)
+            trunk_c = (110, 75, 55)  # warm brown, not too dark
             for dx in (-self.w, 0, self.w):
                 pygame.draw.rect(surf, trunk_c,
                                  (tx - trunk_w // 2 + dx,
                                   trunk_top + tree_h // 3,
                                   trunk_w, tree_h * 2 // 3))
-                # Side branches
                 pygame.draw.line(surf, trunk_c,
                                  (tx + dx, trunk_top + tree_h // 2),
                                  (tx - 14 + dx, trunk_top + tree_h // 4), 2)
                 pygame.draw.line(surf, trunk_c,
                                  (tx + dx, trunk_top + tree_h // 2),
                                  (tx + 14 + dx, trunk_top + tree_h // 4), 2)
-            # Pink blossom cloud (overlapping circles)
-            cw = random.randint(24, 34)
-            for _ in range(9):
+            # Chalky pastel blossom cloud (soft pinks + creams)
+            cw = random.randint(26, 36)
+            for _ in range(10):
                 ox = random.randint(-cw, cw)
                 oy = random.randint(-cw // 2, cw // 3)
-                cr = random.randint(int(cw * 0.5), int(cw * 0.85))
-                pc = random.choice([(228, 165, 195), (245, 185, 215),
-                                    (215, 150, 185), (250, 200, 225)])
+                cr = random.randint(int(cw * 0.55), int(cw * 0.9))
+                pc = random.choice([(255, 200, 220), (255, 215, 230),
+                                    (250, 185, 210), (255, 225, 235),
+                                    (240, 175, 200)])
                 self._wrap_polygon(surf, pc, [
                     (tx + ox - cr, trunk_top + tree_h // 4 + oy),
                     (tx + ox, trunk_top + tree_h // 4 + oy - cr // 2),
                     (tx + ox + cr, trunk_top + tree_h // 4 + oy),
                     (tx + ox, trunk_top + tree_h // 4 + oy + cr // 2)])
-        # Front layer: tall vibrant bamboo (foreground)
+            # Sprinkle of bright cream highlights
+            for _ in range(3):
+                ox = random.randint(-cw // 2, cw // 2)
+                oy = random.randint(-cw // 3, cw // 4)
+                pygame.draw.circle(surf, (255, 245, 225),
+                                   (tx + ox, trunk_top + tree_h // 4 + oy),
+                                   random.randint(3, 5))
+
+        # FRONT LAYER -- vibrant lime-green bamboo, strong warm highlight
         for i in range(12):
             bx = int(i * self.w / 10) + random.randint(-20, 20)
             bh = random.randint(110, 170)
             by_top = SCREEN_HEIGHT - bh + 8
-            stalk_c = (65, 155, 55)
-            highlight = (105, 195, 85)
-            joint_c = (35, 105, 28)
+            stalk_c = (140, 210, 95)      # bright lime (Yoshi green)
+            highlight = (195, 240, 130)   # warm cream-lime
+            joint_c = (75, 145, 55)
+            shadow_c = (90, 165, 65)
             for dx in (-self.w, 0, self.w):
-                pygame.draw.rect(surf, stalk_c, (bx - 3 + dx, by_top, 6, bh))
-                pygame.draw.rect(surf, highlight, (bx - 1 + dx, by_top, 1, bh))
+                # Shadow side
+                pygame.draw.rect(surf, shadow_c, (bx + 1 + dx, by_top, 3, bh))
+                # Main stalk
+                pygame.draw.rect(surf, stalk_c, (bx - 3 + dx, by_top, 5, bh))
+                # Bright highlight
+                pygame.draw.rect(surf, highlight, (bx - 2 + dx, by_top, 2, bh))
+                # Joint rings (dark green segments)
                 for jy in range(by_top + 14, SCREEN_HEIGHT, 22):
                     pygame.draw.rect(surf, joint_c,
                                      (bx - 4 + dx, jy, 8, 2))
-            # Leaf clusters at top
+            # Lush leaf clusters at top (2-tone for volume)
             for dx in (-self.w, 0, self.w):
-                pygame.draw.polygon(surf, (65, 150, 50),
+                pygame.draw.polygon(surf, (110, 185, 75),
                                     [(bx + dx, by_top - 6),
-                                     (bx + 16 + dx, by_top + 4),
+                                     (bx + 18 + dx, by_top + 4),
                                      (bx + 2 + dx, by_top + 10)])
-                pygame.draw.polygon(surf, (45, 125, 35),
+                pygame.draw.polygon(surf, (160, 215, 100),
+                                    [(bx + dx, by_top - 4),
+                                     (bx + 14 + dx, by_top + 2),
+                                     (bx + 3 + dx, by_top + 8)])
+                pygame.draw.polygon(surf, (100, 170, 65),
                                     [(bx + dx, by_top - 6),
-                                     (bx - 16 + dx, by_top + 4),
+                                     (bx - 18 + dx, by_top + 4),
                                      (bx - 2 + dx, by_top + 10)])
+                pygame.draw.polygon(surf, (150, 205, 90),
+                                    [(bx + dx, by_top - 4),
+                                     (bx - 14 + dx, by_top + 2),
+                                     (bx - 3 + dx, by_top + 8)])
         # Ground strip
         for y in range(SCREEN_HEIGHT - 12, SCREEN_HEIGHT):
             t = (y - (SCREEN_HEIGHT - 12)) / 12

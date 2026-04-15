@@ -72,6 +72,13 @@ class Game:
         self._boss_warning_timer: float = 0.0
         self._fullscreen: bool = False
         self._debug_mode: bool = False
+        # Tutorial hints
+        self._weapon_tutorial_timer: float = 0.0
+        self._weapon_used: bool = False
+        # Level-end outro: Pain-da auto-runs off screen after reaching goal
+        self._outro_active: bool = False
+        self._outro_timer: float = 0.0
+        self._outro_speed: float = 240.0
 
     def run(self) -> None:
         while self.running:
@@ -146,6 +153,8 @@ class Game:
             elif key in (pygame.K_z, pygame.K_x):
                 if self.player and self.player.attack():
                     self.audio.play("stomp")
+                    self._weapon_used = True
+                    self._weapon_tutorial_timer = 0.0
         elif self.state == ST_PAUSED:
             if key == pygame.K_ESCAPE:
                 self.state = ST_PLAYING
@@ -190,6 +199,11 @@ class Game:
         self.death_anim = None
         self._was_on_ground = False
         self._jump_pressed = False
+        self._outro_active = False
+        self._outro_timer = 0.0
+        # If player already has weapon from previous level, keep tutorial hidden
+        if self.player.has_bamboo_weapon:
+            self._weapon_used = True
         self.state = ST_PLAYING
 
     def _respawn_at_checkpoint(self) -> None:
@@ -426,8 +440,10 @@ class Game:
         for weapon in pygame.sprite.spritecollide(
                 self.player, self.level.weapons, True):
             self.player.has_bamboo_weapon = True
+            self._weapon_tutorial_timer = 999.0  # show until first used
+            self._weapon_used = False
             self.hud.add_floating_text(
-                "BAMBOO STAFF!  [Z] to swing",
+                "BAMBOO STAFF OBTAINED!",
                 weapon.rect.centerx, weapon.rect.top - 10, (255, 220, 120))
             self.particles.emit_sparkle(weapon.rect.centerx, weapon.rect.centery, 14)
             self.audio.play("collect")
@@ -499,39 +515,55 @@ class Game:
                         self.player.rect.centerx, self.player.rect.centery)
                     self.audio.play("hit")
 
-        # Boss collision
+        # Boss collision:
+        #   - Landing on head (stomp) always bounces player off, never hurts.
+        #     Damage to boss ONLY applied during stunned state.
+        #   - Side/below collision damages player (as before).
         if self.level.boss and self.level.boss.alive():
             if pygame.sprite.collide_rect(self.player, self.level.boss):
                 stomp_rect = self.player.get_stomp_rect()
-                if (self.level.boss.stunned
-                        and self.player.velocity_y > 0
-                        and stomp_rect.colliderect(self.level.boss.rect)):
-                    killed = self.level.boss.take_hit()
+                is_head_stomp = (self.player.velocity_y > 0
+                                 and stomp_rect.colliderect(self.level.boss.rect))
+                if is_head_stomp:
+                    # Always bounce player off head
                     self.player.velocity_y = ENEMY_STOMP_BOUNCE
-                    self.audio.play("boss_hit")
-                    self.shake.trigger(12, 0.3)
-                    if killed:
-                        self.particles.emit_death(
-                            self.level.boss.rect.centerx,
-                            self.level.boss.rect.centery, 30)
-                        self.player.score += BOSS_KILL_SCORE
+                    self.player.rect.bottom = self.level.boss.rect.top
+                    if self.level.boss.stunned:
+                        # Damage boss during vulnerable window
+                        killed = self.level.boss.take_hit()
+                        self.audio.play("boss_hit")
+                        self.shake.trigger(12, 0.3)
+                        if killed:
+                            self.particles.emit_death(
+                                self.level.boss.rect.centerx,
+                                self.level.boss.rect.centery, 30)
+                            self.player.score += BOSS_KILL_SCORE
+                            self.hud.add_floating_text(
+                                f"+{BOSS_KILL_SCORE}",
+                                self.level.boss.rect.centerx,
+                                self.level.boss.rect.top, COL_GOLD)
+                    else:
+                        # Bounce off invulnerable head -- show a little "clang"
+                        self.audio.play("stomp")
                         self.hud.add_floating_text(
-                            f"+{BOSS_KILL_SCORE}", self.level.boss.rect.centerx,
-                            self.level.boss.rect.top, COL_GOLD)
+                            "!", self.level.boss.rect.centerx,
+                            self.level.boss.rect.top - 10, (255, 180, 80))
                 else:
+                    # Side/below hit -- boss damages player
                     if self.player.take_damage(PLAYER_DAMAGE):
                         self.shake.trigger()
                         self.particles.emit_damage(
                             self.player.rect.centerx, self.player.rect.centery)
                         self.audio.play("hit")
 
-        # Goal
-        if self.level.goal and pygame.sprite.collide_rect(
-                self.player, self.level.goal):
+        # Goal -- trigger "run off screen" outro instead of instant transition
+        if (self.level.goal and not self._outro_active
+                and pygame.sprite.collide_rect(self.player, self.level.goal)):
             boss_blocking = (self.level.boss is not None
                              and self.level.boss.alive())
             if not boss_blocking:
-                self._advance_level()
+                self._outro_active = True
+                self._outro_timer = 2.2  # seconds of auto-run
             else:
                 # Player reached goal but boss still alive -- give feedback
                 if self._boss_warning_timer <= 0:
@@ -548,6 +580,23 @@ class Game:
         if self.player.dead and self.death_anim is None:
             self.death_anim = DeathAnimation()
             self.audio.play("death")
+
+        # --- Level end outro: auto-run Pain-da off the right edge ---
+        if self._outro_active:
+            self._outro_timer -= effective_dt
+            # Auto-run right
+            self.player.rect.x += math.floor(self._outro_speed * effective_dt)
+            self.player.facing_right = True
+            self.player.velocity_x = self._outro_speed
+            # Force run animation
+            self.player.anim_state = "run"
+            if self._outro_timer <= 0:
+                self._outro_active = False
+                self._advance_level()
+
+        # Tutorial hint timer decrement (when not persistent)
+        if self._weapon_tutorial_timer < 999 and self._weapon_tutorial_timer > 0:
+            self._weapon_tutorial_timer -= effective_dt
 
         # Camera + effects
         self.camera.update(self.player, effective_dt)
@@ -668,6 +717,10 @@ class Game:
 
         self.hud.draw(self.screen, self.player, self.current_level + 1, self.camera)
 
+        # Weapon tutorial hint -- persistent banner until first use
+        if (self.player.has_bamboo_weapon and not self._weapon_used):
+            self._draw_weapon_hint()
+
         # --- NPC dialog box at bottom of screen ---
         active_npc = None
         for npc in self.level.npcs:
@@ -681,6 +734,27 @@ class Game:
             self.pause_overlay.draw(self.screen)
         elif self.state == ST_GAME_OVER:
             self.game_over_screen.draw(self.screen, self.player.score)
+
+    def _draw_weapon_hint(self) -> None:
+        """Persistent banner teaching the player how to attack."""
+        # Pulsing alpha to draw attention
+        t = pygame.time.get_ticks() / 200.0
+        alpha = int(180 + 55 * math.sin(t))
+        font_big = pygame.font.SysFont("consolas", 22, bold=True)
+        font_small = pygame.font.SysFont("consolas", 14)
+        title = font_big.render("BAMBOO STAFF EQUIPPED!", True, (255, 230, 120))
+        hint = font_small.render("Press  [ Z ]  to swing -- defeat enemies up close",
+                                 True, (230, 230, 230))
+        w = max(title.get_width(), hint.get_width()) + 32
+        h = 58
+        bx = (SCREEN_WIDTH - w) // 2
+        by = 96
+        bg = pygame.Surface((w, h), pygame.SRCALPHA)
+        bg.fill((20, 20, 30, alpha))
+        pygame.draw.rect(bg, (255, 220, 120), (0, 0, w, h), 3, border_radius=6)
+        self.screen.blit(bg, (bx, by))
+        self.screen.blit(title, title.get_rect(center=(SCREEN_WIDTH // 2, by + 18)))
+        self.screen.blit(hint, hint.get_rect(center=(SCREEN_WIDTH // 2, by + 42)))
 
     def _draw_npc_textbox(self, npc) -> None:
         """Full-width text box at bottom of screen for NPC dialog."""
