@@ -113,86 +113,81 @@ class ForestBackground(_BaseBackground):
                                [(x - base_w // 2, SCREEN_HEIGHT),
                                 (x, top_y),
                                 (x + base_w // 2, SCREEN_HEIGHT)])
-        # Parallax depth: 3 tree layers from back (dark/small) to front (bright/big)
-        # Back layer -- dark, distant
-        for i in range(12):
-            tx = int(i * self.w / 10) + random.randint(-20, 20)
-            tree_h = random.randint(50, 75)
-            trunk_top = SCREEN_HEIGHT - tree_h - 20
-            trunk_w = random.randint(3, 5)
-            trunk_c = (40, 28, 18)
+        # Asian forest: 3 parallax layers of bamboo + cherry blossom trees
+        # Back layer: distant dark bamboo grove (thin stalks)
+        for i in range(24):
+            bx = int(i * self.w / 20) + random.randint(-15, 15)
+            bh = random.randint(70, 110)
+            by_top = SCREEN_HEIGHT - bh - 25
+            stalk_c = (30, 80, 30)
+            joint_c = (18, 55, 18)
             for dx in (-self.w, 0, self.w):
-                pygame.draw.rect(surf, trunk_c,
-                                 (tx - trunk_w // 2 + dx,
-                                  trunk_top + tree_h // 3,
-                                  trunk_w, tree_h * 2 // 3))
-            canopy_c = (18, 65, 20)
-            cw = random.randint(14, 22)
-            for li, (ly_f, lw_f) in enumerate([(0.55, 1.0), (0.3, 0.8), (0.1, 0.55)]):
-                ly = trunk_top + int(tree_h * ly_f)
-                lw = int(cw * lw_f)
-                s = li * 4
-                lc = (min(255, canopy_c[0] + s),
-                      min(255, canopy_c[1] + s),
-                      min(255, canopy_c[2] + s))
-                self._wrap_polygon(surf, lc, [
-                    (tx - lw, ly),
-                    (tx, trunk_top + int(tree_h * 0.12 * (li + 1))),
-                    (tx + lw, ly)])
-        # Mid layer -- medium
-        for i in range(14):
-            tx = int(i * self.w / 11) + random.randint(-25, 25)
-            tree_h = random.randint(70, 100)
+                pygame.draw.rect(surf, stalk_c, (bx - 1 + dx, by_top, 2, bh))
+                for jy in range(by_top + 12, SCREEN_HEIGHT - 25, 20):
+                    pygame.draw.rect(surf, joint_c,
+                                     (bx - 2 + dx, jy, 4, 1))
+            # Tiny leaf at top
+            for dx in (-self.w, 0, self.w):
+                pygame.draw.polygon(surf, (35, 90, 25),
+                                    [(bx + dx, by_top),
+                                     (bx + 5 + dx, by_top + 3),
+                                     (bx + dx, by_top + 5)])
+        # Mid layer: cherry blossom trees with pink clouds
+        for i in range(5):
+            tx = int(i * self.w / 4) + random.randint(-35, 35)
+            tree_h = random.randint(85, 115)
             trunk_top = SCREEN_HEIGHT - tree_h - 5
-            trunk_w = random.randint(5, 7)
-            trunk_c = (70, 48, 28)
+            trunk_w = 6
+            trunk_c = (55, 35, 22)
             for dx in (-self.w, 0, self.w):
                 pygame.draw.rect(surf, trunk_c,
                                  (tx - trunk_w // 2 + dx,
                                   trunk_top + tree_h // 3,
                                   trunk_w, tree_h * 2 // 3))
-            canopy_c = (32 + random.randint(-5, 8),
-                        105 + random.randint(-10, 10),
-                        32 + random.randint(-5, 8))
-            cw = random.randint(20, 30)
-            for li, (ly_f, lw_f) in enumerate([(0.55, 1.0), (0.35, 0.8), (0.15, 0.6)]):
-                ly = trunk_top + int(tree_h * ly_f)
-                lw = int(cw * lw_f)
-                s = li * 8
-                lc = (min(255, canopy_c[0] + s),
-                      min(255, canopy_c[1] + s),
-                      min(255, canopy_c[2] + s))
-                self._wrap_polygon(surf, lc, [
-                    (tx - lw, ly),
-                    (tx, trunk_top + int(tree_h * 0.12 * (li + 1))),
-                    (tx + lw, ly)])
-        # Front layer -- brightest/largest (closest to camera)
-        for i in range(8):
-            tx = int(i * self.w / 6) + random.randint(-35, 35)
-            tree_h = random.randint(95, 130)
-            trunk_top = SCREEN_HEIGHT - tree_h + 5
-            trunk_w = random.randint(7, 10)
-            trunk_c = (95, 65, 40)
+                # Side branches
+                pygame.draw.line(surf, trunk_c,
+                                 (tx + dx, trunk_top + tree_h // 2),
+                                 (tx - 14 + dx, trunk_top + tree_h // 4), 2)
+                pygame.draw.line(surf, trunk_c,
+                                 (tx + dx, trunk_top + tree_h // 2),
+                                 (tx + 14 + dx, trunk_top + tree_h // 4), 2)
+            # Pink blossom cloud (overlapping circles)
+            cw = random.randint(24, 34)
+            for _ in range(9):
+                ox = random.randint(-cw, cw)
+                oy = random.randint(-cw // 2, cw // 3)
+                cr = random.randint(int(cw * 0.5), int(cw * 0.85))
+                pc = random.choice([(228, 165, 195), (245, 185, 215),
+                                    (215, 150, 185), (250, 200, 225)])
+                self._wrap_polygon(surf, pc, [
+                    (tx + ox - cr, trunk_top + tree_h // 4 + oy),
+                    (tx + ox, trunk_top + tree_h // 4 + oy - cr // 2),
+                    (tx + ox + cr, trunk_top + tree_h // 4 + oy),
+                    (tx + ox, trunk_top + tree_h // 4 + oy + cr // 2)])
+        # Front layer: tall vibrant bamboo (foreground)
+        for i in range(12):
+            bx = int(i * self.w / 10) + random.randint(-20, 20)
+            bh = random.randint(110, 170)
+            by_top = SCREEN_HEIGHT - bh + 8
+            stalk_c = (65, 155, 55)
+            highlight = (105, 195, 85)
+            joint_c = (35, 105, 28)
             for dx in (-self.w, 0, self.w):
-                pygame.draw.rect(surf, trunk_c,
-                                 (tx - trunk_w // 2 + dx,
-                                  trunk_top + tree_h // 3,
-                                  trunk_w, tree_h * 2 // 3))
-            canopy_c = (60 + random.randint(-5, 8),
-                        145 + random.randint(-10, 15),
-                        55 + random.randint(-5, 8))
-            cw = random.randint(28, 40)
-            for li, (ly_f, lw_f) in enumerate([(0.55, 1.0), (0.35, 0.8), (0.15, 0.6)]):
-                ly = trunk_top + int(tree_h * ly_f)
-                lw = int(cw * lw_f)
-                s = li * 12
-                lc = (min(255, canopy_c[0] + s),
-                      min(255, canopy_c[1] + s),
-                      min(255, canopy_c[2] + s))
-                self._wrap_polygon(surf, lc, [
-                    (tx - lw, ly),
-                    (tx, trunk_top + int(tree_h * 0.12 * (li + 1))),
-                    (tx + lw, ly)])
+                pygame.draw.rect(surf, stalk_c, (bx - 3 + dx, by_top, 6, bh))
+                pygame.draw.rect(surf, highlight, (bx - 1 + dx, by_top, 1, bh))
+                for jy in range(by_top + 14, SCREEN_HEIGHT, 22):
+                    pygame.draw.rect(surf, joint_c,
+                                     (bx - 4 + dx, jy, 8, 2))
+            # Leaf clusters at top
+            for dx in (-self.w, 0, self.w):
+                pygame.draw.polygon(surf, (65, 150, 50),
+                                    [(bx + dx, by_top - 6),
+                                     (bx + 16 + dx, by_top + 4),
+                                     (bx + 2 + dx, by_top + 10)])
+                pygame.draw.polygon(surf, (45, 125, 35),
+                                    [(bx + dx, by_top - 6),
+                                     (bx - 16 + dx, by_top + 4),
+                                     (bx - 2 + dx, by_top + 10)])
         # Ground strip
         for y in range(SCREEN_HEIGHT - 12, SCREEN_HEIGHT):
             t = (y - (SCREEN_HEIGHT - 12)) / 12

@@ -20,7 +20,7 @@ from backgrounds import BiomeBackground
 from engine import Camera, ParticleSystem, ScreenShake
 from levels import build_level_state, LevelState
 from save import save_high_score
-from sprites import Player
+from sprites import BambooStaff, Player
 from ui import (
     DeathAnimation, GameOverScreen, HUD, LevelTransition,
     PauseOverlay, TitleScreen, VictoryScreen,
@@ -106,13 +106,14 @@ class Game:
                     self._jump_pressed = False
 
     def _toggle_fullscreen(self) -> None:
-        """Toggle fullscreen. Uses native resolution for Pi 1 safety."""
+        """Toggle fullscreen using NATIVE resolution (auto-detect)."""
         self._fullscreen = not self._fullscreen
         try:
             if self._fullscreen:
+                # (0, 0) tells pygame to use the current desktop resolution
                 self.screen = pygame.display.set_mode(
-                    (SCREEN_WIDTH, SCREEN_HEIGHT),
-                    pygame.FULLSCREEN | pygame.DOUBLEBUF | pygame.HWSURFACE,
+                    (0, 0),
+                    pygame.FULLSCREEN | pygame.SCALED | pygame.DOUBLEBUF,
                     vsync=1,
                 )
             else:
@@ -122,7 +123,6 @@ class Game:
                     vsync=1,
                 )
         except pygame.error:
-            # Fallback if mode not supported (Pi 1 safety)
             self._fullscreen = False
             self.screen = pygame.display.set_mode(
                 (SCREEN_WIDTH, SCREEN_HEIGHT))
@@ -143,6 +143,9 @@ class Game:
                     if self.player.jump():
                         self.audio.play("jump")
                     self._jump_pressed = True
+            elif key in (pygame.K_z, pygame.K_x):
+                if self.player and self.player.attack():
+                    self.audio.play("stomp")
         elif self.state == ST_PAUSED:
             if key == pygame.K_ESCAPE:
                 self.state = ST_PLAYING
@@ -274,18 +277,28 @@ class Game:
                 self._respawn_at_checkpoint()
                 return
 
-        # Moving platforms
+        # Moving platforms -- player inherits platform velocity when standing on it.
+        # Critical: detect riding BEFORE the platform moves, then TELEPORT player
+        # to stay on platform surface. Fixes vertical-platform fall-through.
         for mp in self.level.moving_platforms:
             old_mx, old_my = mp.rect.x, mp.rect.y
-            riding = False
-            if self.player.is_on_ground:
-                feet = self.player.get_stomp_rect()
-                test_rect = pygame.Rect(old_mx - 2, old_my - 4, mp.rect.w + 4, 8)
-                riding = feet.colliderect(test_rect)
+            # Broader riding test: player must be touching platform top within 6px
+            feet_y = self.player.rect.bottom
+            plat_top = old_my
+            horiz_overlap = (self.player.rect.right > old_mx - 2
+                             and self.player.rect.left < old_mx + mp.rect.w + 2)
+            was_riding = (horiz_overlap and -6 <= (feet_y - plat_top) <= 6)
             mp.update_moving(effective_dt)
-            if riding:
-                self.player.rect.x += mp.rect.x - old_mx
-                self.player.rect.y += mp.rect.y - old_my
+            if was_riding:
+                dx = mp.rect.x - old_mx
+                dy = mp.rect.y - old_my
+                self.player.rect.x += dx
+                # Snap player bottom to platform top exactly (anti-clip)
+                self.player.rect.bottom = mp.rect.top
+                # Kill any downward velocity so gravity doesn't fight the platform
+                if self.player.velocity_y > 0:
+                    self.player.velocity_y = 0
+                self.player.is_on_ground = True
 
         # Player
         keys = pygame.key.get_pressed()
@@ -409,6 +422,19 @@ class Game:
             self.particles.emit_sparkle(bamboo.rect.centerx, bamboo.rect.centery)
             self.audio.play("collect")
 
+        # Bamboo staff weapon pickup
+        for weapon in pygame.sprite.spritecollide(
+                self.player, self.level.weapons, True):
+            self.player.has_bamboo_weapon = True
+            self.hud.add_floating_text(
+                "BAMBOO STAFF!  [Z] to swing",
+                weapon.rect.centerx, weapon.rect.top - 10, (255, 220, 120))
+            self.particles.emit_sparkle(weapon.rect.centerx, weapon.rect.centery, 14)
+            self.audio.play("collect")
+
+        # Update weapon sprite animations
+        self.level.weapons.update(effective_dt)
+
         # Heals
         for heal in pygame.sprite.spritecollide(
                 self.player, self.level.heals, True):
@@ -418,6 +444,37 @@ class Game:
                 (100, 255, 100))
             self.particles.emit_sparkle(heal.rect.centerx, heal.rect.centery)
             self.audio.play("collect")
+
+        # Bamboo staff attack hits enemies
+        if self.player.is_attacking:
+            atk_rect = self.player.get_attack_rect()
+            if atk_rect.width > 0:
+                for enemy in list(self.level.enemies):
+                    if (getattr(enemy, "alive_flag", True)
+                            and atk_rect.colliderect(enemy.rect)):
+                        # Flying/invincible enemies ignore melee
+                        if not getattr(enemy, "is_stompable", True):
+                            continue
+                        enemy.die()
+                        self.player.score += STOMP_SCORE
+                        self.hud.add_floating_text(
+                            f"+{STOMP_SCORE}", enemy.rect.centerx,
+                            enemy.rect.top, COL_GOLD)
+                        self.particles.emit_death(
+                            enemy.rect.centerx, enemy.rect.centery)
+                        self.audio.play("stomp")
+                # Boss gets hit too (if stunned)
+                if (self.level.boss and self.level.boss.alive()
+                        and self.level.boss.stunned
+                        and atk_rect.colliderect(self.level.boss.rect)):
+                    killed = self.level.boss.take_hit()
+                    self.audio.play("boss_hit")
+                    self.shake.trigger(8, 0.2)
+                    if killed:
+                        self.particles.emit_death(
+                            self.level.boss.rect.centerx,
+                            self.level.boss.rect.centery, 30)
+                        self.player.score += BOSS_KILL_SCORE
 
         # Enemy collisions (stomp or damage)
         for enemy in pygame.sprite.spritecollide(
@@ -545,6 +602,15 @@ class Game:
             self.screen.blit(sprite.image, sprite.rect.move(cam_x, cam_y))
 
         self.particles.draw(self.screen, self.camera)
+
+        # Bamboo staff swing visual (gold streak hitbox)
+        if self.player.is_attacking:
+            atk_rect = self.player.get_attack_rect().move(cam_x, cam_y)
+            streak = pygame.Surface((atk_rect.w, atk_rect.h), pygame.SRCALPHA)
+            streak.fill((255, 230, 120, 90))
+            pygame.draw.rect(streak, (255, 255, 200, 180),
+                            (0, atk_rect.h // 2 - 2, atk_rect.w, 4))
+            self.screen.blit(streak, atk_rect)
 
         # --- Darkness overlay (Level 7: Karst Caves) ---
         if self.level.is_dark:

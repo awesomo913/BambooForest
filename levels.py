@@ -9,8 +9,8 @@ import pygame
 
 from config import FLOOR_Y, LEVEL_WIDTHS, SCREEN_HEIGHT
 from sprites import (
-    Bamboo, Boss, ChaserEnemy, Checkpoint, FlyingEnemy, GrassTuft,
-    HealingItem, MovingPlatform, PatrolEnemy, Platform,
+    Bamboo, BambooStaff, Boss, ChaserEnemy, Checkpoint, FlyingEnemy,
+    GrassTuft, HealingItem, MovingPlatform, PatrolEnemy, Platform,
     SafeZone, SlimeEnemy,
 )
 from biomes import (
@@ -62,6 +62,7 @@ class LevelDef:
     crystal_positions: list[tuple[int, int]] = field(default_factory=list)
     ice_defs: list[PlatformDef] = field(default_factory=list)
     npc_defs: list[tuple[int, int, str, list[str], tuple]] = field(default_factory=list)
+    weapon_positions: list[tuple[int, int]] = field(default_factory=list)
     is_dark: bool = False
     is_icy: bool = False
 
@@ -119,6 +120,7 @@ class LevelState:
         self.toxic_trails = pygame.sprite.Group()
         self.projectiles = pygame.sprite.Group()
         self.npcs = pygame.sprite.Group()
+        self.weapons = pygame.sprite.Group()
 
         self.goal: SafeZone | None = None
         self.boss: Boss | None = None
@@ -246,6 +248,12 @@ class LevelState:
             self.checkpoints.add(cp)
             self.all_sprites.add(cp)
 
+        # Bamboo weapon pickups
+        for wx, wy in level_def.weapon_positions:
+            ws = BambooStaff(wx, wy)
+            self.weapons.add(ws)
+            self.all_sprites.add(ws)
+
         # Goal
         sz = SafeZone(level_def.goal_x, 200)
         self.goal = sz
@@ -280,6 +288,7 @@ def _build_level_1() -> LevelDef:
         bamboo_positions=_scatter_bamboos(plats, LEVEL_WIDTHS[0], FLOOR_Y, 11),
         heal_positions=[(950, 380), (2500, 400)],
         goal_x=2800, checkpoint_positions=[1500],
+        weapon_positions=[(700, FLOOR_Y)],
     )
 
 

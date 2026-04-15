@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Bamboo Forest
+Comment=Hardware Accelerated Side-Scroller
+Exec=python3 /home/jacob/Desktop/bamboo_forest.py
+Icon=applications-games
+Terminal=false
+Type=Application
+Categories=Game;

@@ -1,0 +1,50 @@
+[FAIL]
+Crash Traceback:
+error: XDG_RUNTIME_DIR is invalid or not set in the environment.
+Traceback (most recent call last):
+  File "/home/jacob/Desktop/Modular_Code/ROLEYOUAREGAME_1086/App_Workspace/module_auto.py", line 18, in <module>
+    panda_img = pygame.image.load('panda.png').convert_alpha()
+                ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+FileNotFoundError: No file 'panda.png' found in working directory '/home/jacob'.[FAIL]
+Crash Traceback:
+error: XDG_RUNTIME_DIR is invalid or not set in the environment.
+Traceback (most recent call last):
+  File "/home/jacob/Desktop/Modular_Code/ROLEYOUAREGAME_1086/App_Workspace/module_auto.py", line 273, in <module>
+    main()
+    ~~~~^^
+  File "/home/jacob/Desktop/Modular_Code/ROLEYOUAREGAME_1086/App_Workspace/module_auto.py", line 236, in main
+    screen.blit(bg_image, (0, 0))
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+TypeError: argument 1 must be pygame.surface.Surface, not None[FAIL]
+Crash Traceback:
+error: XDG_RUNTIME_DIR is invalid or not set in the environment.
+Traceback (most recent call last):
+  File "/home/jacob/Desktop/Modular_Code/ROLEYOUAREGAME_1086/App_Workspace/module_auto.py", line 176, in <module>
+    main()
+    ~~~~^^
+  File "/home/jacob/Desktop/Modular_Code/ROLEYOUAREGAME_1086/App_Workspace/module_auto.py", line 137, in main
+    panda = Panda(100, 400)
+  File "/home/jacob/Desktop/Modular_Code/ROLEYOUAREGAME_1086/App_Workspace/module_auto.py", line 48, in __init__
+    self.rect = self.image.get_rect(topleft=(x, y))
+                ^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'get_rect'[FAIL]
+Crash Traceback:
+error: XDG_RUNTIME_DIR is invalid or not set in the environment.
+Traceback (most recent call last):
+  File "/home/jacob/Desktop/Modular_Code/ROLEYOUAREGAME_1086/App_Workspace/module_auto.py", line 311, in <module>
+    main()
+    ~~~~^^
+  File "/home/jacob/Desktop/Modular_Code/ROLEYOUAREGAME_1086/App_Workspace/module_auto.py", line 248, in main
+    screen.blit(bg_image, (0, 0))
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+TypeError: argument 1 must be pygame.surface.Surface, not None[FAIL]
+Crash Traceback:
+error: XDG_RUNTIME_DIR is invalid or not set in the environment.
+Traceback (most recent call last):
+  File "/home/jacob/Desktop/Modular_Code/ROLEYOUAREGAME_1086/App_Workspace/module_auto.py", line 256, in <module>
+    main()
+    ~~~~^^
+  File "/home/jacob/Desktop/Modular_Code/ROLEYOUAREGAME_1086/App_Workspace/module_auto.py", line 216, in main
+    screen.blit(bg_image, (0, 0))
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+TypeError: argument 1 must be pygame.surface.Surface, not None

@@ -1,0 +1,26 @@
+ONLINE RESEARCH RESULTS:
+
+
+--- CRASH RECOVERY RESEARCH ---
+Error: FileNotFoundError: No file 'panda.png' found in working directory '/home/jacob'.
+Solutions:
+
+
+--- CRASH RECOVERY RESEARCH ---
+Error: TypeError: argument 1 must be pygame.surface.Surface, not None
+Solutions:
+
+
+--- CRASH RECOVERY RESEARCH ---
+Error: AttributeError: 'NoneType' object has no attribute 'get_rect'
+Solutions:
+
+
+--- CRASH RECOVERY RESEARCH ---
+Error: TypeError: argument 1 must be pygame.surface.Surface, not None
+Solutions:
+
+
+--- CRASH RECOVERY RESEARCH ---
+Error: TypeError: argument 1 must be pygame.surface.Surface, not None
+Solutions:

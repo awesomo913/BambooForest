@@ -131,141 +131,200 @@ def generate_heal_surface() -> pygame.Surface:
 
 
 def generate_platform_tile(width: int, height: int) -> pygame.Surface:
-    """Clean platform with grass top, dirt body, and stone edge."""
+    """Asian-themed platform: polished wood grain + bamboo cross-sections.
+
+    Evokes a temple walkway / wooden tea-house plank.
+    """
     surf = pygame.Surface((width, height))
-    # Dirt gradient (darker at bottom)
+    # Deep earthy teak base with gradient
     for y in range(height):
         t = y / max(1, height)
-        c = (max(0, int(COL_PLAT_DIRT[0] - 15 * t)),
-             max(0, int(COL_PLAT_DIRT[1] - 10 * t)),
-             max(0, int(COL_PLAT_DIRT[2] - 8 * t)))
-        pygame.draw.line(surf, c, (0, y), (width, y))
-    # Stone edge on sides
-    edge_c = (85, 60, 35)
-    pygame.draw.rect(surf, edge_c, (0, 0, 2, height))
-    pygame.draw.rect(surf, edge_c, (width - 2, 0, 2, height))
-    # Grass top (thick, with blade shapes)
-    grass_h = min(6, height)
-    pygame.draw.rect(surf, COL_PLAT_GRASS, (0, 0, width, grass_h))
-    dark_grass = (25, 120, 25)
-    pygame.draw.rect(surf, dark_grass, (0, grass_h - 1, width, 1))
-    # Grass blades sticking up
+        c = (int(110 - 30 * t), int(70 - 18 * t), int(35 - 10 * t))
+        pygame.draw.line(surf, (max(0, c[0]), max(0, c[1]), max(0, c[2])),
+                         (0, y), (width, y))
+    # Wood grain lines
+    for gy in range(6, height, 4):
+        shade = random.randint(-20, 10)
+        c = (max(0, min(255, 85 + shade)),
+             max(0, min(255, 52 + shade)),
+             max(0, min(255, 25 + shade)))
+        pygame.draw.line(surf, c, (0, gy),
+                         (width, gy + random.choice([-1, 0, 1])), 1)
+    # Mossy green top (zen garden moss)
+    moss_h = min(5, height)
+    pygame.draw.rect(surf, (55, 130, 55), (0, 0, width, moss_h))
+    pygame.draw.rect(surf, (40, 105, 40), (0, moss_h - 1, width, 1))
+    # Short moss tufts
     for x in range(0, width - 1, 3):
-        bh = random.randint(2, 6)
-        shade = random.randint(-10, 20)
-        gc = (min(255, COL_PLAT_GRASS[0] + shade),
-              min(255, COL_PLAT_GRASS[1] + shade),
-              min(255, COL_PLAT_GRASS[2] + shade))
-        pygame.draw.line(surf, gc, (x, grass_h), (x + random.randint(-1, 1), grass_h - bh), 1)
-    # Subtle dirt specks
-    for _ in range(width * height // 40):
-        nx = random.randint(2, width - 3)
-        ny = random.randint(grass_h + 1, max(grass_h + 1, height - 1))
-        shade = random.randint(-10, 10)
-        c = (max(0, min(255, COL_PLAT_DIRT[0] + shade)),
-             max(0, min(255, COL_PLAT_DIRT[1] + shade)),
-             max(0, min(255, COL_PLAT_DIRT[2] + shade)))
-        surf.set_at((nx, ny), c)
+        bh = random.randint(1, 3)
+        shade = random.randint(-10, 25)
+        gc = (min(255, 55 + shade), min(255, 130 + shade), min(255, 55 + shade))
+        pygame.draw.line(surf, gc, (x, moss_h),
+                         (x + random.randint(-1, 1), moss_h - bh), 1)
+    # Bamboo cross-section decorations (every ~60px)
+    spacing = 60
+    for bx in range(spacing // 2, width - 10, spacing):
+        by = height // 2 + random.randint(-2, 2)
+        # Dark rim
+        pygame.draw.circle(surf, (40, 80, 20), (bx, by), 4)
+        # Pale bamboo interior
+        pygame.draw.circle(surf, (180, 200, 130), (bx, by), 3)
+        # Center node dot
+        pygame.draw.circle(surf, (90, 130, 60), (bx, by), 1)
+    # Dark edge trim (lacquered corners)
+    pygame.draw.rect(surf, (40, 25, 15), (0, 0, 2, height))
+    pygame.draw.rect(surf, (40, 25, 15), (width - 2, 0, 2, height))
     return surf
 
 
 def generate_safe_zone(height: int) -> pygame.Surface:
-    """Natural forest clearing that the panda runs into to complete the level."""
+    """Asian temple grove: torii gate, pagoda silhouette, cherry blossoms."""
     w = SAFE_ZONE_WIDTH
     surf = pygame.Surface((w, height), pygame.SRCALPHA)
     ground_y = height - 18
 
-    # Ground: gradient transition from dirt to lush green
+    # Ground: soft mossy green with cherry petals
     for gy in range(ground_y, height):
         t = (gy - ground_y) / max(1, height - ground_y)
-        r = int(80 - 40 * t)
-        g = int(140 + 50 * t)
-        b = int(50 - 20 * t)
+        r = int(70 - 30 * t)
+        g = int(130 + 40 * t)
+        b = int(55 - 25 * t)
         pygame.draw.line(surf, (r, g, b), (0, gy), (w, gy))
 
-    # Clearing path in center (lighter earthy tone)
-    path_w = 60
+    # Stone path (sand/gravel zen-garden)
+    path_w = 80
     path_x = w // 2 - path_w // 2
-    for gy in range(ground_y, height):
-        pygame.draw.rect(surf, (110, 160, 80), (path_x, gy, path_w, 1))
+    pygame.draw.rect(surf, (200, 185, 150), (path_x, ground_y, path_w, 18))
+    # Raked sand lines
+    for gy in range(ground_y + 3, height, 4):
+        pygame.draw.line(surf, (170, 155, 120),
+                         (path_x + 4, gy), (path_x + path_w - 4, gy), 1)
 
-    # Dense grass blades along ground
-    for gx in range(0, w, 3):
-        gh = random.randint(6, 14)
-        shade = random.randint(-15, 15)
-        gc = (40 + shade, 140 + shade, 35 + shade)
-        pygame.draw.line(surf, gc, (gx, ground_y),
-                         (gx + random.randint(-2, 2), ground_y - gh), 1)
+    # === TORII GATE (red gate) in center ===
+    tx = w // 2
+    torii_top = ground_y - int(height * 0.55)
+    torii_h = ground_y - torii_top
+    gate_w = 120
+    pillar_w = 10
+    # Pillars
+    pygame.draw.rect(surf, (200, 40, 40),
+                     (tx - gate_w // 2, torii_top + 18, pillar_w, torii_h - 18))
+    pygame.draw.rect(surf, (200, 40, 40),
+                     (tx + gate_w // 2 - pillar_w, torii_top + 18,
+                      pillar_w, torii_h - 18))
+    pygame.draw.rect(surf, (150, 30, 30),
+                     (tx - gate_w // 2, ground_y - 3, pillar_w, 3))
+    pygame.draw.rect(surf, (150, 30, 30),
+                     (tx + gate_w // 2 - pillar_w, ground_y - 3, pillar_w, 3))
+    # Top crossbeam (kasagi) -- wider than pillars, upcurved ends
+    beam_w = gate_w + 26
+    pygame.draw.rect(surf, (40, 25, 20),
+                     (tx - beam_w // 2, torii_top, beam_w, 8))
+    pygame.draw.polygon(surf, (40, 25, 20), [
+        (tx - beam_w // 2, torii_top + 8),
+        (tx - beam_w // 2 - 6, torii_top + 2),
+        (tx - beam_w // 2 - 6, torii_top),
+        (tx - beam_w // 2, torii_top)])
+    pygame.draw.polygon(surf, (40, 25, 20), [
+        (tx + beam_w // 2, torii_top + 8),
+        (tx + beam_w // 2 + 6, torii_top + 2),
+        (tx + beam_w // 2 + 6, torii_top),
+        (tx + beam_w // 2, torii_top)])
+    # Second beam (nuki) below
+    pygame.draw.rect(surf, (160, 30, 30),
+                     (tx - gate_w // 2 - 6, torii_top + 18, gate_w + 12, 6))
 
-    # Trees: varied heights, proper trunks + layered canopy
-    tree_defs = [(30, 0.9), (w // 2 - 50, 0.7), (w // 2 + 40, 0.75), (w - 45, 0.85)]
-    for tx, scale in tree_defs:
+    # === PAGODA silhouette (left of gate, small, distant) ===
+    pag_x = 45
+    pag_bot = ground_y - 10
+    pag_levels = 3
+    for li in range(pag_levels):
+        lw = 40 - li * 6
+        lh = 14
+        ly = pag_bot - (li + 1) * (lh + 4)
+        # Tier body
+        pygame.draw.rect(surf, (90, 55, 35),
+                         (pag_x - lw // 2, ly, lw, lh))
+        # Curved red roof
+        pygame.draw.polygon(surf, (180, 50, 40), [
+            (pag_x - lw // 2 - 4, ly),
+            (pag_x, ly - 8),
+            (pag_x + lw // 2 + 4, ly),
+        ])
+    # Spire
+    pygame.draw.rect(surf, (80, 50, 30),
+                     (pag_x - 1, pag_bot - pag_levels * 18 - 14, 2, 10))
+    pygame.draw.circle(surf, (220, 180, 60),
+                       (pag_x, pag_bot - pag_levels * 18 - 14), 3)
+
+    # === STONE LANTERN (right of gate) ===
+    lx = w - 50
+    lb = ground_y - 5
+    pygame.draw.rect(surf, (150, 145, 135), (lx - 8, lb - 8, 16, 8))  # base
+    pygame.draw.rect(surf, (160, 155, 145), (lx - 3, lb - 20, 6, 12))  # pillar
+    pygame.draw.rect(surf, (140, 135, 125), (lx - 10, lb - 30, 20, 10))  # lantern
+    # Glow from lantern
+    pygame.draw.circle(surf, (255, 220, 120), (lx, lb - 25), 4)
+    pygame.draw.polygon(surf, (90, 85, 80), [
+        (lx - 12, lb - 30), (lx, lb - 38), (lx + 12, lb - 30)])  # roof
+
+    # === CHERRY BLOSSOM TREES (pink canopies) ===
+    cherry_defs = [(100, 0.8), (w - 100, 0.75)]
+    for cx, scale in cherry_defs:
         th = int(height * scale * 0.6)
-        trunk_w = int(8 + 6 * scale)
-        trunk_h = int(th * 0.45)
+        trunk_w = int(6 + 5 * scale)
         trunk_top = ground_y - th
+        # Dark trunk with curve
+        trunk_c = (70, 40, 25)
+        pygame.draw.rect(surf, trunk_c,
+                         (cx - trunk_w // 2, trunk_top + th // 3,
+                          trunk_w, th * 2 // 3))
+        # Branches
+        for bx_off in (-8, 8, -4):
+            pygame.draw.line(surf, trunk_c,
+                             (cx, trunk_top + th // 2),
+                             (cx + bx_off * 3, trunk_top + th // 4), 2)
+        # Pink/white blossom cloud
+        cw = int(28 + 16 * scale)
+        for _ in range(9):
+            ox = random.randint(-cw, cw)
+            oy = random.randint(-cw // 2, cw // 2)
+            cr = random.randint(int(cw * 0.45), int(cw * 0.75))
+            pc = random.choice([(255, 200, 220), (255, 180, 210),
+                                (255, 230, 240), (240, 170, 200)])
+            pygame.draw.circle(surf, pc,
+                               (cx + ox, trunk_top + th // 4 + oy), cr)
 
-        # Trunk
-        tc = (85 + random.randint(-10, 10), 58 + random.randint(-8, 8),
-              32 + random.randint(-5, 5))
-        pygame.draw.rect(surf, tc,
-                         (tx - trunk_w // 2, trunk_top + th - trunk_h,
-                          trunk_w, trunk_h), border_radius=2)
-        # Bark lines
-        for by in range(trunk_top + th - trunk_h, ground_y, 8):
-            pygame.draw.line(surf, (tc[0] - 15, tc[1] - 12, tc[2] - 8),
-                             (tx - trunk_w // 4, by), (tx + trunk_w // 4, by + 4), 1)
+    # === FALLING CHERRY PETALS on ground ===
+    for _ in range(20):
+        pet_x = random.randint(0, w)
+        pet_y = random.randint(ground_y - 40, height)
+        pygame.draw.circle(surf, (255, 190, 215), (pet_x, pet_y), 2)
+        pygame.draw.circle(surf, (255, 160, 190), (pet_x, pet_y - 1), 1)
 
-        # Canopy: 3 layered triangles (pine) or circles (oak), alternating
-        canopy_c = (35 + random.randint(-8, 12), 120 + random.randint(-15, 20),
-                    35 + random.randint(-8, 12))
-        cw = int(22 + 18 * scale)
-        if random.random() > 0.5:
-            # Pine tree (triangles)
-            for li, (ly_f, lw_f) in enumerate([(0.6, 1.0), (0.38, 0.8), (0.16, 0.6)]):
-                ly = trunk_top + int(th * ly_f)
-                lw = int(cw * lw_f)
-                s = li * 10
-                lc = (min(255, canopy_c[0] + s), min(255, canopy_c[1] + s),
-                      min(255, canopy_c[2] + s))
-                pygame.draw.polygon(surf, lc, [
-                    (tx - lw, ly), (tx, trunk_top + int(th * 0.1 * (li + 1))),
-                    (tx + lw, ly)])
-        else:
-            # Oak tree (overlapping circles)
-            for _ in range(6):
-                ox = random.randint(-cw, cw)
-                oy = random.randint(-cw // 2, cw // 3)
-                cr = random.randint(int(cw * 0.5), int(cw * 0.8))
-                s = random.randint(-8, 8)
-                lc = (min(255, canopy_c[0] + s), min(255, canopy_c[1] + s),
-                      min(255, canopy_c[2] + s))
-                pygame.draw.circle(surf, lc, (tx + ox, trunk_top + int(th * 0.3) + oy), cr)
+    # === BAMBOO STALKS (accent plants near gate) ===
+    for bx in (tx - 80, tx + 80, tx - 60, tx + 60):
+        bh = random.randint(45, 75)
+        by = ground_y
+        pygame.draw.rect(surf, (60, 145, 50), (bx - 2, by - bh, 4, bh))
+        # Joints
+        for jy in range(by - bh + 10, by, 14):
+            pygame.draw.rect(surf, (30, 100, 25), (bx - 3, jy, 6, 2))
+        # Leaves at top
+        pygame.draw.polygon(surf, (55, 140, 45),
+                            [(bx, by - bh), (bx + 8, by - bh + 4),
+                             (bx + 2, by - bh + 8)])
+        pygame.draw.polygon(surf, (45, 125, 35),
+                            [(bx, by - bh), (bx - 8, by - bh + 4),
+                             (bx - 2, by - bh + 8)])
 
-    # Flower clusters (groups of 2-3 near each other)
-    flower_colors = [(255, 90, 90), (255, 210, 60), (220, 120, 255),
-                     (255, 160, 200), (120, 210, 255)]
-    for _ in range(5):
-        cluster_x = random.randint(40, w - 40)
-        cluster_y = ground_y
-        for fi in range(random.randint(2, 3)):
-            fx = cluster_x + random.randint(-15, 15)
-            fy = cluster_y - random.randint(4, 12)
-            fc = random.choice(flower_colors)
-            pygame.draw.line(surf, (40, 120, 35), (fx, cluster_y), (fx, fy), 1)
-            for angle in range(0, 360, 72):
-                px = fx + int(3 * math.cos(math.radians(angle)))
-                py = fy + int(3 * math.sin(math.radians(angle)))
-                pygame.draw.circle(surf, fc, (px, py), 2)
-            pygame.draw.circle(surf, (255, 220, 50), (fx, fy), 1)
-
-    # Sunbeam rays (wide diagonal golden shafts)
-    for _ in range(4):
-        rx = random.randint(20, w - 20)
-        beam = pygame.Surface((18, height), pygame.SRCALPHA)
+    # Sunbeam rays (gold shafts)
+    for _ in range(3):
+        rx = random.randint(40, w - 40)
+        beam = pygame.Surface((20, height), pygame.SRCALPHA)
         for by in range(height):
-            alpha = max(0, int(30 * (1 - by / height)))
-            pygame.draw.line(beam, (255, 245, 180, alpha), (0, by), (18, by))
+            alpha = max(0, int(35 * (1 - by / height)))
+            pygame.draw.line(beam, (255, 240, 170, alpha), (0, by), (20, by))
         surf.blit(beam, (rx + random.randint(-10, 10), 0))
 
     # Butterflies
@@ -554,6 +613,12 @@ class Player(pygame.sprite.Sprite):
         self.friction_mode: str = "normal"  # "normal" or "ice"
         self.dead = False
 
+        # Bamboo staff weapon system
+        self.has_bamboo_weapon: bool = False
+        self.is_attacking: bool = False
+        self.attack_timer: float = 0.0
+        self.attack_cooldown: float = 0.0
+
     def update(self, dt: float, keys: pygame.key.ScancodeWrapper,
                platforms: pygame.sprite.Group) -> None:
         if self.dead:
@@ -566,6 +631,14 @@ class Player(pygame.sprite.Sprite):
             self.combo_timer -= dt
             if self.combo_timer <= 0:
                 self.combo_count = 0
+
+        # Attack timers
+        if self.attack_timer > 0:
+            self.attack_timer -= dt
+            if self.attack_timer <= 0:
+                self.is_attacking = False
+        if self.attack_cooldown > 0:
+            self.attack_cooldown -= dt
 
         if self.friction_mode == "ice":
             from config import ICE_ACCEL, ICE_FRICTION
@@ -648,6 +721,27 @@ class Player(pygame.sprite.Sprite):
         return pygame.Rect(self.rect.x + 4, self.rect.bottom - 8,
                            self.rect.width - 8, 8)
 
+    def attack(self) -> bool:
+        """Swing the bamboo staff. Returns True if attack started."""
+        if (self.has_bamboo_weapon and not self.is_attacking
+                and self.attack_cooldown <= 0):
+            self.is_attacking = True
+            self.attack_timer = 0.25  # 250ms swing window
+            self.attack_cooldown = 0.4
+            return True
+        return False
+
+    def get_attack_rect(self) -> pygame.Rect:
+        """Hitbox in front of the player when attacking (bamboo staff reach)."""
+        if not self.is_attacking:
+            return pygame.Rect(0, 0, 0, 0)
+        reach = 42
+        if self.facing_right:
+            return pygame.Rect(self.rect.right, self.rect.y + 6,
+                               reach, self.rect.height - 12)
+        return pygame.Rect(self.rect.left - reach, self.rect.y + 6,
+                           reach, self.rect.height - 12)
+
     def _update_animation(self, dt: float) -> None:
         prev = self.anim_state
         if not self.is_on_ground:
@@ -718,17 +812,77 @@ class MovingPlatform(pygame.sprite.Sprite):
 
 
 class Bamboo(pygame.sprite.Sprite):
+    """Collectible bamboo with pulsing golden glow aura (affordance)."""
+
     def __init__(self, x: int, y: int) -> None:
         super().__init__()
         self.base_image = generate_bamboo_surface()
-        self.image = self.base_image
+        # Pre-render a composite with a glow halo around the stalk
+        w, h = self.base_image.get_size()
+        self._composite = pygame.Surface((w + 12, h + 12), pygame.SRCALPHA)
+        self._stalk_offset = (6, 6)
+        self.image = self._composite.copy()
+        # Blit stalk on top
+        self.image.blit(self.base_image, self._stalk_offset)
         self.rect = self.image.get_rect(bottomleft=(x, y))
         self.base_y = float(self.rect.y)
         self.bob_timer: float = random.uniform(0, 6.28)
+        self.glow_timer: float = random.uniform(0, 6.28)
 
     def update(self, dt: float) -> None:  # type: ignore[override]
         self.bob_timer += dt * 2
+        self.glow_timer += dt * 3
         self.rect.y = _fl(self.base_y + math.sin(self.bob_timer) * 1.5)
+        # Pulsing golden glow
+        alpha = int(60 + 60 * (math.sin(self.glow_timer) + 1) * 0.5)
+        w, h = self._composite.get_size()
+        self.image = pygame.Surface((w, h), pygame.SRCALPHA)
+        # Soft glow circles (layered for halo effect)
+        cx, cy = w // 2, h // 2
+        for r, a_frac in ((16, 0.4), (12, 0.6), (8, 1.0)):
+            glow = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
+            pygame.draw.circle(glow, (255, 230, 120, int(alpha * a_frac)),
+                              (r, r), r)
+            self.image.blit(glow, (cx - r, cy - r),
+                          special_flags=pygame.BLEND_RGBA_ADD)
+        self.image.blit(self.base_image, self._stalk_offset)
+
+
+class BambooStaff(pygame.sprite.Sprite):
+    """Pickup that grants Pain-da a bamboo weapon (swing with Z key)."""
+
+    def __init__(self, x: int, y: int) -> None:
+        super().__init__()
+        self._base = pygame.Surface((40, 14), pygame.SRCALPHA)
+        # Staff body (segmented bamboo)
+        pygame.draw.rect(self._base, (75, 155, 55), (2, 5, 36, 4))
+        pygame.draw.rect(self._base, (105, 190, 85), (2, 5, 36, 1))
+        for jx in (10, 20, 30):
+            pygame.draw.rect(self._base, (35, 105, 30), (jx, 4, 2, 6))
+        # Wrapped grip in middle
+        pygame.draw.rect(self._base, (180, 60, 40), (17, 3, 8, 8))
+        pygame.draw.rect(self._base, (140, 40, 30), (17, 3, 8, 1))
+        self.image = self._base.copy()
+        self.rect = self.image.get_rect(center=(x, y - 20))
+        self.base_y = float(self.rect.y)
+        self.glow_timer: float = 0.0
+
+    def update(self, dt: float) -> None:  # type: ignore[override]
+        self.glow_timer += dt * 4
+        # Gentle float up/down
+        self.rect.y = _fl(self.base_y + math.sin(self.glow_timer) * 2)
+        # Rotating glow aura
+        alpha = int(90 + 60 * (math.sin(self.glow_timer * 1.5) + 1) * 0.5)
+        w, h = self._base.get_size()
+        # Add halo
+        img = pygame.Surface((w + 10, h + 10), pygame.SRCALPHA)
+        halo = pygame.Surface((w + 10, h + 10), pygame.SRCALPHA)
+        pygame.draw.ellipse(halo, (255, 230, 120, alpha),
+                           (0, 0, w + 10, h + 10))
+        img.blit(halo, (0, 0))
+        img.blit(self._base, (5, 5))
+        self.image = img
+        # Keep rect size consistent (don't recenter every frame)
 
 
 class HealingItem(pygame.sprite.Sprite):
@@ -913,14 +1067,16 @@ class FlyingEnemy(pygame.sprite.Sprite):
                player: Player | None = None) -> None:
         if not self.alive_flag:
             return
-        self.pos_x += ENEMY_PATROL_SPEED * self.direction * dt
+        # Slower, smoother horizontal drift
+        self.pos_x += ENEMY_PATROL_SPEED * 0.6 * self.direction * dt
         if abs(self.pos_x - self.origin_x) > self.flight_range:
             self.direction *= -1
-        self.time += dt * FLYING_ENEMY_FREQ * 2 * math.pi
-        self.rect.x = _fl(self.pos_x)
+        # Slower frequency for organic feel + slight horizontal wobble
+        self.time += dt * FLYING_ENEMY_FREQ * 0.6 * 2 * math.pi
+        self.rect.x = _fl(self.pos_x + math.sin(self.time * 0.3) * 8)
         self.rect.y = _fl(self.origin_y + math.sin(self.time) * FLYING_ENEMY_AMP)
         self.anim_timer += dt
-        idx = int(self.anim_timer * 6) % 2
+        idx = int(self.anim_timer * 5) % 2
         frame = self._frames[idx]
         self.image = frame if self.direction > 0 else pygame.transform.flip(frame, True, False)
 
@@ -967,28 +1123,45 @@ class Boss(pygame.sprite.Sprite):
             return
         self.flash_timer = max(0.0, self.flash_timer - dt)
 
+        # Distance-driven FSM that always tracks the player (no fixed targets)
+        dx_player = player.rect.centerx - self.rect.centerx
+        abs_dist = abs(dx_player)
+        self.facing_right = dx_player > 0
+
+        AGGRO_RANGE = 500.0
+        ATTACK_RANGE = 120.0
+        CHASE_SPEED = BOSS_CHARGE_SPEED * 0.55  # gentler than old charge
+
         if self.state == "idle":
-            self.facing_right = player.rect.centerx > self.rect.centerx
             self.state_timer -= dt
             if self.state_timer <= 0:
-                # Enter telegraph phase -- warns player before charging
+                # Leaving idle: if player in range, chase. Else stay idle.
+                if abs_dist < AGGRO_RANGE:
+                    self.state = "chasing"
+                else:
+                    self.state_timer = BOSS_IDLE_SEC
+            self.stunned = False
+        elif self.state == "chasing":
+            # Walk toward player
+            if abs_dist > ATTACK_RANGE:
+                self.rect.x += _fl(CHASE_SPEED * dt * (1 if dx_player > 0 else -1))
+            else:
+                # Close enough -- telegraph attack
                 self.state = "telegraph"
-                self.state_timer = 0.8
-                self.telegraph_timer = 0.8
-                self.charge_target_x = float(player.rect.centerx)
-                self.stunned = False
+                self.state_timer = 0.7
+                self.telegraph_timer = 0.7
         elif self.state == "telegraph":
-            # Flash red rapidly to warn the player
             self.state_timer -= dt
             self.telegraph_timer = self.state_timer
             if self.state_timer <= 0:
-                self.state = "charging"
-        elif self.state == "charging":
-            dx = self.charge_target_x - self.rect.centerx
-            if abs(dx) > 10:
-                self.rect.x += _fl(BOSS_CHARGE_SPEED * dt * (1 if dx > 0 else -1))
-                self.facing_right = dx > 0
-            else:
+                self.state = "attacking"
+                self.state_timer = 0.35
+        elif self.state == "attacking":
+            # Short lunge toward player (not to a hardcoded waypoint)
+            self.rect.x += _fl(BOSS_CHARGE_SPEED * dt *
+                               (1 if dx_player > 0 else -1))
+            self.state_timer -= dt
+            if self.state_timer <= 0:
                 self.state = "stunned"
                 self.stunned = True
                 self.state_timer = BOSS_STUN_SEC
@@ -996,7 +1169,7 @@ class Boss(pygame.sprite.Sprite):
             self.state_timer -= dt
             if self.state_timer <= 0:
                 self.state = "idle"
-                self.state_timer = BOSS_IDLE_SEC
+                self.state_timer = BOSS_IDLE_SEC * 0.7  # quicker recovery
                 self.stunned = False
 
         # Gravity

@@ -233,12 +233,12 @@ def _get_sprite_cache() -> dict[str, pygame.Surface]:
 
 
 _CHARACTERS = [
-    {"name": "Bamboo",    "role": "HERO",    "desc": "A brave panda reclaiming the forest",  "key": "panda",    "color": (220, 240, 220)},
-    {"name": "Shroomba",  "role": "PATROL",  "desc": "Grumpy mushroom guarding bamboo",      "key": "mushroom", "color": (220, 100, 100)},
-    {"name": "Shadow",    "role": "CHASER",  "desc": "Shadowy panther that hunts you down",   "key": "panther",  "color": (180, 255, 100)},
-    {"name": "Blobby",    "role": "BOUNCER", "desc": "Bouncing slime -- cute but deadly",     "key": "slime",    "color": (100, 230, 140)},
-    {"name": "Nightwing", "role": "FLYER",   "desc": "Spiked bat -- can't be stomped!",       "key": "bat",      "color": (170, 120, 230)},
-    {"name": "The Mutant","role": "BOSS",    "desc": "Corrupted king -- stomp when stunned",   "key": "boss",     "color": (255, 120, 120)},
+    {"name": "Pain-da",   "role": "HERO",    "desc": "Exiled warrior. Reclaim the sacred grove.",      "key": "panda",    "color": (220, 240, 220)},
+    {"name": "Shroomba",  "role": "PATROL",  "desc": "A twisted fungus guarding stolen bamboo",         "key": "mushroom", "color": (220, 100, 100)},
+    {"name": "Shadow",    "role": "CHASER",  "desc": "Shadowblade of the corrupted forest",             "key": "panther",  "color": (180, 255, 100)},
+    {"name": "Blobby",    "role": "BOUNCER", "desc": "Acid jelly. Looks cute -- still lethal.",         "key": "slime",    "color": (100, 230, 140)},
+    {"name": "Nightwing", "role": "FLYER",   "desc": "Razor-winged bat. Do NOT try to stomp.",          "key": "bat",      "color": (170, 120, 230)},
+    {"name": "The Mutant","role": "BOSS",    "desc": "The fallen king. Stomp only when stunned.",        "key": "boss",     "color": (255, 120, 120)},
 ]
 
 
@@ -334,7 +334,7 @@ class TitleScreen:
         # Title
         draw_text_shadow(screen, "BAMBOO FOREST", 54, (200, 255, 200),
                          SCREEN_WIDTH // 2, int(self.title_y), bold=True)
-        draw_text(screen, "~ A Panda's Journey ~", 18, (120, 180, 120),
+        draw_text(screen, "~ The Legend of Pain-da ~", 18, (120, 180, 120),
                   SCREEN_WIDTH // 2, int(self.title_y) + 32)
 
         # Character gallery -- 2 rows x 3 columns
