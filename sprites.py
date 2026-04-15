@@ -637,10 +637,11 @@ class Player(pygame.sprite.Sprite):
         self.dash_direction: float = 1.0
         # Wall-slide
         self.is_wall_sliding: bool = False
-        # Ground slam (down+jump while airborne)
+        # Ground slam (down+jump while airborne) -- available from start
         self.is_slamming: bool = False
-        # Glide (hold jump while falling)
+        # Glide (hold jump while falling) -- POWER-UP, unlocked per level
         self.is_gliding: bool = False
+        self.has_glide: bool = False
         # Bamboo throw projectile cooldown
         self.throw_cooldown: float = 0.0
         self.pending_throws: list = []
@@ -868,8 +869,9 @@ class Player(pygame.sprite.Sprite):
         return True
 
     def set_gliding(self, glide: bool) -> None:
-        """Toggle glide (slow descent while jump held + airborne + falling)."""
-        if (glide and not self.is_on_ground and self.velocity_y > 0
+        """Toggle glide -- requires has_glide power-up (picked up per level)."""
+        if (glide and self.has_glide
+                and not self.is_on_ground and self.velocity_y > 0
                 and not self.is_slamming and not self.is_dashing):
             self.is_gliding = True
         else:
@@ -970,6 +972,13 @@ class Player(pygame.sprite.Sprite):
         # Glide: arms spread wider (use fall with slight rotation for 'hover')
         if self.is_gliding:
             frame = pygame.transform.rotate(frame, -3 if self.facing_right else 3)
+        # Attack pose: lean forward for the first half of the swing
+        if self.is_attacking:
+            atk_t = 1.0 - (self.attack_timer / 0.25)
+            lean = -18 if atk_t < 0.5 else 8
+            if not self.facing_right:
+                lean = -lean
+            frame = pygame.transform.rotate(frame, lean)
         self.image = frame if self.facing_right else pygame.transform.flip(frame, True, False)
 
 

@@ -369,6 +369,9 @@ class TitleScreen:
         # Interactive character selection
         self._card_rects: list[tuple[pygame.Rect, dict]] = []
         self.selected_char: dict | None = None
+        # Dropdown state: gallery is HIDDEN by default to keep menu clean
+        self.gallery_open: bool = False
+        self._gallery_button_rect: pygame.Rect | None = None
 
     def update(self, dt: float) -> None:
         self.title_y += (self.title_target_y - self.title_y) * min(1.0, 4 * dt)
@@ -380,11 +383,17 @@ class TitleScreen:
         if self.selected_char is not None:
             self.selected_char = None
             return True
-        # Check if click landed on a character card
-        for rect, char in self._card_rects:
-            if rect.collidepoint(pos):
-                self.selected_char = char
-                return True
+        # Gallery toggle button
+        if (self._gallery_button_rect is not None
+                and self._gallery_button_rect.collidepoint(pos)):
+            self.gallery_open = not self.gallery_open
+            return True
+        # Click a character card -> detail popup (only if gallery is open)
+        if self.gallery_open:
+            for rect, char in self._card_rects:
+                if rect.collidepoint(pos):
+                    self.selected_char = char
+                    return True
         return False
 
     def handle_key(self, key: int) -> bool:
@@ -394,6 +403,10 @@ class TitleScreen:
                 self.selected_char = None
                 return True
             return True  # any key closes
+        # ESC closes the gallery (lets you see the clean title again)
+        if self.gallery_open and key in (pygame.K_ESCAPE, pygame.K_BACKSPACE):
+            self.gallery_open = False
+            return True
         return False
 
     def _ensure_bg(self) -> pygame.Surface:
@@ -432,52 +445,81 @@ class TitleScreen:
         draw_text(screen, "~ The Legend of Pain-da ~", 18, (120, 180, 120),
                   SCREEN_WIDTH // 2, int(self.title_y) + 32)
 
-        # Character gallery -- 4x4 compact grid fits all 16 characters
-        cols = 4
-        rows = (len(_CHARACTERS) + cols - 1) // cols
-        card_w = 220
-        card_h = 95
-        gap_x = 10
-        gap_y = 8
-        total_w = cols * card_w + (cols - 1) * gap_x
-        start_x = (SCREEN_WIDTH - total_w) // 2
-        start_y = int(SCREEN_HEIGHT * 0.18)
-
-        # Record card rects for click detection + check hover
         self._card_rects.clear()
         mouse_pos = pygame.mouse.get_pos()
-        for i, char in enumerate(_CHARACTERS):
-            col = i % cols
-            row = i // cols
-            cx = start_x + col * (card_w + gap_x)
-            cy = start_y + row * (card_h + gap_y)
-            rect = pygame.Rect(cx, cy, card_w, card_h)
-            self._card_rects.append((rect, char))
-            hovered = rect.collidepoint(mouse_pos)
-            _draw_card(screen, char, cx, cy, card_w, card_h,
-                       self.prompt_timer, i, hovered=hovered)
 
-        # Hint text under cards
-        hint_y = start_y + rows * (card_h + gap_y) - 6
-        draw_text(screen, "CLICK any character to read their story",
-                  14, (180, 210, 180), SCREEN_WIDTH // 2, hint_y)
+        # === DROPDOWN BUTTON (always visible) ===
+        btn_w, btn_h = 280, 44
+        btn_x = (SCREEN_WIDTH - btn_w) // 2
+        btn_y = int(SCREEN_HEIGHT * 0.32)
+        self._gallery_button_rect = pygame.Rect(btn_x, btn_y, btn_w, btn_h)
+        btn_hovered = self._gallery_button_rect.collidepoint(mouse_pos)
+        bg_color = (40, 70, 40, 250) if not btn_hovered else (60, 110, 60, 255)
+        btn_surf = pygame.Surface((btn_w, btn_h), pygame.SRCALPHA)
+        btn_surf.fill(bg_color)
+        pygame.draw.rect(btn_surf, (200, 255, 200), (0, 0, btn_w, btn_h),
+                         2, border_radius=6)
+        # Arrow indicator
+        arrow = "V" if not self.gallery_open else "^"
+        screen.blit(btn_surf, (btn_x, btn_y))
+        label = ("View Characters  " + arrow) if not self.gallery_open else \
+                ("Hide Characters  " + arrow)
+        draw_text_shadow(screen, label, 20, (230, 255, 230),
+                         btn_x + btn_w // 2, btn_y + btn_h // 2, bold=True)
 
-        # Pulsing prompt (below the character grid)
-        prompt_y = start_y + rows * (card_h + gap_y) + 18
+        # === GALLERY (only when dropdown open) ===
+        if self.gallery_open:
+            # Dim background panel behind the grid
+            cols = 4
+            rows = (len(_CHARACTERS) + cols - 1) // cols
+            card_w = 220
+            card_h = 95
+            gap_x = 10
+            gap_y = 8
+            total_w = cols * card_w + (cols - 1) * gap_x
+            total_h = rows * card_h + (rows - 1) * gap_y
+            start_x = (SCREEN_WIDTH - total_w) // 2
+            start_y = btn_y + btn_h + 14
+            # Semi-opaque panel behind
+            panel = pygame.Surface((total_w + 20, total_h + 40),
+                                    pygame.SRCALPHA)
+            panel.fill((10, 20, 10, 230))
+            pygame.draw.rect(panel, (100, 150, 100),
+                             (0, 0, total_w + 20, total_h + 40),
+                             2, border_radius=8)
+            screen.blit(panel, (start_x - 10, start_y - 10))
+            for i, char in enumerate(_CHARACTERS):
+                col = i % cols
+                row = i // cols
+                cx = start_x + col * (card_w + gap_x)
+                cy = start_y + row * (card_h + gap_y)
+                rect = pygame.Rect(cx, cy, card_w, card_h)
+                self._card_rects.append((rect, char))
+                hovered = rect.collidepoint(mouse_pos)
+                _draw_card(screen, char, cx, cy, card_w, card_h,
+                           self.prompt_timer, i, hovered=hovered)
+            draw_text(screen, "Click a character to read their story  |  ESC to close",
+                      13, (180, 210, 180), SCREEN_WIDTH // 2,
+                      start_y + total_h + 18)
+
+        # Pulsing "Press ENTER" prompt (position based on whether gallery is open)
+        prompt_y = (SCREEN_HEIGHT - 90 if not self.gallery_open
+                    else SCREEN_HEIGHT - 62)
         alpha = int(128 + 127 * math.sin(self.prompt_timer * 3))
-        font = get_font(26)
+        font = get_font(26 if not self.gallery_open else 20)
         prompt = font.render("Press ENTER to Start", True, (200, 255, 200))
         prompt.set_alpha(alpha)
         screen.blit(prompt, prompt.get_rect(center=(SCREEN_WIDTH // 2, prompt_y)))
 
-        # Controls + high score
-        draw_text(screen, "Arrows / WASD + Space to Jump (double jump!)  |  Stomp enemies!",
-                  14, (90, 140, 90), SCREEN_WIDTH // 2, SCREEN_HEIGHT - 30)
-
-        best = get_best_score()
-        if best > 0:
-            draw_text_shadow(screen, f"Best: {best}", 18, COL_GOLD,
-                             SCREEN_WIDTH // 2, SCREEN_HEIGHT - 10)
+        # Controls (only when gallery is closed -- else it overlaps)
+        if not self.gallery_open:
+            draw_text(screen,
+                      "Arrows/WASD  |  SPACE jump  |  SHIFT dash  |  E attack  |  F11 fullscreen",
+                      13, (90, 140, 90), SCREEN_WIDTH // 2, SCREEN_HEIGHT - 48)
+            best = get_best_score()
+            if best > 0:
+                draw_text_shadow(screen, f"Best: {best}", 18, COL_GOLD,
+                                 SCREEN_WIDTH // 2, SCREEN_HEIGHT - 22)
 
         # Detail popup on top of everything
         if self.selected_char is not None:

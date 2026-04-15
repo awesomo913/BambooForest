@@ -183,6 +183,16 @@ class AudioManager:
         self.sounds["ice_slide"] = _to_sound(
             _apply_envelope(_sweep_samples(800, 200, 0.2, 0.2), 0.01, 0.08)
         )
+        # Cute dance tune -- bouncy little melody for victory dance
+        # C5-E5-G5-C6-E5-G5 ascending jingle
+        dance_notes = [523, 659, 784, 1047, 659, 784, 1047, 1319]
+        dance_parts = []
+        for freq in dance_notes:
+            dance_parts.append(_apply_envelope(
+                _sine_samples(freq, 0.12, 0.35), 0.005, 0.04))
+            # Tiny rest between notes
+            dance_parts.append(_sine_samples(1, 0.02, 0.0))
+        self.sounds["dance"] = _to_sound(_concat(*dance_parts))
 
     def play(self, name: str) -> None:
         """Play a sound with 30% volume cap + rate limiting."""

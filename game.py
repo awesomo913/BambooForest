@@ -32,16 +32,21 @@ class Game:
 
     def __init__(self) -> None:
         pygame.init()
-        # SCALED flag for toggle_fullscreen() support.
-        # Fall back to basic mode if SCALED/renderer isn't available.
-        try:
-            self.screen = pygame.display.set_mode(
-                (SCREEN_WIDTH, SCREEN_HEIGHT),
-                pygame.SCALED | pygame.DOUBLEBUF, vsync=1,
-            )
-        except pygame.error:
-            self.screen = pygame.display.set_mode(
-                (SCREEN_WIDTH, SCREEN_HEIGHT), pygame.DOUBLEBUF)
+        # SCALED is required for toggle_fullscreen(). Try with vsync first,
+        # then without, then fall back to plain mode.
+        for flags, vs in [
+            (pygame.SCALED | pygame.DOUBLEBUF, 1),
+            (pygame.SCALED, 0),
+            (pygame.DOUBLEBUF, 0),
+        ]:
+            try:
+                self.screen = pygame.display.set_mode(
+                    (SCREEN_WIDTH, SCREEN_HEIGHT), flags, vsync=vs)
+                break
+            except pygame.error:
+                continue
+        else:
+            self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
         pygame.display.set_caption(TITLE)
         self.clock = pygame.time.Clock()
 
@@ -219,6 +224,9 @@ class Game:
         self.player = Player(self.respawn_x, self.respawn_y)
         if level_num >= DOUBLE_JUMP_LEVEL:
             self.player.has_double_jump = True
+        # Glide unlocks at level 4+ (Caldera -- wider gap traversal)
+        if level_num >= 3:
+            self.player.has_glide = True
         if self.level.is_icy:
             self.player.friction_mode = "ice"
         else:
@@ -263,6 +271,9 @@ class Game:
         self.player = Player(self.respawn_x, self.respawn_y)
         if self.current_level >= DOUBLE_JUMP_LEVEL:
             self.player.has_double_jump = True
+        # Glide unlocks at level 4+ (Caldera -- wider gap traversal)
+        if self.current_level >= 3:
+            self.player.has_glide = True
         if self.level.is_icy:
             self.player.friction_mode = "ice"
         else:
@@ -604,11 +615,10 @@ class Game:
                 is_head_stomp = (self.player.velocity_y > 0
                                  and stomp_rect.colliderect(self.level.boss.rect))
                 if is_head_stomp:
-                    # Always bounce player off head
-                    self.player.velocity_y = ENEMY_STOMP_BOUNCE
-                    self.player.rect.bottom = self.level.boss.rect.top
                     if self.level.boss.stunned:
                         # Damage boss during vulnerable window
+                        self.player.velocity_y = ENEMY_STOMP_BOUNCE
+                        self.player.rect.bottom = self.level.boss.rect.top
                         killed = self.level.boss.take_hit()
                         self.audio.play("boss_hit")
                         self.shake.trigger(12, 0.3)
@@ -622,11 +632,24 @@ class Game:
                                 self.level.boss.rect.centerx,
                                 self.level.boss.rect.top, COL_GOLD)
                     else:
-                        # Bounce off invulnerable head -- show a little "clang"
-                        self.audio.play("stomp")
+                        # NON-STUNNED head-camp: boss shakes player off with
+                        # a strong sideways knockback + damage. No free ride.
+                        kb_dir = 1.0 if self.player.rect.centerx >= \
+                            self.level.boss.rect.centerx else -1.0
+                        self.player.velocity_x = 500.0 * kb_dir
+                        self.player.velocity_y = -450.0
+                        self.player.rect.bottom = self.level.boss.rect.top
+                        if self.player.take_damage(
+                                PLAYER_DAMAGE,
+                                source_x=self.level.boss.rect.centerx):
+                            self.shake.trigger(10, 0.2)
+                            self.particles.emit_damage(
+                                self.player.rect.centerx,
+                                self.player.rect.centery)
+                            self.audio.play("hit")
                         self.hud.add_floating_text(
-                            "!", self.level.boss.rect.centerx,
-                            self.level.boss.rect.top - 10, (255, 180, 80))
+                            "!!", self.level.boss.rect.centerx,
+                            self.level.boss.rect.top - 10, (255, 60, 60))
                 else:
                     # Side/below hit -- boss damages player
                     if self.player.take_damage(PLAYER_DAMAGE):
@@ -642,7 +665,17 @@ class Game:
                              and self.level.boss.alive())
             if not boss_blocking:
                 self._outro_active = True
-                self._outro_timer = 3.0  # 1.6s dance, 1.4s run off
+                self._outro_timer = 3.0
+                # Lock player from damage during outro + clear any bad state
+                self.player.invincible_timer = 999.0
+                self.player.input_locked = True
+                self.player.is_dashing = False
+                self.player.is_slamming = False
+                self.player.is_gliding = False
+                self.player.knockback_timer = 0.0
+                self.player.velocity_x = 0.0
+                self.player.velocity_y = 0.0
+                self.player.dead = False  # can't die during outro
             else:
                 # Player reached goal but boss still alive -- give feedback
                 if self._boss_warning_timer <= 0:
@@ -656,9 +689,10 @@ class Game:
             self._boss_warning_timer -= effective_dt
 
         # Death
-        # Trench death: fall past screen bottom = instant kill + fall animation
+        # Trench death (disabled during outro -- player is invincible there)
         from config import TRENCH_DEATH_Y
-        if self.player.rect.top > TRENCH_DEATH_Y and not self.player.dead:
+        if (self.player.rect.top > TRENCH_DEATH_Y and not self.player.dead
+                and not self._outro_active):
             self.player.health = 0
             self.player.dead = True
             self.player.is_falling_trench = True
@@ -670,7 +704,7 @@ class Game:
         if self._outro_active:
             # Play dance sound ONCE when the dance starts (frame 0 of anim)
             if (self._outro_timer > 1.4 and not self.player.is_victory_dancing):
-                self.audio.play("victory")
+                self.audio.play("dance")
             self._outro_timer -= effective_dt
             if self._outro_timer > 1.4:
                 self.player.is_victory_dancing = True
@@ -846,42 +880,85 @@ class Game:
             self.game_over_screen.draw(self.screen, self.player.score)
 
     def _draw_sword_arc(self, cam_x: int, cam_y: int) -> None:
-        """Draw rotating bamboo sword arc based on attack_timer progress."""
-        # Attack progress: 0.0 = start, 1.0 = end
+        """Draw a clearly sword-shaped bamboo katana with full swing arc."""
         total = 0.25
         t = 1.0 - (self.player.attack_timer / total)
         t = max(0.0, min(1.0, t))
-        # Build a long sword surface, then rotate by swing angle
-        sword = pygame.Surface((60, 10), pygame.SRCALPHA)
-        # Handle (dark brown)
-        pygame.draw.rect(sword, (90, 55, 35), (0, 3, 16, 4))
-        # Blade (bright bamboo green)
-        pygame.draw.rect(sword, (130, 200, 90), (16, 2, 44, 6))
-        pygame.draw.rect(sword, (180, 230, 120), (16, 2, 44, 2))
-        pygame.draw.rect(sword, (70, 140, 50), (16, 6, 44, 2))
+
+        # Build a long sword-shaped surface (katana-style silhouette)
+        SW, SH = 90, 18
+        sword = pygame.Surface((SW, SH), pygame.SRCALPHA)
+        # Pommel (dark brown ball)
+        pygame.draw.circle(sword, (60, 35, 20), (5, SH // 2), 5)
+        # Handle (wrapped dark red / diamond pattern)
+        pygame.draw.rect(sword, (120, 45, 35), (8, 6, 20, 6))
+        for i in range(10, 28, 3):
+            pygame.draw.line(sword, (60, 20, 15), (i, 6), (i, 12), 1)
+        # Guard (tsuba) -- round gold disk
+        pygame.draw.circle(sword, (200, 170, 70), (30, SH // 2), 7)
+        pygame.draw.circle(sword, (240, 210, 110), (30, SH // 2), 5)
+        pygame.draw.circle(sword, (140, 100, 30), (30, SH // 2), 7, 1)
+        # Blade (bright bamboo-green, tapered katana shape)
+        blade_pts = [
+            (36, 6),             # base top
+            (SW - 10, 3),        # tip top
+            (SW - 2, SH // 2),   # sharp tip
+            (SW - 10, SH - 4),   # tip bottom
+            (36, SH - 6),        # base bottom
+        ]
+        pygame.draw.polygon(sword, (150, 220, 110), blade_pts)
+        # Blade highlight stripe (gives the "shine")
+        pygame.draw.polygon(sword, (220, 255, 180), [
+            (36, 7), (SW - 12, 5), (SW - 4, SH // 2 - 1), (36, SH // 2 - 1)])
+        # Blade dark edge
+        pygame.draw.polygon(sword, (80, 150, 60), [
+            (36, SH // 2 + 1), (SW - 4, SH // 2 + 1),
+            (SW - 12, SH - 5), (36, SH - 7)])
+        # Bamboo joint rings on blade (every 15px)
+        for jx in range(46, SW - 10, 14):
+            pygame.draw.line(sword, (70, 140, 50),
+                             (jx, 6), (jx, SH - 6), 1)
         # Leaf flourish at tip
-        pygame.draw.polygon(sword, (100, 170, 60),
-                           [(60, 4), (56, 0), (54, 5)])
-        # Swing angle: -70 (up) -> +40 (down) over duration
+        pygame.draw.polygon(sword, (80, 160, 55),
+                            [(SW - 4, SH // 2 - 3),
+                             (SW - 10, SH // 2 - 8),
+                             (SW - 14, SH // 2 - 1)])
+
+        # Swing angle: steep upward windup -> down-forward follow-through
         if self.player.facing_right:
-            angle = -70 + 110 * t
+            angle = -80 + 130 * t
         else:
-            angle = 70 - 110 * t
+            angle = 80 - 130 * t
             sword = pygame.transform.flip(sword, True, False)
         rotated = pygame.transform.rotate(sword, -angle)
-        # Position pivot at player's hand
-        cx = self.player.rect.centerx + cam_x
-        cy = self.player.rect.centery + cam_y - 2
-        rect = rotated.get_rect()
-        # Offset along facing direction so the sword extends outward
-        off = 14 if self.player.facing_right else -14
-        rect.center = (cx + off, cy)
+        # Pivot at Pain-da's front hand (slight forward lean)
+        off_x = 10 if self.player.facing_right else -10
+        off_y = -4
+        cx = self.player.rect.centerx + cam_x + off_x
+        cy = self.player.rect.centery + cam_y + off_y
+        rect = rotated.get_rect(center=(cx, cy))
         self.screen.blit(rotated, rect)
-        # Motion blur streak
-        streak = pygame.Surface((40, 4), pygame.SRCALPHA)
-        streak.fill((255, 245, 200, 120))
-        streak_rot = pygame.transform.rotate(streak, -angle + 10)
-        srect = streak_rot.get_rect(center=(cx + off, cy))
+
+        # Arc trail (several faded copies for streak effect)
+        for trail_i in range(3):
+            trail_t = t - 0.04 * (trail_i + 1)
+            if trail_t < 0:
+                continue
+            if self.player.facing_right:
+                tangle = -80 + 130 * trail_t
+            else:
+                tangle = 80 - 130 * trail_t
+            trail_surf = sword.copy()
+            trail_surf.set_alpha(60 - trail_i * 18)
+            trail_rot = pygame.transform.rotate(trail_surf, -tangle)
+            trect = trail_rot.get_rect(center=(cx, cy))
+            self.screen.blit(trail_rot, trect)
+
+        # Bright sweep arc highlight
+        streak = pygame.Surface((60, 5), pygame.SRCALPHA)
+        streak.fill((255, 250, 200, 160))
+        streak_rot = pygame.transform.rotate(streak, -angle + 8)
+        srect = streak_rot.get_rect(center=(cx, cy))
         self.screen.blit(streak_rot, srect)
 
     def _draw_weapon_hint(self) -> None:
