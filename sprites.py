@@ -618,6 +618,15 @@ class Player(pygame.sprite.Sprite):
         self.is_attacking: bool = False
         self.attack_timer: float = 0.0
         self.attack_cooldown: float = 0.0
+        # Sub-pixel motion accumulator (fixes ice softlock)
+        self._sub_x: float = 0.0
+        # Input lock (dash, cutscene) -- ALWAYS cleared by reset_state()
+        self.input_locked: bool = False
+        # Dash ability
+        self.is_dashing: bool = False
+        self.dash_timer: float = 0.0
+        self.dash_cooldown: float = 0.0
+        self.dash_direction: float = 1.0
 
     def update(self, dt: float, keys: pygame.key.ScancodeWrapper,
                platforms: pygame.sprite.Group) -> None:
@@ -639,8 +648,23 @@ class Player(pygame.sprite.Sprite):
                 self.is_attacking = False
         if self.attack_cooldown > 0:
             self.attack_cooldown -= dt
+        # Dash timer
+        if self.is_dashing:
+            self.dash_timer -= dt
+            # Velocity during dash is fixed; no gravity decay yet
+            self.velocity_x = 900.0 * self.dash_direction
+            if self.dash_timer <= 0:
+                self.is_dashing = False
+                self.input_locked = False
+                self.velocity_x *= 0.4  # gentle post-dash slowdown
+        if self.dash_cooldown > 0:
+            self.dash_cooldown -= dt
 
-        if self.friction_mode == "ice":
+        # Input lock safety: if locked (e.g. mid-dash), skip input.
+        # ALWAYS clears after dash completes so player isn't stuck.
+        if self.input_locked:
+            pass  # velocity controlled externally (dash)
+        elif self.friction_mode == "ice":
             from config import ICE_ACCEL, ICE_FRICTION
             if keys[pygame.K_LEFT] or keys[pygame.K_a]:
                 self.velocity_x -= ICE_ACCEL * dt
@@ -651,7 +675,10 @@ class Player(pygame.sprite.Sprite):
             self.velocity_x *= ICE_FRICTION
             max_v = PLAYER_SPEED * 1.5
             self.velocity_x = max(-max_v, min(max_v, self.velocity_x))
-            if abs(self.velocity_x) < 5:
+            # Only snap to zero when truly stopped AND no input
+            no_input = not (keys[pygame.K_LEFT] or keys[pygame.K_a]
+                           or keys[pygame.K_RIGHT] or keys[pygame.K_d])
+            if no_input and abs(self.velocity_x) < 0.5:
                 self.velocity_x = 0.0
         else:
             self.velocity_x = 0.0
@@ -662,7 +689,11 @@ class Player(pygame.sprite.Sprite):
                 self.velocity_x = PLAYER_SPEED
                 self.facing_right = True
 
-        self.rect.x += _fl(self.velocity_x * dt)
+        # Accumulate sub-pixel motion so low velocities still move the rect
+        self._sub_x += self.velocity_x * dt
+        dx = _fl(self._sub_x)
+        self._sub_x -= dx
+        self.rect.x += dx
         for hit in pygame.sprite.spritecollide(self, platforms, False):
             if self.velocity_x > 0:
                 self.rect.right = hit.rect.left
@@ -724,12 +755,38 @@ class Player(pygame.sprite.Sprite):
     def attack(self) -> bool:
         """Swing the bamboo staff. Returns True if attack started."""
         if (self.has_bamboo_weapon and not self.is_attacking
-                and self.attack_cooldown <= 0):
+                and self.attack_cooldown <= 0 and not self.is_dashing):
             self.is_attacking = True
-            self.attack_timer = 0.25  # 250ms swing window
+            self.attack_timer = 0.25
             self.attack_cooldown = 0.4
             return True
         return False
+
+    def dash(self) -> bool:
+        """SHIFT-key dash. Short burst of horizontal speed, iframes while active."""
+        if self.is_dashing or self.dash_cooldown > 0:
+            return False
+        self.is_dashing = True
+        self.dash_timer = 0.18       # 180ms dash duration
+        self.dash_cooldown = 0.7     # 700ms between dashes
+        self.input_locked = True
+        self.invincible_timer = max(self.invincible_timer, 0.2)
+        self.dash_direction = 1.0 if self.facing_right else -1.0
+        self.velocity_x = 900.0 * self.dash_direction
+        return True
+
+    def reset_state(self) -> None:
+        """Called on level load / respawn to clear any transient locks."""
+        self.input_locked = False
+        self.is_attacking = False
+        self.is_dashing = False
+        self.attack_timer = 0.0
+        self.attack_cooldown = 0.0
+        self.dash_timer = 0.0
+        self.dash_cooldown = 0.0
+        self.velocity_x = 0.0
+        self.velocity_y = 0.0
+        self._sub_x = 0.0
 
     def get_attack_rect(self) -> pygame.Rect:
         """Hitbox in front of the player when attacking (bamboo staff reach)."""

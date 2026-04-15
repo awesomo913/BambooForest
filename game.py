@@ -32,12 +32,16 @@ class Game:
 
     def __init__(self) -> None:
         pygame.init()
-        # SCALED flag must be set at init for toggle_fullscreen() to work.
-        # pygame auto-scales the game's 960x540 to desktop resolution.
-        self.screen = pygame.display.set_mode(
-            (SCREEN_WIDTH, SCREEN_HEIGHT),
-            pygame.SCALED | pygame.DOUBLEBUF, vsync=1,
-        )
+        # SCALED flag for toggle_fullscreen() support.
+        # Fall back to basic mode if SCALED/renderer isn't available.
+        try:
+            self.screen = pygame.display.set_mode(
+                (SCREEN_WIDTH, SCREEN_HEIGHT),
+                pygame.SCALED | pygame.DOUBLEBUF, vsync=1,
+            )
+        except pygame.error:
+            self.screen = pygame.display.set_mode(
+                (SCREEN_WIDTH, SCREEN_HEIGHT), pygame.DOUBLEBUF)
         pygame.display.set_caption(TITLE)
         self.clock = pygame.time.Clock()
 
@@ -77,6 +81,8 @@ class Game:
         # Tutorial hints
         self._weapon_tutorial_timer: float = 0.0
         self._weapon_used: bool = False
+        # Hitstop: brief pause on enemy hit for impact feel
+        self._hitstop_timer: float = 0.0
         # Level-end outro: Pain-da auto-runs off screen after reaching goal
         self._outro_active: bool = False
         self._outro_timer: float = 0.0
@@ -165,6 +171,11 @@ class Game:
                     self.audio.play("stomp")
                     self._weapon_used = True
                     self._weapon_tutorial_timer = 0.0
+            elif key in (pygame.K_LSHIFT, pygame.K_RSHIFT):
+                if self.player and self.player.dash():
+                    self.audio.play("jump")
+                    self.particles.emit_dust(
+                        self.player.rect.centerx, self.player.rect.bottom)
         elif self.state == ST_PAUSED:
             if key == pygame.K_ESCAPE:
                 self.state = ST_PLAYING
@@ -199,6 +210,9 @@ class Game:
             self.player.has_double_jump = True
         if self.level.is_icy:
             self.player.friction_mode = "ice"
+        else:
+            self.player.friction_mode = "normal"
+        self.player.reset_state()  # clear input locks, dash, attack flags
         self.player.score = self._total_score
         self.level.all_sprites.add(self.player)
         self.current_level = level_num
@@ -240,6 +254,9 @@ class Game:
             self.player.has_double_jump = True
         if self.level.is_icy:
             self.player.friction_mode = "ice"
+        else:
+            self.player.friction_mode = "normal"
+        self.player.reset_state()
         self.player.score = self._total_score
         self.level.all_sprites.add(self.player)
         self.particles = ParticleSystem()
@@ -291,6 +308,11 @@ class Game:
 
     def _update_gameplay(self, dt: float) -> None:
         if not self.player or not self.level or not self.camera:
+            return
+
+        # Hitstop freezes game briefly on impact for weight/juice
+        if self._hitstop_timer > 0:
+            self._hitstop_timer -= dt
             return
 
         effective_dt = dt
@@ -489,6 +511,9 @@ class Game:
                         self.particles.emit_death(
                             enemy.rect.centerx, enemy.rect.centery)
                         self.audio.play("stomp")
+                        # Hitstop: freeze 60ms for impact punch
+                        self._hitstop_timer = max(self._hitstop_timer, 0.06)
+                        self.shake.trigger(5, 0.08)
                 # Boss gets hit too (if stunned)
                 if (self.level.boss and self.level.boss.alive()
                         and self.level.boss.stunned
@@ -662,14 +687,27 @@ class Game:
 
         self.particles.draw(self.screen, self.camera)
 
-        # Bamboo staff swing visual (gold streak hitbox)
+        # NPC friendly-indicator: bouncing "?" above head (universal UI affordance)
+        t_ms = pygame.time.get_ticks()
+        bounce = math.sin(t_ms / 200.0) * 5
+        for npc in self.level.npcs:
+            if not npc.rect.colliderect(visible):
+                continue
+            sx = npc.rect.centerx + cam_x
+            sy = npc.rect.top + cam_y - 26 + bounce
+            # Yellow bubble background
+            bubble = pygame.Surface((20, 24), pygame.SRCALPHA)
+            pygame.draw.circle(bubble, (255, 230, 80), (10, 12), 10)
+            pygame.draw.circle(bubble, (255, 180, 40), (10, 12), 10, 2)
+            self.screen.blit(bubble, (int(sx) - 10, int(sy) - 12))
+            # "?" glyph
+            font = pygame.font.SysFont("consolas", 18, bold=True)
+            q = font.render("?", True, (70, 45, 0))
+            self.screen.blit(q, q.get_rect(center=(int(sx), int(sy))))
+
+        # Sword swing arc (rotational visual + hitbox glow)
         if self.player.is_attacking:
-            atk_rect = self.player.get_attack_rect().move(cam_x, cam_y)
-            streak = pygame.Surface((atk_rect.w, atk_rect.h), pygame.SRCALPHA)
-            streak.fill((255, 230, 120, 90))
-            pygame.draw.rect(streak, (255, 255, 200, 180),
-                            (0, atk_rect.h // 2 - 2, atk_rect.w, 4))
-            self.screen.blit(streak, atk_rect)
+            self._draw_sword_arc(cam_x, cam_y)
 
         # --- Darkness overlay (Level 7: Karst Caves) ---
         if self.level.is_dark:
@@ -744,6 +782,45 @@ class Game:
             self.pause_overlay.draw(self.screen)
         elif self.state == ST_GAME_OVER:
             self.game_over_screen.draw(self.screen, self.player.score)
+
+    def _draw_sword_arc(self, cam_x: int, cam_y: int) -> None:
+        """Draw rotating bamboo sword arc based on attack_timer progress."""
+        # Attack progress: 0.0 = start, 1.0 = end
+        total = 0.25
+        t = 1.0 - (self.player.attack_timer / total)
+        t = max(0.0, min(1.0, t))
+        # Build a long sword surface, then rotate by swing angle
+        sword = pygame.Surface((60, 10), pygame.SRCALPHA)
+        # Handle (dark brown)
+        pygame.draw.rect(sword, (90, 55, 35), (0, 3, 16, 4))
+        # Blade (bright bamboo green)
+        pygame.draw.rect(sword, (130, 200, 90), (16, 2, 44, 6))
+        pygame.draw.rect(sword, (180, 230, 120), (16, 2, 44, 2))
+        pygame.draw.rect(sword, (70, 140, 50), (16, 6, 44, 2))
+        # Leaf flourish at tip
+        pygame.draw.polygon(sword, (100, 170, 60),
+                           [(60, 4), (56, 0), (54, 5)])
+        # Swing angle: -70 (up) -> +40 (down) over duration
+        if self.player.facing_right:
+            angle = -70 + 110 * t
+        else:
+            angle = 70 - 110 * t
+            sword = pygame.transform.flip(sword, True, False)
+        rotated = pygame.transform.rotate(sword, -angle)
+        # Position pivot at player's hand
+        cx = self.player.rect.centerx + cam_x
+        cy = self.player.rect.centery + cam_y - 2
+        rect = rotated.get_rect()
+        # Offset along facing direction so the sword extends outward
+        off = 14 if self.player.facing_right else -14
+        rect.center = (cx + off, cy)
+        self.screen.blit(rotated, rect)
+        # Motion blur streak
+        streak = pygame.Surface((40, 4), pygame.SRCALPHA)
+        streak.fill((255, 245, 200, 120))
+        streak_rot = pygame.transform.rotate(streak, -angle + 10)
+        srect = streak_rot.get_rect(center=(cx + off, cy))
+        self.screen.blit(streak_rot, srect)
 
     def _draw_weapon_hint(self) -> None:
         """Persistent banner teaching the player how to attack."""

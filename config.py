@@ -94,8 +94,8 @@ SPIDER_DROP_SPEED: float = 400.0
 GLOWWORM_SNAP_RANGE: float = 60.0
 
 # --- Level 8: Salt Flats (Ice) ---
-ICE_FRICTION: float = 0.92
-ICE_ACCEL: float = 120.0
+ICE_FRICTION: float = 0.97     # per-frame velocity multiplier (slide feel)
+ICE_ACCEL: float = 1500.0      # px/s^2 -- meaningful acceleration on ice
 BRINE_GROW_RATE: float = 0.5
 BRINE_DMG_RADIUS: float = 40.0
 PHANTOM_SPEED: float = 100.0
