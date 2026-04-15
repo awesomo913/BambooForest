@@ -63,6 +63,8 @@ class LevelDef:
     ice_defs: list[PlatformDef] = field(default_factory=list)
     npc_defs: list[tuple[int, int, str, list[str], tuple]] = field(default_factory=list)
     weapon_positions: list[tuple[int, int]] = field(default_factory=list)
+    # List of (start_x, end_x) floor gaps that are lethal pits
+    trenches: list[tuple[int, int]] = field(default_factory=list)
     is_dark: bool = False
     is_icy: bool = False
 
@@ -131,16 +133,29 @@ class LevelState:
         self.is_dark = level_def.is_dark
         self.is_icy = level_def.is_icy
 
-        # Floor (biome-themed)
+        # Floor segments with gaps for trenches (pits)
         use_biome = self.biome != "forest"
-        if use_biome:
-            floor = BiomePlatform(0, FLOOR_Y, level_def.world_width,
-                                  SCREEN_HEIGHT - FLOOR_Y, self.biome)
-        else:
-            floor = Platform(0, FLOOR_Y, level_def.world_width,
-                             SCREEN_HEIGHT - FLOOR_Y)
-        self.platforms.add(floor)
-        self.all_sprites.add(floor)
+        self.trenches: list[tuple[int, int]] = list(level_def.trenches)
+        # Build floor as multiple segments around each trench
+        segments: list[tuple[int, int]] = []
+        cursor = 0
+        for (t_start, t_end) in sorted(self.trenches):
+            if t_start > cursor:
+                segments.append((cursor, t_start))
+            cursor = t_end
+        if cursor < level_def.world_width:
+            segments.append((cursor, level_def.world_width))
+        for (sx, ex) in segments:
+            w = ex - sx
+            if w <= 0:
+                continue
+            if use_biome:
+                floor = BiomePlatform(sx, FLOOR_Y, w,
+                                      SCREEN_HEIGHT - FLOOR_Y, self.biome)
+            else:
+                floor = Platform(sx, FLOOR_Y, w, SCREEN_HEIGHT - FLOOR_Y)
+            self.platforms.add(floor)
+            self.all_sprites.add(floor)
 
         # Standard platforms (biome-themed)
         for pd in level_def.platforms:
@@ -310,6 +325,8 @@ def _build_level_2() -> LevelDef:
         bamboo_positions=_scatter_bamboos(plats, LEVEL_WIDTHS[1], FLOOR_Y, 16),
         heal_positions=[(1450, 410), (3490, 390)],
         goal_x=4200, checkpoint_positions=[1700, 3200],
+        weapon_positions=[(2000, FLOOR_Y)],
+        trenches=[(1220, 1390), (2600, 2720)],
     )
 
 
@@ -334,6 +351,8 @@ def _build_level_3() -> LevelDef:
         bamboo_positions=_scatter_bamboos(plats, LEVEL_WIDTHS[2], FLOOR_Y, 20),
         heal_positions=[(1450, 410), (3080, 370), (4900, FLOOR_Y)],
         goal_x=5850, checkpoint_positions=[1800, 3500, 4900],
+        weapon_positions=[(2500, FLOOR_Y)],
+        trenches=[(1330, 1470), (2920, 3050), (4380, 4520)],
         has_boss=True, boss_pos=(5500, FLOOR_Y),
     )
 
@@ -359,6 +378,7 @@ def _build_level_4() -> LevelDef:
         bamboo_positions=_scatter_bamboos(plats, LEVEL_WIDTHS[3], FLOOR_Y, 14),
         heal_positions=[(1020, 360), (3420, 360), (4650, 380)],
         goal_x=5200, checkpoint_positions=[2000, 3800],
+        weapon_positions=[(2200, FLOOR_Y)],
         geyser_positions=[
             (700, FLOOR_Y), (1350, FLOOR_Y), (1950, FLOOR_Y),
             (2600, FLOOR_Y), (3200, FLOOR_Y),
@@ -390,6 +410,7 @@ def _build_level_5() -> LevelDef:
         bamboo_positions=_scatter_bamboos(plats, LEVEL_WIDTHS[4], FLOOR_Y, 14),
         heal_positions=[(980, 380), (2680, 400)],
         goal_x=4700, checkpoint_positions=[1800, 3300],
+        weapon_positions=[(2000, FLOOR_Y)],
         crumbling_defs=[
             PlatformDef(700, 400, 120), PlatformDef(1250, 350, 100),
             PlatformDef(1850, 380, 120), PlatformDef(2400, 340, 100),

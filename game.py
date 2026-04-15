@@ -176,6 +176,12 @@ class Game:
                     self.audio.play("jump")
                     self.particles.emit_dust(
                         self.player.rect.centerx, self.player.rect.bottom)
+            elif key == pygame.K_DOWN or key == pygame.K_s:
+                if self.player and self.player.slam():
+                    self.audio.play("stomp")
+            elif key in (pygame.K_LCTRL, pygame.K_RCTRL, pygame.K_q):
+                if self.player and self.player.throw_bamboo():
+                    self.audio.play("stomp")
         elif self.state == ST_PAUSED:
             if key == pygame.K_ESCAPE:
                 self.state = ST_PLAYING
@@ -468,14 +474,15 @@ class Game:
             self.particles.emit_sparkle(bamboo.rect.centerx, bamboo.rect.centery)
             self.audio.play("collect")
 
-        # Bamboo staff weapon pickup
+        # Bamboo staff weapon pickup (limited duration)
         for weapon in pygame.sprite.spritecollide(
                 self.player, self.level.weapons, True):
             self.player.has_bamboo_weapon = True
-            self._weapon_tutorial_timer = 999.0  # show until first used
+            self.player.weapon_time_remaining = 30.0  # 30 seconds
+            self._weapon_tutorial_timer = 999.0
             self._weapon_used = False
             self.hud.add_floating_text(
-                "BAMBOO STAFF OBTAINED!",
+                "BAMBOO STAFF! 30s",
                 weapon.rect.centerx, weapon.rect.top - 10, (255, 220, 120))
             self.particles.emit_sparkle(weapon.rect.centerx, weapon.rect.centery, 14)
             self.audio.play("collect")
@@ -612,6 +619,12 @@ class Game:
             self._boss_warning_timer -= effective_dt
 
         # Death
+        # Trench death: fall past screen bottom = instant kill + fall animation
+        from config import TRENCH_DEATH_Y
+        if self.player.rect.top > TRENCH_DEATH_Y and not self.player.dead:
+            self.player.health = 0
+            self.player.dead = True
+            self.player.is_falling_trench = True
         if self.player.dead and self.death_anim is None:
             self.death_anim = DeathAnimation()
             self.audio.play("death")

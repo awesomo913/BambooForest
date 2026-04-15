@@ -615,9 +615,15 @@ class Player(pygame.sprite.Sprite):
 
         # Bamboo staff weapon system
         self.has_bamboo_weapon: bool = False
+        self.weapon_time_remaining: float = 0.0  # counts down; 0 = no weapon
         self.is_attacking: bool = False
         self.attack_timer: float = 0.0
         self.attack_cooldown: float = 0.0
+        # Special animation states
+        self.is_victory_dancing: bool = False
+        self.dance_timer: float = 0.0
+        self.is_falling_trench: bool = False
+        self.fall_anim_timer: float = 0.0
         # Sub-pixel motion accumulator (fixes ice softlock)
         self._sub_x: float = 0.0
         # Input lock (dash, cutscene) -- ALWAYS cleared by reset_state()
@@ -627,6 +633,15 @@ class Player(pygame.sprite.Sprite):
         self.dash_timer: float = 0.0
         self.dash_cooldown: float = 0.0
         self.dash_direction: float = 1.0
+        # Wall-slide
+        self.is_wall_sliding: bool = False
+        # Ground slam (down+jump while airborne)
+        self.is_slamming: bool = False
+        # Glide (hold jump while falling)
+        self.is_gliding: bool = False
+        # Bamboo throw projectile cooldown
+        self.throw_cooldown: float = 0.0
+        self.pending_throws: list = []
 
     def update(self, dt: float, keys: pygame.key.ScancodeWrapper,
                platforms: pygame.sprite.Group) -> None:
@@ -689,6 +704,21 @@ class Player(pygame.sprite.Sprite):
                 self.velocity_x = PLAYER_SPEED
                 self.facing_right = True
 
+        # Glide: hold SPACE while airborne + falling
+        jump_held = (keys[pygame.K_SPACE] or keys[pygame.K_UP] or keys[pygame.K_w])
+        self.set_gliding(jump_held and not self.is_on_ground and self.velocity_y > 80)
+
+        # Weapon timer (limited duration) -- decrement if armed
+        if self.has_bamboo_weapon and self.weapon_time_remaining > 0:
+            self.weapon_time_remaining -= dt
+            if self.weapon_time_remaining <= 0:
+                self.has_bamboo_weapon = False
+                self.weapon_time_remaining = 0.0
+
+        # Throw cooldown
+        if self.throw_cooldown > 0:
+            self.throw_cooldown -= dt
+
         # Accumulate sub-pixel motion so low velocities still move the rect
         self._sub_x += self.velocity_x * dt
         dx = _fl(self._sub_x)
@@ -700,12 +730,22 @@ class Player(pygame.sprite.Sprite):
             elif self.velocity_x < 0:
                 self.rect.left = hit.rect.right
 
-        self.velocity_y += GRAVITY * dt
+        # Power-modulated gravity
+        if self.is_slamming:
+            self.velocity_y += GRAVITY * 1.3 * dt  # heavier drop
+        elif self.is_gliding and self.velocity_y >= 0:
+            # Slow fall while holding jump and airborne
+            self.velocity_y = min(self.velocity_y + GRAVITY * 0.15 * dt, 120.0)
+        elif self.is_wall_sliding and self.velocity_y >= 0:
+            self.velocity_y = min(self.velocity_y + GRAVITY * 0.3 * dt, 150.0)
+        else:
+            self.velocity_y += GRAVITY * dt
         if self.velocity_y > TERMINAL_VELOCITY:
             self.velocity_y = TERMINAL_VELOCITY
         self.rect.y += _fl(self.velocity_y * dt)
 
         self.is_on_ground = False
+        self.is_wall_sliding = False
         for hit in pygame.sprite.spritecollide(self, platforms, False):
             if self.velocity_y > 0:
                 self.rect.bottom = hit.rect.top
@@ -775,15 +815,48 @@ class Player(pygame.sprite.Sprite):
         self.velocity_x = 900.0 * self.dash_direction
         return True
 
+    def slam(self) -> bool:
+        """Ground-slam: high downward velocity while airborne."""
+        if self.is_on_ground or self.is_slamming:
+            return False
+        self.is_slamming = True
+        self.velocity_y = 1200.0  # fast drop
+        self.is_gliding = False
+        return True
+
+    def set_gliding(self, glide: bool) -> None:
+        """Toggle glide (slow descent while jump held + airborne + falling)."""
+        if (glide and not self.is_on_ground and self.velocity_y > 0
+                and not self.is_slamming and not self.is_dashing):
+            self.is_gliding = True
+        else:
+            self.is_gliding = False
+
+    def throw_bamboo(self) -> bool:
+        """Throw a bamboo shuriken. Returns True if thrown."""
+        if self.throw_cooldown > 0 or not self.has_bamboo_weapon:
+            return False
+        self.throw_cooldown = 0.5
+        # Signal to game loop to spawn a projectile
+        self.pending_throws.append((self.rect.centerx,
+                                   self.rect.centery,
+                                   1.0 if self.facing_right else -1.0))
+        return True
+
     def reset_state(self) -> None:
         """Called on level load / respawn to clear any transient locks."""
         self.input_locked = False
         self.is_attacking = False
         self.is_dashing = False
+        self.is_wall_sliding = False
+        self.is_slamming = False
+        self.is_gliding = False
         self.attack_timer = 0.0
         self.attack_cooldown = 0.0
         self.dash_timer = 0.0
         self.dash_cooldown = 0.0
+        self.throw_cooldown = 0.0
+        self.pending_throws = []
         self.velocity_x = 0.0
         self.velocity_y = 0.0
         self._sub_x = 0.0

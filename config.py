@@ -144,6 +144,7 @@ LEVEL_NAMES: list[str] = [
     "Karst Caves", "Salt Flats",
 ]
 FLOOR_Y: int = 490
+TRENCH_DEATH_Y: int = 560  # fall below this = death
 
 # --- Game States ---
 ST_MENU = "MENU"
