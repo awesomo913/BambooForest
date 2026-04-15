@@ -32,9 +32,11 @@ class Game:
 
     def __init__(self) -> None:
         pygame.init()
+        # SCALED flag must be set at init for toggle_fullscreen() to work.
+        # pygame auto-scales the game's 960x540 to desktop resolution.
         self.screen = pygame.display.set_mode(
             (SCREEN_WIDTH, SCREEN_HEIGHT),
-            pygame.DOUBLEBUF | pygame.HWSURFACE, vsync=1,
+            pygame.SCALED | pygame.DOUBLEBUF, vsync=1,
         )
         pygame.display.set_caption(TITLE)
         self.clock = pygame.time.Clock()
@@ -120,37 +122,27 @@ class Game:
                         self._weapon_tutorial_timer = 0.0
 
     def _toggle_fullscreen(self) -> None:
-        """Toggle fullscreen. Uses the game's native resolution with
-        pygame.SCALED so pygame handles the upscale to desktop size."""
-        self._fullscreen = not self._fullscreen
-        # Try a cascade of fullscreen modes, falling back to windowed on error
-        attempts = []
-        if self._fullscreen:
-            # 1) SCALED fullscreen at game resolution (preferred -- pygame scales for us)
-            attempts.append((SCREEN_WIDTH, SCREEN_HEIGHT,
-                             pygame.FULLSCREEN | pygame.SCALED))
-            # 2) Plain FULLSCREEN at game resolution
-            attempts.append((SCREEN_WIDTH, SCREEN_HEIGHT, pygame.FULLSCREEN))
-            # 3) Borderless NOFRAME at desktop resolution (last resort)
-            try:
-                info = pygame.display.Info()
-                attempts.append((info.current_w, info.current_h,
-                                 pygame.NOFRAME))
-            except pygame.error:
-                pass
-        else:
-            attempts.append((SCREEN_WIDTH, SCREEN_HEIGHT,
-                             pygame.DOUBLEBUF | pygame.HWSURFACE))
+        """Toggle fullscreen using pygame.display.toggle_fullscreen().
 
-        for (w, h, flags) in attempts:
+        This only works because the window was initialised with pygame.SCALED
+        flag. Preserves the same Surface reference -- no set_mode reinit.
+        """
+        try:
+            pygame.display.toggle_fullscreen()
+            self._fullscreen = not self._fullscreen
+        except pygame.error:
+            # Fallback: explicit set_mode reinit
+            self._fullscreen = not self._fullscreen
+            flags = pygame.SCALED | pygame.DOUBLEBUF
+            if self._fullscreen:
+                flags |= pygame.FULLSCREEN
             try:
-                self.screen = pygame.display.set_mode((w, h), flags, vsync=1)
-                return
+                self.screen = pygame.display.set_mode(
+                    (SCREEN_WIDTH, SCREEN_HEIGHT), flags, vsync=1)
             except pygame.error:
-                continue
-        # Ultimate fallback: windowed no-flags
-        self._fullscreen = False
-        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+                self._fullscreen = False
+                self.screen = pygame.display.set_mode(
+                    (SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SCALED)
 
     def _on_key_down(self, key: int) -> None:
         if self.state == ST_MENU:
