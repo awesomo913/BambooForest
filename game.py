@@ -326,6 +326,14 @@ class Game:
             self._hitstop_timer -= dt
             return
 
+        # DEFENSIVE: Never let input_locked stay stuck forever.
+        # If player is on ground + not dashing + not in knockback, clear it.
+        if (self.player.input_locked
+                and self.player.is_on_ground
+                and not self.player.is_dashing
+                and self.player.knockback_timer <= 0):
+            self.player.input_locked = False
+
         effective_dt = dt
         if self.death_anim:
             effective_dt = dt * self.death_anim.get_time_scale()
@@ -660,12 +668,18 @@ class Game:
 
         # --- Level end outro: victory dance then run off screen ---
         if self._outro_active:
+            # Play dance sound ONCE when the dance starts (frame 0 of anim)
+            if (self._outro_timer > 1.4 and not self.player.is_victory_dancing):
+                self.audio.play("victory")
             self._outro_timer -= effective_dt
-            # First 0.8s = funny dance, rest = run off
             if self._outro_timer > 1.4:
-                # Dance in place
                 self.player.is_victory_dancing = True
                 self.player.velocity_x = 0
+                # Confetti sparkles during dance
+                if int(self._outro_timer * 10) % 2 == 0:
+                    self.particles.emit_sparkle(
+                        self.player.rect.centerx,
+                        self.player.rect.centery, 3)
             else:
                 self.player.is_victory_dancing = False
                 self.player.rect.x += math.floor(self._outro_speed * effective_dt)
@@ -942,6 +956,12 @@ class Game:
         # Player stomp-rect (feet)
         pygame.draw.rect(self.screen, (255, 128, 0),
                          self.player.get_stomp_rect().move(cam_x, cam_y), 1)
+        # Bamboo sword attack hitbox (during active swing)
+        if self.player.is_attacking:
+            atk = self.player.get_attack_rect()
+            if atk.width > 0:
+                pygame.draw.rect(self.screen, (255, 0, 180),
+                                 atk.move(cam_x, cam_y), 2)
         # Goal
         if self.level.goal:
             pygame.draw.rect(self.screen, C,

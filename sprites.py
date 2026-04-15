@@ -624,6 +624,8 @@ class Player(pygame.sprite.Sprite):
         self.dance_timer: float = 0.0
         self.is_falling_trench: bool = False
         self.fall_anim_timer: float = 0.0
+        # Knockback (applied on damage) -- short burst of velocity away from source
+        self.knockback_timer: float = 0.0
         # Sub-pixel motion accumulator (fixes ice softlock)
         self._sub_x: float = 0.0
         # Input lock (dash, cutscene) -- ALWAYS cleared by reset_state()
@@ -719,16 +721,23 @@ class Player(pygame.sprite.Sprite):
         if self.throw_cooldown > 0:
             self.throw_cooldown -= dt
 
-        # Accumulate sub-pixel motion so low velocities still move the rect
+        # ==============================================================
+        # X-AXIS MOVEMENT + COLLISION (strictly separated from Y)
+        # Use the actual attempted delta (dx) to decide which side to snap
+        # instead of trusting velocity_x (which can be 0 mid-bump).
+        # ==============================================================
         self._sub_x += self.velocity_x * dt
         dx = _fl(self._sub_x)
         self._sub_x -= dx
-        self.rect.x += dx
-        for hit in pygame.sprite.spritecollide(self, platforms, False):
-            if self.velocity_x > 0:
-                self.rect.right = hit.rect.left
-            elif self.velocity_x < 0:
-                self.rect.left = hit.rect.right
+        if dx != 0:
+            self.rect.x += dx
+            for hit in pygame.sprite.spritecollide(self, platforms, False):
+                if dx > 0:
+                    self.rect.right = hit.rect.left
+                elif dx < 0:
+                    self.rect.left = hit.rect.right
+                self.velocity_x = 0
+                self._sub_x = 0.0
 
         # Power-modulated gravity
         if self.is_slamming:
@@ -742,19 +751,32 @@ class Player(pygame.sprite.Sprite):
             self.velocity_y += GRAVITY * dt
         if self.velocity_y > TERMINAL_VELOCITY:
             self.velocity_y = TERMINAL_VELOCITY
-        self.rect.y += _fl(self.velocity_y * dt)
-
+        # ==============================================================
+        # Y-AXIS MOVEMENT + COLLISION (strictly separated from X)
+        # ==============================================================
+        dy = _fl(self.velocity_y * dt)
+        if dy != 0:
+            self.rect.y += dy
         self.is_on_ground = False
         self.is_wall_sliding = False
         for hit in pygame.sprite.spritecollide(self, platforms, False):
-            if self.velocity_y > 0:
+            if dy > 0 or (dy == 0 and self.velocity_y >= 0):
+                # Landing / resting on platform top
                 self.rect.bottom = hit.rect.top
                 self.velocity_y = 0
                 self.is_on_ground = True
+                self.is_slamming = False  # slam ends on impact
                 self.jumps_remaining = 2 if self.has_double_jump else 1
-            elif self.velocity_y < 0:
+            elif dy < 0:
+                # Bonked head on underside
                 self.rect.top = hit.rect.bottom
                 self.velocity_y = 0
+
+        # Knockback timer decrement (lets knockback velocity ride out)
+        if self.knockback_timer > 0:
+            self.knockback_timer -= dt
+            if self.knockback_timer <= 0 and not self.is_dashing:
+                self.input_locked = False
 
         self._update_animation(dt)
 
@@ -767,11 +789,32 @@ class Player(pygame.sprite.Sprite):
             return True
         return False
 
-    def take_damage(self, amount: int = PLAYER_DAMAGE) -> bool:
+    def take_damage(self, amount: int = PLAYER_DAMAGE,
+                    source_x: float | None = None) -> bool:
+        """Apply damage + i-frames + positional knockback.
+
+        source_x: world-space x of the damage source. Player is knocked
+        AWAY from this point. Defaults to current x (knocks up only).
+        """
         if self.invincible_timer > 0 or self.dead:
             return False
         self.health -= amount
-        self.invincible_timer = PLAYER_INVINCIBLE_SEC
+        self.invincible_timer = PLAYER_INVINCIBLE_SEC  # i-frames
+        # Knockback: away from source, slight up-bounce
+        if source_x is None:
+            kb_dir = 1.0 if self.facing_right else -1.0
+            # Reverse direction so player bounces off attacker
+            kb_dir = -kb_dir
+        else:
+            kb_dir = 1.0 if self.rect.centerx >= source_x else -1.0
+        self.velocity_x = 380.0 * kb_dir
+        self._sub_x = 0.0
+        self.velocity_y = -260.0
+        self.knockback_timer = 0.25
+        self.is_dashing = False
+        self.is_slamming = False
+        self.is_gliding = False
+        self.input_locked = True  # brief loss of control
         if self.health <= 0:
             self.health = 0
             self.dead = True

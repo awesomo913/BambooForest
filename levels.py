@@ -279,10 +279,17 @@ class LevelState:
             self.boss = Boss(level_def.boss_pos[0], level_def.boss_pos[1])
             self.all_sprites.add(self.boss)
 
-        # Decorative grass
+        # Decorative grass -- skip over trench gaps so we don't have
+        # floating grass above empty air
+        def _in_trench(px: int) -> bool:
+            for (ts, te) in self.trenches:
+                if ts <= px <= te:
+                    return True
+            return False
         step = random.randint(45, 65)
         for gx in range(0, level_def.world_width, step):
-            self.decorations.add(GrassTuft(gx, FLOOR_Y))
+            if not _in_trench(gx):
+                self.decorations.add(GrassTuft(gx, FLOOR_Y))
 
 
 # ===================================================================
