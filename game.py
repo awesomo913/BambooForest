@@ -20,7 +20,7 @@ from backgrounds import BiomeBackground
 from engine import Camera, ParticleSystem, ScreenShake
 from levels import build_level_state, LevelState
 from save import save_high_score
-from sprites import BambooStaff, Player
+from sprites import BambooShuriken, BambooStaff, Player
 from ui import (
     DeathAnimation, GameOverScreen, HUD, LevelTransition,
     PauseOverlay, TitleScreen, VictoryScreen,
@@ -500,6 +500,30 @@ class Game:
             self.particles.emit_sparkle(heal.rect.centerx, heal.rect.centery)
             self.audio.play("collect")
 
+        # Spawn pending thrown shurikens
+        if self.player.pending_throws:
+            for (sx, sy, sdir) in self.player.pending_throws:
+                shur = BambooShuriken(sx, sy, sdir)
+                self.level.projectiles.add(shur)
+                self.level.all_sprites.add(shur)
+            self.player.pending_throws.clear()
+
+        # Shuriken hits enemies
+        for shur in list(self.level.projectiles):
+            if not isinstance(shur, BambooShuriken):
+                continue
+            for enemy in list(self.level.enemies):
+                if (getattr(enemy, "alive_flag", True)
+                        and shur.rect.colliderect(enemy.rect)):
+                    if not getattr(enemy, "is_stompable", True):
+                        continue
+                    enemy.die()
+                    self.player.score += STOMP_SCORE
+                    self.particles.emit_death(enemy.rect.centerx, enemy.rect.centery)
+                    self.audio.play("stomp")
+                    shur.kill()
+                    break
+
         # Bamboo staff attack hits enemies
         if self.player.is_attacking:
             atk_rect = self.player.get_attack_rect()
@@ -605,7 +629,7 @@ class Game:
                              and self.level.boss.alive())
             if not boss_blocking:
                 self._outro_active = True
-                self._outro_timer = 2.2  # seconds of auto-run
+                self._outro_timer = 3.0  # 1.6s dance, 1.4s run off
             else:
                 # Player reached goal but boss still alive -- give feedback
                 if self._boss_warning_timer <= 0:
@@ -629,17 +653,23 @@ class Game:
             self.death_anim = DeathAnimation()
             self.audio.play("death")
 
-        # --- Level end outro: auto-run Pain-da off the right edge ---
+        # --- Level end outro: victory dance then run off screen ---
         if self._outro_active:
             self._outro_timer -= effective_dt
-            # Auto-run right
-            self.player.rect.x += math.floor(self._outro_speed * effective_dt)
-            self.player.facing_right = True
-            self.player.velocity_x = self._outro_speed
-            # Force run animation
-            self.player.anim_state = "run"
+            # First 0.8s = funny dance, rest = run off
+            if self._outro_timer > 1.4:
+                # Dance in place
+                self.player.is_victory_dancing = True
+                self.player.velocity_x = 0
+            else:
+                self.player.is_victory_dancing = False
+                self.player.rect.x += math.floor(self._outro_speed * effective_dt)
+                self.player.facing_right = True
+                self.player.velocity_x = self._outro_speed
+                self.player.anim_state = "run"
             if self._outro_timer <= 0:
                 self._outro_active = False
+                self.player.is_victory_dancing = False
                 self._advance_level()
 
         # Tutorial hint timer decrement (when not persistent)

@@ -523,10 +523,217 @@ def _build_level_8() -> LevelDef:
     )
 
 
+def _build_level_9() -> LevelDef:
+    """Abyssal Trench -- underwater feel. Uses cave biome dark + crystals."""
+    plats = [
+        PlatformDef(400, 420, 200),
+        PlatformDef(900, 380, 220),
+        PlatformDef(1400, 350, 180),
+        PlatformDef(1900, 400, 200, moving=True, axis="vertical", distance=70),
+        PlatformDef(2450, 370, 220),
+        PlatformDef(3000, 400, 200),
+        PlatformDef(3550, 360, 220, moving=True, axis="horizontal", distance=120),
+        PlatformDef(4100, 390, 240),
+        PlatformDef(4700, 400, 260),
+    ]
+    return LevelDef(
+        world_width=LEVEL_WIDTHS[8], platforms=plats, biome="cave", is_dark=True,
+        enemies=[
+            EnemyDef(450, 410, "flying", 200),
+            EnemyDef(1450, 340, "flying", 200),
+            EnemyDef(2500, 360, "chaser"),
+            EnemyDef(3050, 390, "chaser"),
+            EnemyDef(3600, 350, "slime", 150),
+            EnemyDef(4150, 380, "slime", 150),
+        ],
+        bamboo_positions=_scatter_bamboos(plats, LEVEL_WIDTHS[8], FLOOR_Y, 14),
+        heal_positions=[(940, 380), (3020, 400), (4730, 400)],
+        goal_x=5600, checkpoint_positions=[1700, 3400],
+        weapon_positions=[(1200, FLOOR_Y)],
+        crystal_positions=[(600, FLOOR_Y), (1700, FLOOR_Y), (2800, FLOOR_Y),
+                          (3900, FLOOR_Y), (5000, FLOOR_Y)],
+        trenches=[(1720, 1860), (3400, 3520)],
+        npc_defs=[(5200, FLOOR_Y, "Luminesce",
+                   ["The abyss remembers the light.",
+                    "Strike crystals to see your path."],
+                   (100, 200, 240))],
+    )
+
+
+def _build_level_10() -> LevelDef:
+    """Orogeny Peak -- vertical scaling. Many stacked platforms."""
+    plats = [
+        PlatformDef(400, 430, 220),
+        PlatformDef(750, 370, 180),
+        PlatformDef(1100, 310, 160),
+        PlatformDef(1450, 380, 200, moving=True, axis="horizontal", distance=120),
+        PlatformDef(1850, 330, 160),
+        PlatformDef(2200, 400, 200),
+        PlatformDef(2600, 350, 180, moving=True, axis="vertical", distance=60),
+        PlatformDef(3000, 300, 160),
+        PlatformDef(3400, 380, 220),
+        PlatformDef(3850, 340, 200),
+        PlatformDef(4300, 400, 220),
+        PlatformDef(4800, 360, 240),
+    ]
+    return LevelDef(
+        world_width=LEVEL_WIDTHS[9], platforms=plats, biome="basalt",
+        enemies=[
+            EnemyDef(450, 420, "patrol", 180),
+            EnemyDef(1500, 370, "patrol", 180),
+            EnemyDef(2250, 390, "patrol", 160),
+            EnemyDef(3450, 370, "slime", 200),
+            EnemyDef(4350, 390, "slime", 180),
+            EnemyDef(1150, 220, "flying", 180),
+            EnemyDef(3050, 210, "flying", 200),
+            EnemyDef(800, 360, "chaser"),
+            EnemyDef(3050, 290, "chaser"),
+        ],
+        bamboo_positions=_scatter_bamboos(plats, LEVEL_WIDTHS[9], FLOOR_Y, 18),
+        heal_positions=[(1470, 380), (3420, 380), (4820, 360)],
+        goal_x=5300, checkpoint_positions=[1500, 3200, 4500],
+        weapon_positions=[(1000, FLOOR_Y)],
+        trenches=[(680, 760), (1840, 1950), (3380, 3490)],
+        npc_defs=[(5100, FLOOR_Y, "Kora",
+                   ["The mountain tests your endurance.",
+                    "Dash past the avalanche zones!"],
+                   (255, 255, 255))],
+    )
+
+
+def _build_level_11() -> LevelDef:
+    """Hypersaline Rift -- wide gaps needing dash/glide."""
+    plats = [
+        PlatformDef(400, 410, 200),
+        PlatformDef(900, 380, 180),
+        PlatformDef(1500, 360, 180),   # gap needs glide/dash
+        PlatformDef(2100, 400, 220),
+        PlatformDef(2700, 370, 200),
+        PlatformDef(3300, 390, 220),
+        PlatformDef(3900, 360, 200),
+        PlatformDef(4500, 400, 240),
+        PlatformDef(5100, 380, 220),
+        PlatformDef(5700, 400, 260),
+    ]
+    return LevelDef(
+        world_width=LEVEL_WIDTHS[10], platforms=plats, biome="salt", is_icy=True,
+        enemies=[
+            EnemyDef(450, 400, "reflection_phantom", 180),
+            EnemyDef(2150, 390, "reflection_phantom", 200),
+            EnemyDef(3350, 380, "brine_shard"),
+            EnemyDef(4550, 390, "brine_shard"),
+            EnemyDef(1000, 360, "chaser"),
+            EnemyDef(3900, 340, "chaser"),
+        ],
+        bamboo_positions=_scatter_bamboos(plats, LEVEL_WIDTHS[10], FLOOR_Y, 16),
+        heal_positions=[(950, 380), (3350, 390), (5130, 380)],
+        goal_x=5900, checkpoint_positions=[2100, 3900],
+        weapon_positions=[(600, FLOOR_Y)],
+        trenches=[(1200, 1440), (2400, 2600), (4200, 4400)],
+        npc_defs=[(5600, FLOOR_Y, "Saltbeard",
+                   ["The salt ocean looks calm...",
+                    "Phantoms strike from reflection!"],
+                   (200, 200, 230))],
+    )
+
+
+def _build_level_12() -> LevelDef:
+    """Tabletop Canopy -- dense small platforms (jungle vine feel)."""
+    plats = [
+        PlatformDef(350, 420, 140),
+        PlatformDef(600, 370, 120),
+        PlatformDef(830, 410, 140),
+        PlatformDef(1050, 350, 120, moving=True, axis="horizontal", distance=80),
+        PlatformDef(1300, 390, 140),
+        PlatformDef(1550, 330, 120),
+        PlatformDef(1800, 380, 140),
+        PlatformDef(2100, 350, 140, moving=True, axis="vertical", distance=50),
+        PlatformDef(2400, 400, 160),
+        PlatformDef(2750, 350, 140),
+        PlatformDef(3100, 390, 160),
+        PlatformDef(3500, 360, 140, moving=True, axis="horizontal", distance=90),
+        PlatformDef(3900, 400, 180),
+        PlatformDef(4300, 370, 160),
+        PlatformDef(4700, 400, 200),
+        PlatformDef(5200, 380, 240),
+    ]
+    return LevelDef(
+        world_width=LEVEL_WIDTHS[11], platforms=plats, biome="forest",
+        enemies=[
+            EnemyDef(400, 410, "patrol", 120),
+            EnemyDef(1350, 380, "patrol", 120),
+            EnemyDef(2450, 390, "patrol", 140),
+            EnemyDef(3550, 350, "slime", 120),
+            EnemyDef(4350, 360, "slime", 120),
+            EnemyDef(880, 300, "flying", 160),
+            EnemyDef(2500, 260, "flying", 180),
+            EnemyDef(4000, 260, "flying", 180),
+            EnemyDef(1900, 370, "chaser"),
+            EnemyDef(3150, 380, "chaser"),
+        ],
+        bamboo_positions=_scatter_bamboos(plats, LEVEL_WIDTHS[11], FLOOR_Y, 22),
+        heal_positions=[(1080, 350), (3130, 390), (5230, 380)],
+        goal_x=6100, checkpoint_positions=[1800, 3400, 4900],
+        weapon_positions=[(500, FLOOR_Y)],
+        trenches=[(490, 580), (970, 1040), (1460, 1540), (2020, 2090),
+                  (2920, 3090), (4180, 4290)],
+        npc_defs=[(5900, FLOOR_Y, "Capy",
+                   ["Rest your paws, traveler.",
+                    "This is the longest leg."],
+                   (180, 140, 100))],
+    )
+
+
+def _build_level_13() -> LevelDef:
+    """Crystal Geode -- final level. Dark, crystals, boss + many flying."""
+    plats = [
+        PlatformDef(400, 420, 220),
+        PlatformDef(900, 370, 180),
+        PlatformDef(1400, 410, 220),
+        PlatformDef(1950, 360, 200, moving=True, axis="vertical", distance=50),
+        PlatformDef(2500, 400, 220),
+        PlatformDef(3050, 370, 200),
+        PlatformDef(3550, 400, 240, moving=True, axis="horizontal", distance=100),
+        PlatformDef(4100, 380, 220),
+        PlatformDef(4600, 400, 260),
+        PlatformDef(5100, 420, 900, 20),  # boss arena
+    ]
+    return LevelDef(
+        world_width=LEVEL_WIDTHS[12], platforms=plats, biome="cave", is_dark=True,
+        enemies=[
+            EnemyDef(450, 410, "patrol", 180),
+            EnemyDef(1450, 400, "slime", 180),
+            EnemyDef(2550, 390, "patrol", 180),
+            EnemyDef(1000, 360, "chaser"),
+            EnemyDef(2000, 350, "chaser"),
+            EnemyDef(3600, 390, "chaser"),
+            EnemyDef(4150, 370, "chaser"),
+            EnemyDef(700, 260, "flying", 200),
+            EnemyDef(2200, 250, "flying", 200),
+            EnemyDef(3700, 260, "flying", 200),
+            EnemyDef(4500, 260, "flying", 200),
+        ],
+        bamboo_positions=_scatter_bamboos(plats, LEVEL_WIDTHS[12], FLOOR_Y, 22),
+        heal_positions=[(940, 370), (3080, 370), (4130, 380), (4800, FLOOR_Y)],
+        goal_x=6700, checkpoint_positions=[1800, 3500, 4900, 5800],
+        weapon_positions=[(500, FLOOR_Y), (3200, FLOOR_Y)],
+        crystal_positions=[(300, FLOOR_Y), (1200, FLOOR_Y), (2200, FLOOR_Y),
+                          (3200, FLOOR_Y), (4200, FLOOR_Y), (5400, FLOOR_Y)],
+        has_boss=True,
+        boss_pos=(5500, FLOOR_Y),
+        npc_defs=[(6500, FLOOR_Y, "Core Guardian",
+                   ["The corruption ends here.",
+                    "Pain-da -- make us proud."],
+                   (255, 220, 120))],
+    )
+
+
 _BUILDERS = [
     _build_level_1, _build_level_2, _build_level_3,
     _build_level_4, _build_level_5, _build_level_6,
     _build_level_7, _build_level_8,
+    _build_level_9, _build_level_10, _build_level_11,
+    _build_level_12, _build_level_13,
 ]
 
 

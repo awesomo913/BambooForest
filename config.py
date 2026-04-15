@@ -136,12 +136,17 @@ COL_ICE = (180, 220, 255)
 COL_CRYSTAL = (100, 200, 255)
 
 # --- Levels ---
-LEVEL_COUNT: int = 8
-LEVEL_WIDTHS: list[int] = [3000, 4500, 6000, 5500, 5000, 6500, 5500, 7000]
+LEVEL_COUNT: int = 13
+LEVEL_WIDTHS: list[int] = [
+    3000, 4500, 6000, 5500, 5000, 6500, 5500, 7000,
+    6000, 5500, 6000, 6500, 7000,
+]
 LEVEL_NAMES: list[str] = [
     "Bamboo Grove", "Mountain Pass", "Mutant Lair",
     "The Caldera", "Basalt Columns", "The Arid Rift",
     "Karst Caves", "Salt Flats",
+    "Abyssal Trench", "Orogeny Peak", "Hypersaline Rift",
+    "Tabletop Canopy", "Crystal Geode",
 ]
 FLOOR_Y: int = 490
 TRENCH_DEATH_Y: int = 560  # fall below this = death

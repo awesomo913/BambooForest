@@ -229,16 +229,44 @@ def _get_sprite_cache() -> dict[str, pygame.Surface]:
 
     _sprite_cache["boss"] = pygame.transform.scale(generate_mutant_boss(90, 90), (66, 66))
 
+    # Biome enemies (level 4-8)
+    from biomes import (SulfurSlime, AshBat, KelpCrab, BasaltGolem,
+                        DustDevil, CactusScorpion, StalactiteSpider,
+                        FalseGlowworm, BrineShard, ReflectionPhantom)
+    from config import FLOOR_Y
+    # Each gets a small instance just for its sprite
+    _sprite_cache["sulfur"] = pygame.transform.scale(SulfurSlime(0, FLOOR_Y).image, (54, 50))
+    _sprite_cache["ashbat"] = pygame.transform.scale(AshBat(0, FLOOR_Y).image, (54, 44))
+    _sprite_cache["crab"] = pygame.transform.scale(KelpCrab(0, FLOOR_Y).image, (54, 36))
+    _sprite_cache["golem"] = pygame.transform.scale(BasaltGolem(0, FLOOR_Y).image, (45, 66))
+    _sprite_cache["dust"] = pygame.transform.scale(DustDevil(0, FLOOR_Y).image, (45, 66))
+    _sprite_cache["scorp"] = pygame.transform.scale(CactusScorpion(0, FLOOR_Y).image, (54, 42))
+    _sprite_cache["spider"] = pygame.transform.scale(StalactiteSpider(0, 0).image, (42, 30))
+    _sprite_cache["glow"] = pygame.transform.scale(FalseGlowworm(0, 0).image, (32, 32))
+    _sprite_cache["brine"] = pygame.transform.scale(BrineShard(0, FLOOR_Y).image, (32, 54))
+    _sprite_cache["phantom"] = pygame.transform.scale(ReflectionPhantom(0, FLOOR_Y).image, (54, 54))
+
     return _sprite_cache
 
 
 _CHARACTERS = [
-    {"name": "Pain-da",   "role": "HERO",    "desc": "Exiled warrior. Reclaim the sacred grove.",      "key": "panda",    "color": (220, 240, 220)},
-    {"name": "Shroomba",  "role": "PATROL",  "desc": "A twisted fungus guarding stolen bamboo",         "key": "mushroom", "color": (220, 100, 100)},
-    {"name": "Shadow",    "role": "CHASER",  "desc": "Shadowblade of the corrupted forest",             "key": "panther",  "color": (180, 255, 100)},
-    {"name": "Blobby",    "role": "BOUNCER", "desc": "Acid jelly. Looks cute -- still lethal.",         "key": "slime",    "color": (100, 230, 140)},
-    {"name": "Nightwing", "role": "FLYER",   "desc": "Razor-winged bat. Do NOT try to stomp.",          "key": "bat",      "color": (170, 120, 230)},
-    {"name": "The Mutant","role": "BOSS",    "desc": "The fallen king. Stomp only when stunned.",        "key": "boss",     "color": (255, 120, 120)},
+    {"name": "Pain-da",    "role": "HERO",    "desc": "Exiled warrior of the grove",          "key": "panda",    "color": (220, 240, 220)},
+    {"name": "Shroomba",   "role": "PATROL",  "desc": "Twisted fungus guardian",              "key": "mushroom", "color": (220, 100, 100)},
+    {"name": "Shadow",     "role": "CHASER",  "desc": "Shadowblade of the forest",            "key": "panther",  "color": (180, 255, 100)},
+    {"name": "Blobby",     "role": "BOUNCER", "desc": "Cute acid jelly",                      "key": "slime",    "color": (100, 230, 140)},
+    {"name": "Nightwing",  "role": "FLYER",   "desc": "Spiked bat -- can't be stomped",       "key": "bat",      "color": (170, 120, 230)},
+    {"name": "The Mutant", "role": "BOSS",    "desc": "Stomp only when stunned",              "key": "boss",     "color": (255, 120, 120)},
+    # Level 4-8 biome enemies
+    {"name": "Sulfurite",  "role": "TOXIC",   "desc": "Leaves poison trail",                  "key": "sulfur",   "color": (200, 200, 40)},
+    {"name": "Ash-Swoop",  "role": "SWOOPER", "desc": "Dives at airborne prey",               "key": "ashbat",   "color": (120, 80, 70)},
+    {"name": "Kelp-Shell", "role": "ARMORED", "desc": "Side hits bounce. Stomp only!",        "key": "crab",     "color": (180, 80, 60)},
+    {"name": "Column-Doom","role": "AMBUSH",  "desc": "Pillar that strikes when close",       "key": "golem",    "color": (90, 90, 110)},
+    {"name": "Duster",     "role": "DODGE",   "desc": "Invincible vortex -- dodge!",          "key": "dust",     "color": (200, 180, 140)},
+    {"name": "Needler",    "role": "RANGED",  "desc": "Fires 45-degree thorns",               "key": "scorp",    "color": (160, 120, 60)},
+    {"name": "Driptop",    "role": "CEILING", "desc": "Drops from above when you pass",       "key": "spider",   "color": (80, 60, 60)},
+    {"name": "Lure-Bug",   "role": "TRAP",    "desc": "Pretty light that snaps shut",         "key": "glow",     "color": (150, 255, 100)},
+    {"name": "Brine-Star", "role": "STATIC",  "desc": "Grows larger the longer you stand",    "key": "brine",    "color": (200, 220, 255)},
+    {"name": "Phantom",    "role": "MIRROR",  "desc": "Only visible in reflection",           "key": "phantom",  "color": (220, 220, 240)},
 ]
 
 
@@ -256,33 +284,39 @@ def _draw_card(screen: pygame.Surface, char: dict,
     pygame.draw.rect(card, (*char["color"], 140), (0, 0, w, 3), border_radius=6)
     screen.blit(card, (x, y))
 
-    # Sprite preview (centered, bobbing)
+    # Sprite preview -- scale to fit if card is small
     sprite = sprites.get(char["key"])
     if sprite:
-        bob = math.sin(timer * 2.5 + idx * 1.1) * 3
+        bob = math.sin(timer * 2.5 + idx * 1.1) * 2
+        # Scale sprite to max 44px on small cards
+        max_sprite = 44 if h < 110 else 54
         sw, sh = sprite.get_size()
+        if sw > max_sprite or sh > max_sprite:
+            scale = min(max_sprite / sw, max_sprite / sh)
+            sw2 = int(sw * scale)
+            sh2 = int(sh * scale)
+            sprite = pygame.transform.scale(sprite, (sw2, sh2))
+            sw, sh = sw2, sh2
         sx = x + (w - sw) // 2
-        sy = y + 10 + int(bob)
+        sy = y + 8 + int(bob)
         screen.blit(sprite, (sx, sy))
 
-    # Name
-    name_y = y + 78
-    draw_text(screen, char["name"], 16, char["color"], x + w // 2, name_y, bold=True)
+    # Name (smaller on compact cards)
+    name_y = y + (h - 30)
+    name_size = 13 if h < 110 else 16
+    draw_text(screen, char["name"], name_size, char["color"],
+              x + w // 2, name_y, bold=True)
 
     # Role tag
-    role_y = name_y + 16
-    tag_font = get_font(10)
+    role_y = name_y + 14
+    tag_font = get_font(9 if h < 110 else 10)
     tag_surf = tag_font.render(char["role"], True, (30, 50, 30))
     tw, th = tag_surf.get_size()
-    tag_bg = pygame.Surface((tw + 8, th + 4), pygame.SRCALPHA)
+    tag_bg = pygame.Surface((tw + 6, th + 3), pygame.SRCALPHA)
     tag_bg.fill((*char["color"], 100))
-    tag_x = x + (w - tw - 8) // 2
+    tag_x = x + (w - tw - 6) // 2
     screen.blit(tag_bg, (tag_x, role_y - 2))
-    screen.blit(tag_surf, (tag_x + 4, role_y))
-
-    # Description (single line, fits in card)
-    desc_y = role_y + 18
-    draw_text(screen, char["desc"], 11, (140, 180, 140), x + w // 2, desc_y)
+    screen.blit(tag_surf, (tag_x + 3, role_y))
 
 
 # ---------------------------------------------------------------------------
@@ -337,26 +371,27 @@ class TitleScreen:
         draw_text(screen, "~ The Legend of Pain-da ~", 18, (120, 180, 120),
                   SCREEN_WIDTH // 2, int(self.title_y) + 32)
 
-        # Character gallery -- 2 rows x 3 columns
-        card_w = 280
-        card_h = 118
-        gap_x = 20
-        gap_y = 14
-        total_row_w = 3 * card_w + 2 * gap_x
-        start_x = (SCREEN_WIDTH - total_row_w) // 2
-        row1_y = int(SCREEN_HEIGHT * 0.22)
-        row2_y = row1_y + card_h + gap_y
+        # Character gallery -- 4x4 compact grid fits all 16 characters
+        cols = 4
+        rows = (len(_CHARACTERS) + cols - 1) // cols
+        card_w = 220
+        card_h = 95
+        gap_x = 10
+        gap_y = 8
+        total_w = cols * card_w + (cols - 1) * gap_x
+        start_x = (SCREEN_WIDTH - total_w) // 2
+        start_y = int(SCREEN_HEIGHT * 0.18)
 
         for i, char in enumerate(_CHARACTERS):
-            col = i % 3
-            row = i // 3
+            col = i % cols
+            row = i // cols
             cx = start_x + col * (card_w + gap_x)
-            cy = row1_y if row == 0 else row2_y
+            cy = start_y + row * (card_h + gap_y)
             _draw_card(screen, char, cx, cy, card_w, card_h,
                        self.prompt_timer, i)
 
-        # Pulsing prompt
-        prompt_y = row2_y + card_h + 28
+        # Pulsing prompt (below the character grid)
+        prompt_y = start_y + rows * (card_h + gap_y) + 18
         alpha = int(128 + 127 * math.sin(self.prompt_timer * 3))
         font = get_font(26)
         prompt = font.render("Press ENTER to Start", True, (200, 255, 200))
@@ -378,14 +413,66 @@ class TitleScreen:
 # ---------------------------------------------------------------------------
 
 class PauseOverlay:
+    """Pause screen with compact enemy encyclopedia (read while waiting)."""
+
     def draw(self, screen: pygame.Surface) -> None:
         overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 160))
+        overlay.fill((0, 0, 0, 200))
         screen.blit(overlay, (0, 0))
-        draw_text_shadow(screen, "PAUSED", 56, COL_WHITE,
-                         SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 - 30, bold=True)
-        draw_text(screen, "ESC to Resume  |  Q to Quit", 24, (180, 180, 180),
-                  SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2 + 30)
+        draw_text_shadow(screen, "PAUSED", 42, COL_WHITE,
+                         SCREEN_WIDTH // 2, 36, bold=True)
+        draw_text(screen, "ESC to Resume  |  Q to Quit", 16, (180, 180, 180),
+                  SCREEN_WIDTH // 2, 62)
+
+        # Mini enemy encyclopedia -- compact grid of all characters
+        sprites = _get_sprite_cache()
+        col_w = 180
+        row_h = 90
+        cols = 5
+        start_x = (SCREEN_WIDTH - cols * col_w) // 2
+        start_y = 90
+        font_name = get_font(12, bold=True)
+        font_desc = get_font(10)
+        for i, char in enumerate(_CHARACTERS):
+            col = i % cols
+            row = i // cols
+            x = start_x + col * col_w
+            y = start_y + row * row_h
+            # Compact card
+            card = pygame.Surface((col_w - 8, row_h - 8), pygame.SRCALPHA)
+            card.fill((15, 25, 15, 230))
+            pygame.draw.rect(card, (*char["color"], 160),
+                             (0, 0, col_w - 8, row_h - 8), 1, border_radius=4)
+            screen.blit(card, (x, y))
+            # Small sprite
+            sprite = sprites.get(char["key"])
+            if sprite:
+                sm = pygame.transform.scale(sprite, (40, 40))
+                screen.blit(sm, (x + 8, y + 10))
+            # Name + desc
+            name = font_name.render(char["name"], True, char["color"])
+            screen.blit(name, (x + 56, y + 8))
+            role = font_desc.render(char["role"], True, (160, 200, 160))
+            screen.blit(role, (x + 56, y + 22))
+            # Word-wrap description
+            desc = char["desc"]
+            max_chars = 22
+            if len(desc) > max_chars:
+                # Split on word
+                words = desc.split()
+                line1, line2 = "", ""
+                for w in words:
+                    if len(line1) + len(w) + 1 <= max_chars:
+                        line1 = line1 + " " + w if line1 else w
+                    else:
+                        line2 = line2 + " " + w if line2 else w
+                d1 = font_desc.render(line1, True, (200, 200, 200))
+                d2 = font_desc.render(line2, True, (200, 200, 200))
+                screen.blit(d1, (x + 56, y + 40))
+                screen.blit(d2, (x + 56, y + 54))
+            else:
+                d = font_desc.render(desc, True, (200, 200, 200))
+                screen.blit(d, (x + 56, y + 46))
 
 
 # ---------------------------------------------------------------------------
