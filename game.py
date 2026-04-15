@@ -69,6 +69,7 @@ class Game:
         self._was_on_ground: bool = False
         self._is_high_score: bool = False
         self._jump_pressed: bool = False
+        self._boss_warning_timer: float = 0.0
 
     def run(self) -> None:
         while self.running:
@@ -443,6 +444,17 @@ class Game:
                              and self.level.boss.alive())
             if not boss_blocking:
                 self._advance_level()
+            else:
+                # Player reached goal but boss still alive -- give feedback
+                if self._boss_warning_timer <= 0:
+                    self._boss_warning_timer = 2.0
+                    self.hud.add_floating_text(
+                        "DEFEAT THE BOSS FIRST!",
+                        self.player.rect.centerx,
+                        self.player.rect.top - 20,
+                        (255, 80, 80))
+        if self._boss_warning_timer > 0:
+            self._boss_warning_timer -= effective_dt
 
         # Death
         if self.player.dead and self.death_anim is None:

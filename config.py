@@ -37,7 +37,7 @@ SLIME_HOP_POWER: float = -350.0
 SAFE_ZONE_WIDTH: int = 400
 
 # --- Boss ---
-BOSS_HP: int = 10
+BOSS_HP: int = 5
 BOSS_SIZE: tuple[int, int] = (90, 90)
 BOSS_CHARGE_SPEED: float = 300.0
 BOSS_STUN_SEC: float = 1.5
