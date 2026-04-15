@@ -70,6 +70,8 @@ class Game:
         self._is_high_score: bool = False
         self._jump_pressed: bool = False
         self._boss_warning_timer: float = 0.0
+        self._fullscreen: bool = False
+        self._debug_mode: bool = False
 
     def run(self) -> None:
         while self.running:
@@ -91,10 +93,39 @@ class Game:
             if event.type == pygame.QUIT:
                 self.running = False
             if event.type == pygame.KEYDOWN:
+                # Global toggles (work in any state)
+                if event.key == pygame.K_F11:
+                    self._toggle_fullscreen()
+                    continue
+                if event.key == pygame.K_TAB:
+                    self._debug_mode = not self._debug_mode
+                    continue
                 self._on_key_down(event.key)
             if event.type == pygame.KEYUP:
                 if event.key in (pygame.K_SPACE, pygame.K_UP, pygame.K_w):
                     self._jump_pressed = False
+
+    def _toggle_fullscreen(self) -> None:
+        """Toggle fullscreen. Uses native resolution for Pi 1 safety."""
+        self._fullscreen = not self._fullscreen
+        try:
+            if self._fullscreen:
+                self.screen = pygame.display.set_mode(
+                    (SCREEN_WIDTH, SCREEN_HEIGHT),
+                    pygame.FULLSCREEN | pygame.DOUBLEBUF | pygame.HWSURFACE,
+                    vsync=1,
+                )
+            else:
+                self.screen = pygame.display.set_mode(
+                    (SCREEN_WIDTH, SCREEN_HEIGHT),
+                    pygame.DOUBLEBUF | pygame.HWSURFACE,
+                    vsync=1,
+                )
+        except pygame.error:
+            # Fallback if mode not supported (Pi 1 safety)
+            self._fullscreen = False
+            self.screen = pygame.display.set_mode(
+                (SCREEN_WIDTH, SCREEN_HEIGHT))
 
     def _on_key_down(self, key: int) -> None:
         if self.state == ST_MENU:
@@ -545,37 +576,136 @@ class Game:
             dark_overlay.blit(light_mask, (0, 0), special_flags=pygame.BLEND_RGBA_SUB)
             self.screen.blit(dark_overlay, (0, 0))
 
-        # --- NPC dialog bubbles ---
-        for npc in self.level.npcs:
-            if npc.show_dialog:
-                sx = npc.rect.centerx + cam_x
-                sy = npc.rect.top + cam_y - 50
-                self._draw_dialog(npc.name, npc.dialog_lines[npc.current_line],
-                                  sx, sy)
+        # --- Boss HP bar (above boss, world-space) ---
+        if self.level.boss and self.level.boss.alive():
+            boss = self.level.boss
+            bar_w = 120
+            bar_h = 8
+            bx = boss.rect.centerx + cam_x - bar_w // 2
+            by = boss.rect.top + cam_y - 16
+            # Backing
+            pygame.draw.rect(self.screen, (30, 0, 0), (bx - 2, by - 2, bar_w + 4, bar_h + 4))
+            pygame.draw.rect(self.screen, (80, 20, 20), (bx, by, bar_w, bar_h))
+            # Fill proportional to HP
+            fill = int(bar_w * (boss.hp / max(1, boss.max_hp)))
+            if fill > 0:
+                pygame.draw.rect(self.screen, (220, 40, 40), (bx, by, fill, bar_h))
+            pygame.draw.rect(self.screen, (255, 255, 255), (bx, by, bar_w, bar_h), 1)
+            # "BOSS" label
+            font = pygame.font.SysFont("consolas", 12, bold=True)
+            label = font.render(f"BOSS  {boss.hp}/{boss.max_hp}", True, (255, 200, 200))
+            self.screen.blit(label, (bx, by - 14))
+
+        # --- Debug mode hitbox overlay ---
+        if self._debug_mode:
+            self._draw_debug_hitboxes(cam_x, cam_y)
 
         self.hud.draw(self.screen, self.player, self.current_level + 1, self.camera)
+
+        # --- NPC dialog box at bottom of screen ---
+        active_npc = None
+        for npc in self.level.npcs:
+            if npc.show_dialog:
+                active_npc = npc
+                break
+        if active_npc is not None:
+            self._draw_npc_textbox(active_npc)
 
         if self.state == ST_PAUSED:
             self.pause_overlay.draw(self.screen)
         elif self.state == ST_GAME_OVER:
             self.game_over_screen.draw(self.screen, self.player.score)
 
-    def _draw_dialog(self, name: str, text: str, x: int, y: int) -> None:
-        """Draw a speech bubble at screen position (x, y)."""
-        font = pygame.font.SysFont("consolas", 14)
-        name_surf = font.render(name, True, (255, 220, 100))
-        text_surf = font.render(text, True, (220, 220, 220))
-        w = max(name_surf.get_width(), text_surf.get_width()) + 16
-        h = name_surf.get_height() + text_surf.get_height() + 12
-        bx = max(4, min(SCREEN_WIDTH - w - 4, x - w // 2))
-        by = max(4, y - h)
-        bubble = pygame.Surface((w, h), pygame.SRCALPHA)
-        bubble.fill((20, 20, 20, 200))
-        pygame.draw.rect(bubble, (100, 100, 100, 150), (0, 0, w, h), 1,
-                         border_radius=4)
-        bubble.blit(name_surf, (8, 4))
-        bubble.blit(text_surf, (8, 4 + name_surf.get_height() + 4))
-        self.screen.blit(bubble, (bx, by))
+    def _draw_npc_textbox(self, npc) -> None:
+        """Full-width text box at bottom of screen for NPC dialog."""
+        box_h = 90
+        box_y = SCREEN_HEIGHT - box_h - 8
+        box_x = 20
+        box_w = SCREEN_WIDTH - 40
+        # Background panel with border
+        bg = pygame.Surface((box_w, box_h), pygame.SRCALPHA)
+        bg.fill((15, 15, 25, 230))
+        pygame.draw.rect(bg, (255, 220, 120, 200), (0, 0, box_w, box_h), 3,
+                         border_radius=8)
+        self.screen.blit(bg, (box_x, box_y))
+        # Name tab in corner
+        name_font = pygame.font.SysFont("consolas", 18, bold=True)
+        name_surf = name_font.render(npc.name, True, (255, 220, 120))
+        name_bg = pygame.Surface((name_surf.get_width() + 20, 24), pygame.SRCALPHA)
+        name_bg.fill((40, 30, 20, 240))
+        pygame.draw.rect(name_bg, (255, 220, 120),
+                        (0, 0, name_bg.get_width(), 24), 2, border_radius=4)
+        self.screen.blit(name_bg, (box_x + 12, box_y - 12))
+        self.screen.blit(name_surf, (box_x + 22, box_y - 8))
+        # Dialog text (render all lines stacked)
+        text_font = pygame.font.SysFont("consolas", 16)
+        for i, line in enumerate(npc.dialog_lines):
+            line_surf = text_font.render(line, True, (235, 235, 235))
+            self.screen.blit(line_surf, (box_x + 24, box_y + 22 + i * 22))
+
+    def _draw_debug_hitboxes(self, cam_x: int, cam_y: int) -> None:
+        """Draw bright red rectangles around all hitboxes for collision verification."""
+        R = (255, 0, 0)  # hitboxes
+        G = (0, 255, 0)  # player
+        C = (0, 255, 255)  # goal/checkpoint
+        Y = (255, 255, 0)  # pickups
+        # Platforms
+        for p in self.level.platforms:
+            pygame.draw.rect(self.screen, R,
+                             p.rect.move(cam_x, cam_y), 2)
+        # Enemies
+        for e in self.level.enemies:
+            pygame.draw.rect(self.screen, R,
+                             e.rect.move(cam_x, cam_y), 2)
+        # Boss
+        if self.level.boss and self.level.boss.alive():
+            pygame.draw.rect(self.screen, R,
+                             self.level.boss.rect.move(cam_x, cam_y), 2)
+        # Player (green)
+        pygame.draw.rect(self.screen, G,
+                         self.player.rect.move(cam_x, cam_y), 2)
+        # Player stomp-rect (feet)
+        pygame.draw.rect(self.screen, (255, 128, 0),
+                         self.player.get_stomp_rect().move(cam_x, cam_y), 1)
+        # Goal
+        if self.level.goal:
+            pygame.draw.rect(self.screen, C,
+                             self.level.goal.rect.move(cam_x, cam_y), 2)
+        # Checkpoints
+        for cp in self.level.checkpoints:
+            pygame.draw.rect(self.screen, C,
+                             cp.rect.move(cam_x, cam_y), 2)
+        # Bamboos & heals
+        for b in self.level.bamboos:
+            pygame.draw.rect(self.screen, Y, b.rect.move(cam_x, cam_y), 1)
+        for h in self.level.heals:
+            pygame.draw.rect(self.screen, Y, h.rect.move(cam_x, cam_y), 1)
+        # Biome: geysers, wind zones, crystals, crumbling, updrafts
+        for g in self.level.geysers:
+            pygame.draw.rect(self.screen, R, g.rect.move(cam_x, cam_y), 2)
+        for wz in self.level.wind_zones:
+            pygame.draw.rect(self.screen, (255, 0, 255),
+                             wz.rect.move(cam_x, cam_y), 2)
+        for tu in self.level.updrafts:
+            pygame.draw.rect(self.screen, (255, 0, 255),
+                             tu.rect.move(cam_x, cam_y), 2)
+        for cr in self.level.crystals:
+            pygame.draw.rect(self.screen, C, cr.rect.move(cam_x, cam_y), 2)
+        for cp in self.level.crumbling:
+            pygame.draw.rect(self.screen, (255, 165, 0),
+                             cp.rect.move(cam_x, cam_y), 2)
+        for np_ in self.level.npcs:
+            pygame.draw.rect(self.screen, (100, 255, 255),
+                             np_.rect.move(cam_x, cam_y), 2)
+        # Debug overlay text
+        font = pygame.font.SysFont("consolas", 14, bold=True)
+        info = font.render("DEBUG [TAB] | RED=hitbox GREEN=player CYAN=goal YELLOW=pickup",
+                           True, (255, 255, 255))
+        info_bg = pygame.Surface((info.get_width() + 10, info.get_height() + 4),
+                                pygame.SRCALPHA)
+        info_bg.fill((0, 0, 0, 180))
+        self.screen.blit(info_bg, (4, SCREEN_HEIGHT - 22))
+        self.screen.blit(info, (8, SCREEN_HEIGHT - 20))
 
 
 def main() -> None:

@@ -16,12 +16,22 @@ from config import COL_WHITE, SCREEN_HEIGHT, SCREEN_WIDTH
 
 
 class _BaseBackground:
-    """Base class: produces a seamless-tileable surface."""
+    """Base class: produces a seamless-tileable surface.
+
+    Uses .convert() for performance on low-end hardware (Pi 1).
+    Opaque parallax layer -- no per-pixel alpha lookups.
+    """
 
     def __init__(self) -> None:
         self.w: int = SCREEN_WIDTH
         self.scroll_factor: float = 0.18
-        self.surface: pygame.Surface = self._build()
+        surface = self._build()
+        # Convert to display format for faster blits (Pi 1 optimization).
+        # Fallback if display not initialized yet.
+        try:
+            self.surface: pygame.Surface = surface.convert()
+        except pygame.error:
+            self.surface = surface
 
     def _build(self) -> pygame.Surface:
         """Subclasses override to paint the biome."""
@@ -103,27 +113,79 @@ class ForestBackground(_BaseBackground):
                                [(x - base_w // 2, SCREEN_HEIGHT),
                                 (x, top_y),
                                 (x + base_w // 2, SCREEN_HEIGHT)])
-        # Pine trees
-        for i in range(18):
-            tx = int(i * self.w / 14) + random.randint(-30, 30)
-            tree_h = random.randint(60, 110)
-            trunk_top = SCREEN_HEIGHT - tree_h
-            trunk_w = random.randint(4, 8)
+        # Parallax depth: 3 tree layers from back (dark/small) to front (bright/big)
+        # Back layer -- dark, distant
+        for i in range(12):
+            tx = int(i * self.w / 10) + random.randint(-20, 20)
+            tree_h = random.randint(50, 75)
+            trunk_top = SCREEN_HEIGHT - tree_h - 20
+            trunk_w = random.randint(3, 5)
+            trunk_c = (40, 28, 18)
+            for dx in (-self.w, 0, self.w):
+                pygame.draw.rect(surf, trunk_c,
+                                 (tx - trunk_w // 2 + dx,
+                                  trunk_top + tree_h // 3,
+                                  trunk_w, tree_h * 2 // 3))
+            canopy_c = (18, 65, 20)
+            cw = random.randint(14, 22)
+            for li, (ly_f, lw_f) in enumerate([(0.55, 1.0), (0.3, 0.8), (0.1, 0.55)]):
+                ly = trunk_top + int(tree_h * ly_f)
+                lw = int(cw * lw_f)
+                s = li * 4
+                lc = (min(255, canopy_c[0] + s),
+                      min(255, canopy_c[1] + s),
+                      min(255, canopy_c[2] + s))
+                self._wrap_polygon(surf, lc, [
+                    (tx - lw, ly),
+                    (tx, trunk_top + int(tree_h * 0.12 * (li + 1))),
+                    (tx + lw, ly)])
+        # Mid layer -- medium
+        for i in range(14):
+            tx = int(i * self.w / 11) + random.randint(-25, 25)
+            tree_h = random.randint(70, 100)
+            trunk_top = SCREEN_HEIGHT - tree_h - 5
+            trunk_w = random.randint(5, 7)
             trunk_c = (70, 48, 28)
             for dx in (-self.w, 0, self.w):
                 pygame.draw.rect(surf, trunk_c,
                                  (tx - trunk_w // 2 + dx,
                                   trunk_top + tree_h // 3,
                                   trunk_w, tree_h * 2 // 3))
-            canopy_c = (32 + random.randint(-8, 12),
-                        105 + random.randint(-15, 15),
-                        32 + random.randint(-8, 12))
-            cw = random.randint(20, 34)
-            for li, (ly_f, lw_f) in enumerate(
-                    [(0.55, 1.0), (0.35, 0.8), (0.15, 0.6)]):
+            canopy_c = (32 + random.randint(-5, 8),
+                        105 + random.randint(-10, 10),
+                        32 + random.randint(-5, 8))
+            cw = random.randint(20, 30)
+            for li, (ly_f, lw_f) in enumerate([(0.55, 1.0), (0.35, 0.8), (0.15, 0.6)]):
                 ly = trunk_top + int(tree_h * ly_f)
                 lw = int(cw * lw_f)
                 s = li * 8
+                lc = (min(255, canopy_c[0] + s),
+                      min(255, canopy_c[1] + s),
+                      min(255, canopy_c[2] + s))
+                self._wrap_polygon(surf, lc, [
+                    (tx - lw, ly),
+                    (tx, trunk_top + int(tree_h * 0.12 * (li + 1))),
+                    (tx + lw, ly)])
+        # Front layer -- brightest/largest (closest to camera)
+        for i in range(8):
+            tx = int(i * self.w / 6) + random.randint(-35, 35)
+            tree_h = random.randint(95, 130)
+            trunk_top = SCREEN_HEIGHT - tree_h + 5
+            trunk_w = random.randint(7, 10)
+            trunk_c = (95, 65, 40)
+            for dx in (-self.w, 0, self.w):
+                pygame.draw.rect(surf, trunk_c,
+                                 (tx - trunk_w // 2 + dx,
+                                  trunk_top + tree_h // 3,
+                                  trunk_w, tree_h * 2 // 3))
+            canopy_c = (60 + random.randint(-5, 8),
+                        145 + random.randint(-10, 15),
+                        55 + random.randint(-5, 8))
+            cw = random.randint(28, 40)
+            for li, (ly_f, lw_f) in enumerate([(0.55, 1.0), (0.35, 0.8), (0.15, 0.6)]):
+                ly = trunk_top + int(tree_h * ly_f)
+                lw = int(cw * lw_f)
+                s = li * 12
                 lc = (min(255, canopy_c[0] + s),
                       min(255, canopy_c[1] + s),
                       min(255, canopy_c[2] + s))
