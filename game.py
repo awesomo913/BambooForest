@@ -111,28 +111,46 @@ class Game:
             if event.type == pygame.KEYUP:
                 if event.key in (pygame.K_SPACE, pygame.K_UP, pygame.K_w):
                     self._jump_pressed = False
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                # Left click = swing bamboo staff
+                if event.button == 1 and self.state == ST_PLAYING:
+                    if self.player and self.player.attack():
+                        self.audio.play("stomp")
+                        self._weapon_used = True
+                        self._weapon_tutorial_timer = 0.0
 
     def _toggle_fullscreen(self) -> None:
-        """Toggle fullscreen using NATIVE resolution (auto-detect)."""
+        """Toggle fullscreen. Uses the game's native resolution with
+        pygame.SCALED so pygame handles the upscale to desktop size."""
         self._fullscreen = not self._fullscreen
-        try:
-            if self._fullscreen:
-                # (0, 0) tells pygame to use the current desktop resolution
-                self.screen = pygame.display.set_mode(
-                    (0, 0),
-                    pygame.FULLSCREEN | pygame.SCALED | pygame.DOUBLEBUF,
-                    vsync=1,
-                )
-            else:
-                self.screen = pygame.display.set_mode(
-                    (SCREEN_WIDTH, SCREEN_HEIGHT),
-                    pygame.DOUBLEBUF | pygame.HWSURFACE,
-                    vsync=1,
-                )
-        except pygame.error:
-            self._fullscreen = False
-            self.screen = pygame.display.set_mode(
-                (SCREEN_WIDTH, SCREEN_HEIGHT))
+        # Try a cascade of fullscreen modes, falling back to windowed on error
+        attempts = []
+        if self._fullscreen:
+            # 1) SCALED fullscreen at game resolution (preferred -- pygame scales for us)
+            attempts.append((SCREEN_WIDTH, SCREEN_HEIGHT,
+                             pygame.FULLSCREEN | pygame.SCALED))
+            # 2) Plain FULLSCREEN at game resolution
+            attempts.append((SCREEN_WIDTH, SCREEN_HEIGHT, pygame.FULLSCREEN))
+            # 3) Borderless NOFRAME at desktop resolution (last resort)
+            try:
+                info = pygame.display.Info()
+                attempts.append((info.current_w, info.current_h,
+                                 pygame.NOFRAME))
+            except pygame.error:
+                pass
+        else:
+            attempts.append((SCREEN_WIDTH, SCREEN_HEIGHT,
+                             pygame.DOUBLEBUF | pygame.HWSURFACE))
+
+        for (w, h, flags) in attempts:
+            try:
+                self.screen = pygame.display.set_mode((w, h), flags, vsync=1)
+                return
+            except pygame.error:
+                continue
+        # Ultimate fallback: windowed no-flags
+        self._fullscreen = False
+        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 
     def _on_key_down(self, key: int) -> None:
         if self.state == ST_MENU:
@@ -743,7 +761,7 @@ class Game:
         font_big = pygame.font.SysFont("consolas", 22, bold=True)
         font_small = pygame.font.SysFont("consolas", 14)
         title = font_big.render("BAMBOO STAFF EQUIPPED!", True, (255, 230, 120))
-        hint = font_small.render("Press  [ E ]  to swing -- defeat enemies up close",
+        hint = font_small.render("Press  [ E ]  or  LEFT CLICK  to swing",
                                  True, (230, 230, 230))
         w = max(title.get_width(), hint.get_width()) + 32
         h = 58
