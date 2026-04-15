@@ -150,7 +150,7 @@ class Game:
                     if self.player.jump():
                         self.audio.play("jump")
                     self._jump_pressed = True
-            elif key in (pygame.K_z, pygame.K_x):
+            elif key in (pygame.K_e, pygame.K_x):
                 if self.player and self.player.attack():
                     self.audio.play("stomp")
                     self._weapon_used = True
@@ -743,7 +743,7 @@ class Game:
         font_big = pygame.font.SysFont("consolas", 22, bold=True)
         font_small = pygame.font.SysFont("consolas", 14)
         title = font_big.render("BAMBOO STAFF EQUIPPED!", True, (255, 230, 120))
-        hint = font_small.render("Press  [ Z ]  to swing -- defeat enemies up close",
+        hint = font_small.render("Press  [ E ]  to swing -- defeat enemies up close",
                                  True, (230, 230, 230))
         w = max(title.get_width(), hint.get_width()) + 32
         h = 58
