@@ -17,10 +17,10 @@ TERMINAL_VELOCITY: float = 720.0
 PLAYER_SIZE: tuple[int, int] = (36, 44)
 
 # --- Player Stats ---
-PLAYER_MAX_HP: int = 100
-PLAYER_INVINCIBLE_SEC: float = 0.5
-PLAYER_DAMAGE: int = 25
-HEAL_AMOUNT: int = 25
+PLAYER_MAX_HP: int = 120     # 5 hits to die (was 4) -- more forgiving
+PLAYER_INVINCIBLE_SEC: float = 0.8  # longer i-frames (was 0.5)
+PLAYER_DAMAGE: int = 20      # each hit costs 20 (was 25)
+HEAL_AMOUNT: int = 30
 DOUBLE_JUMP_LEVEL: int = 0
 STARTING_LIVES: int = 3
 
@@ -37,7 +37,7 @@ SLIME_HOP_POWER: float = -350.0
 SAFE_ZONE_WIDTH: int = 400
 
 # --- Boss ---
-BOSS_HP: int = 5
+BOSS_HP: int = 7
 BOSS_SIZE: tuple[int, int] = (90, 90)
 BOSS_CHARGE_SPEED: float = 300.0
 BOSS_STUN_SEC: float = 1.5

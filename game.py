@@ -169,6 +169,9 @@ class Game:
                 self.running = False
         elif self.state == ST_PLAYING:
             if key == pygame.K_ESCAPE:
+                # ESC in fullscreen drops to windowed first, THEN pauses
+                if self._fullscreen:
+                    self._toggle_fullscreen()
                 self.state = ST_PAUSED
                 self.audio.play("menu_select")
             elif key in (pygame.K_SPACE, pygame.K_UP, pygame.K_w):
@@ -532,14 +535,15 @@ class Game:
                 self.level.all_sprites.add(shur)
             self.player.pending_throws.clear()
 
-        # Shuriken hits enemies
+        # Shuriken hits ALL enemies (including flying, false-glowworm)
         for shur in list(self.level.projectiles):
             if not isinstance(shur, BambooShuriken):
                 continue
             for enemy in list(self.level.enemies):
                 if (getattr(enemy, "alive_flag", True)
                         and shur.rect.colliderect(enemy.rect)):
-                    if not getattr(enemy, "is_stompable", True):
+                    # Only skip true invincibles
+                    if type(enemy).__name__ in ("BrineShard", "DustDevil"):
                         continue
                     enemy.die()
                     self.player.score += STOMP_SCORE
@@ -548,15 +552,18 @@ class Game:
                     shur.kill()
                     break
 
-        # Bamboo staff attack hits enemies
+        # Bamboo staff attack hits ALL enemies (even bats/flying that can't be stomped)
+        # The staff is a weapon -- it damages what a foot cannot.
         if self.player.is_attacking:
             atk_rect = self.player.get_attack_rect()
             if atk_rect.width > 0:
                 for enemy in list(self.level.enemies):
                     if (getattr(enemy, "alive_flag", True)
                             and atk_rect.colliderect(enemy.rect)):
-                        # Flying/invincible enemies ignore melee
-                        if not getattr(enemy, "is_stompable", True):
+                        # Some static hazards (BrineShard) are genuinely
+                        # invincible -- skip those. Others (bats, glowworms)
+                        # CAN be hit with the staff.
+                        if type(enemy).__name__ in ("BrineShard", "DustDevil"):
                             continue
                         enemy.die()
                         self.player.score += STOMP_SCORE
@@ -854,6 +861,26 @@ class Game:
             font = pygame.font.SysFont("consolas", 12, bold=True)
             label = font.render(f"BOSS  {boss.hp}/{boss.max_hp}", True, (255, 200, 200))
             self.screen.blit(label, (bx, by - 14))
+            # STATE INDICATOR above boss head
+            state_label = None
+            state_color = (255, 255, 255)
+            if boss.state == "chasing":
+                state_label = "!"
+                state_color = (255, 180, 40)
+            elif boss.state == "telegraph":
+                state_label = "!!! ATTACK !!!"
+                state_color = (255, 60, 60)
+            elif boss.state == "stunned":
+                state_label = "STUN -- STOMP!"
+                state_color = (80, 180, 255)
+            if state_label:
+                big_font = pygame.font.SysFont("consolas", 16, bold=True)
+                surf = big_font.render(state_label, True, state_color)
+                t_ms = pygame.time.get_ticks()
+                bob = math.sin(t_ms / 150.0) * 3
+                pos = surf.get_rect(center=(boss.rect.centerx + cam_x,
+                                            by - 30 + bob))
+                self.screen.blit(surf, pos)
 
         # --- Debug mode hitbox overlay ---
         if self._debug_mode:
@@ -880,12 +907,21 @@ class Game:
             self.game_over_screen.draw(self.screen, self.player.score)
 
     def _draw_sword_arc(self, cam_x: int, cam_y: int) -> None:
-        """Draw a clearly sword-shaped bamboo katana with full swing arc."""
+        """Bamboo sword STAB: horizontal thrust forward then retract."""
         total = 0.25
         t = 1.0 - (self.player.attack_timer / total)
         t = max(0.0, min(1.0, t))
 
-        # Build a long sword-shaped surface (katana-style silhouette)
+        # Stab motion: fast out, hold max, quick retract
+        if t < 0.2:
+            reach = t / 0.2
+        elif t < 0.7:
+            reach = 1.0
+        else:
+            reach = 1.0 - (t - 0.7) / 0.3
+        thrust_px = int(36 * reach)
+
+        # Build sword-shaped surface (horizontal, katana)
         SW, SH = 90, 18
         sword = pygame.Surface((SW, SH), pygame.SRCALPHA)
         # Pommel (dark brown ball)
@@ -924,42 +960,46 @@ class Game:
                              (SW - 10, SH // 2 - 8),
                              (SW - 14, SH // 2 - 1)])
 
-        # Swing angle: steep upward windup -> down-forward follow-through
-        if self.player.facing_right:
-            angle = -80 + 130 * t
-        else:
-            angle = 80 - 130 * t
+        # Horizontal stab: sword held level, extends outward from body
+        if not self.player.facing_right:
             sword = pygame.transform.flip(sword, True, False)
-        rotated = pygame.transform.rotate(sword, -angle)
-        # Pivot at Pain-da's front hand (slight forward lean)
-        off_x = 10 if self.player.facing_right else -10
-        off_y = -4
-        cx = self.player.rect.centerx + cam_x + off_x
-        cy = self.player.rect.centery + cam_y + off_y
-        rect = rotated.get_rect(center=(cx, cy))
-        self.screen.blit(rotated, rect)
+        # Slight downward tilt so it looks like a thrust, not a pole
+        sword_img = pygame.transform.rotate(sword, -5 if self.player.facing_right else 5)
+        # Position: sword base at player's hand, extending by thrust_px
+        sw, sh = sword_img.get_size()
+        if self.player.facing_right:
+            # Sword extends to the right from hand
+            sx = self.player.rect.right + cam_x + thrust_px - 8
+            sy = self.player.rect.centery + cam_y - sh // 2
+        else:
+            # Sword extends to the left from hand
+            sx = self.player.rect.left + cam_x - sw - thrust_px + 8
+            sy = self.player.rect.centery + cam_y - sh // 2
+        self.screen.blit(sword_img, (sx, sy))
 
-        # Arc trail (several faded copies for streak effect)
-        for trail_i in range(3):
-            trail_t = t - 0.04 * (trail_i + 1)
-            if trail_t < 0:
-                continue
+        # Speed streak during the thrust-out phase (t < 0.5)
+        if t < 0.5 and thrust_px > 8:
+            streak = pygame.Surface((thrust_px + 16, 4), pygame.SRCALPHA)
+            streak.fill((255, 250, 200, 180))
             if self.player.facing_right:
-                tangle = -80 + 130 * trail_t
+                stx = self.player.rect.right + cam_x - 4
             else:
-                tangle = 80 - 130 * trail_t
-            trail_surf = sword.copy()
-            trail_surf.set_alpha(60 - trail_i * 18)
-            trail_rot = pygame.transform.rotate(trail_surf, -tangle)
-            trect = trail_rot.get_rect(center=(cx, cy))
-            self.screen.blit(trail_rot, trect)
+                stx = self.player.rect.left + cam_x - thrust_px - 12
+            sty = self.player.rect.centery + cam_y - 2
+            self.screen.blit(streak, (stx, sty))
 
-        # Bright sweep arc highlight
-        streak = pygame.Surface((60, 5), pygame.SRCALPHA)
-        streak.fill((255, 250, 200, 160))
-        streak_rot = pygame.transform.rotate(streak, -angle + 8)
-        srect = streak_rot.get_rect(center=(cx, cy))
-        self.screen.blit(streak_rot, srect)
+        # Impact sparkle at tip at max reach
+        if 0.4 < t < 0.6:
+            if self.player.facing_right:
+                tip_x = sx + sw - 6
+            else:
+                tip_x = sx + 6
+            tip_y = sy + sh // 2
+            for _ in range(3):
+                import random as _r
+                px = tip_x + _r.randint(-4, 4)
+                py = tip_y + _r.randint(-4, 4)
+                pygame.draw.circle(self.screen, (255, 255, 180), (px, py), 2)
 
     def _draw_weapon_hint(self) -> None:
         """Persistent banner teaching the player how to attack."""

@@ -180,6 +180,13 @@ class HUD:
             draw_text_shadow(screen, f"x{player.combo_count}!", sz, COL_GOLD,
                              SCREEN_WIDTH // 2, 30, bold=True)
 
+        # Persistent controls hint at bottom-right (always visible during play)
+        hint_font = get_font(11)
+        hint = hint_font.render(
+            "ESC pause  |  F11 fullscreen", True, (150, 170, 150))
+        screen.blit(hint, (SCREEN_WIDTH - hint.get_width() - 8,
+                           SCREEN_HEIGHT - 16))
+
         # Floating texts
         for ft in self.floating_texts:
             ft.draw(screen, camera)

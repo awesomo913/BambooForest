@@ -907,15 +907,26 @@ class Player(pygame.sprite.Sprite):
         self._sub_x = 0.0
 
     def get_attack_rect(self) -> pygame.Rect:
-        """Hitbox in front of the player when attacking (bamboo staff reach)."""
+        """Stab hitbox: fast out, hold, quick retract."""
         if not self.is_attacking:
             return pygame.Rect(0, 0, 0, 0)
-        reach = 42
+        max_reach = 60
+        total = 0.25
+        atk_t = 1.0 - (self.attack_timer / total)
+        atk_t = max(0.0, min(1.0, atk_t))
+        # Reach curve: 0-0.2 grow fast, 0.2-0.7 hold max, 0.7-1.0 retract
+        if atk_t < 0.2:
+            reach = int(max_reach * (atk_t / 0.2))
+        elif atk_t < 0.7:
+            reach = max_reach
+        else:
+            reach = int(max_reach * (1.0 - (atk_t - 0.7) / 0.3))
+        reach = max(reach, 20)  # minimum reach while attacking
+        hit_h = 30
+        hit_y = self.rect.y + 2
         if self.facing_right:
-            return pygame.Rect(self.rect.right, self.rect.y + 6,
-                               reach, self.rect.height - 12)
-        return pygame.Rect(self.rect.left - reach, self.rect.y + 6,
-                           reach, self.rect.height - 12)
+            return pygame.Rect(self.rect.right, hit_y, reach, hit_h)
+        return pygame.Rect(self.rect.left - reach, hit_y, reach, hit_h)
 
     def _update_animation(self, dt: float) -> None:
         prev = self.anim_state
@@ -972,10 +983,10 @@ class Player(pygame.sprite.Sprite):
         # Glide: arms spread wider (use fall with slight rotation for 'hover')
         if self.is_gliding:
             frame = pygame.transform.rotate(frame, -3 if self.facing_right else 3)
-        # Attack pose: lean forward for the first half of the swing
+        # Attack pose: subtle forward lean for stab (less than before)
         if self.is_attacking:
             atk_t = 1.0 - (self.attack_timer / 0.25)
-            lean = -18 if atk_t < 0.5 else 8
+            lean = -6 if atk_t < 0.5 else 3
             if not self.facing_right:
                 lean = -lean
             frame = pygame.transform.rotate(frame, lean)
@@ -1433,8 +1444,9 @@ class Boss(pygame.sprite.Sprite):
         self.facing_right: bool = False
         self.velocity_y: float = 0.0
         self.alive_flag: bool = True
-        self.flash_timer: float = 0.0        # damage flash
-        self.telegraph_timer: float = 0.0    # pre-charge warning duration
+        self.flash_timer: float = 0.0
+        self.telegraph_timer: float = 0.0
+        self._lunge_dir: int = 1
 
     def update(self, dt: float, player: Player,  # type: ignore[override]
                platforms: pygame.sprite.Group) -> None:
@@ -1442,43 +1454,44 @@ class Boss(pygame.sprite.Sprite):
             return
         self.flash_timer = max(0.0, self.flash_timer - dt)
 
-        # Distance-driven FSM that always tracks the player (no fixed targets)
+        # Always track the player
         dx_player = player.rect.centerx - self.rect.centerx
         abs_dist = abs(dx_player)
         self.facing_right = dx_player > 0
 
-        AGGRO_RANGE = 500.0
-        ATTACK_RANGE = 120.0
-        CHASE_SPEED = BOSS_CHARGE_SPEED * 0.55  # gentler than old charge
+        AGGRO_RANGE = 600.0
+        ATTACK_RANGE = 140.0
+        CHASE_SPEED = BOSS_CHARGE_SPEED * 0.75  # faster chase -- feels threatening
+        LUNGE_SPEED = BOSS_CHARGE_SPEED * 1.6   # FAST attack lunge
 
         if self.state == "idle":
             self.state_timer -= dt
             if self.state_timer <= 0:
-                # Leaving idle: if player in range, chase. Else stay idle.
                 if abs_dist < AGGRO_RANGE:
                     self.state = "chasing"
                 else:
                     self.state_timer = BOSS_IDLE_SEC
             self.stunned = False
         elif self.state == "chasing":
-            # Walk toward player
             if abs_dist > ATTACK_RANGE:
                 self.rect.x += _fl(CHASE_SPEED * dt * (1 if dx_player > 0 else -1))
             else:
-                # Close enough -- telegraph attack
+                # Telegraph (longer + VERY obvious)
                 self.state = "telegraph"
-                self.state_timer = 0.7
-                self.telegraph_timer = 0.7
+                self.state_timer = 0.9
+                self.telegraph_timer = 0.9
         elif self.state == "telegraph":
             self.state_timer -= dt
             self.telegraph_timer = self.state_timer
             if self.state_timer <= 0:
                 self.state = "attacking"
-                self.state_timer = 0.35
+                # Lock the attack direction at lunge start so the boss
+                # commits -- player can dodge past him if timed right
+                self._lunge_dir = 1 if dx_player > 0 else -1
+                self.state_timer = 0.45
         elif self.state == "attacking":
-            # Short lunge toward player (not to a hardcoded waypoint)
-            self.rect.x += _fl(BOSS_CHARGE_SPEED * dt *
-                               (1 if dx_player > 0 else -1))
+            # Commit to the locked direction -- no mid-lunge tracking
+            self.rect.x += _fl(LUNGE_SPEED * dt * self._lunge_dir)
             self.state_timer -= dt
             if self.state_timer <= 0:
                 self.state = "stunned"
@@ -1488,7 +1501,7 @@ class Boss(pygame.sprite.Sprite):
             self.state_timer -= dt
             if self.state_timer <= 0:
                 self.state = "idle"
-                self.state_timer = BOSS_IDLE_SEC * 0.7  # quicker recovery
+                self.state_timer = BOSS_IDLE_SEC * 0.5
                 self.stunned = False
 
         # Gravity
