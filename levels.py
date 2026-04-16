@@ -10,8 +10,8 @@ import pygame
 from config import FLOOR_Y, LEVEL_WIDTHS, SCREEN_HEIGHT
 from sprites import (
     Bamboo, BambooStaff, Boss, ChaserEnemy, Checkpoint, FlyingEnemy,
-    GrassTuft, HealingItem, MovingPlatform, PatrolEnemy, Platform,
-    SafeZone, SlimeEnemy,
+    GlideFeather, GrassTuft, HealingItem, MovingPlatform, PatrolEnemy,
+    Platform, SafeZone, SlimeEnemy,
 )
 from biomes import (
     AshBat, BasaltGolem, BiomeMovingPlatform, BiomePlatform, BrineShard,
@@ -63,6 +63,7 @@ class LevelDef:
     ice_defs: list[PlatformDef] = field(default_factory=list)
     npc_defs: list[tuple[int, int, str, list[str], tuple]] = field(default_factory=list)
     weapon_positions: list[tuple[int, int]] = field(default_factory=list)
+    glide_positions: list[tuple[int, int]] = field(default_factory=list)
     # List of (start_x, end_x) floor gaps that are lethal pits
     trenches: list[tuple[int, int]] = field(default_factory=list)
     is_dark: bool = False
@@ -123,6 +124,7 @@ class LevelState:
         self.projectiles = pygame.sprite.Group()
         self.npcs = pygame.sprite.Group()
         self.weapons = pygame.sprite.Group()
+        self.glide_pickups = pygame.sprite.Group()
 
         self.goal: SafeZone | None = None
         self.boss: Boss | None = None
@@ -269,6 +271,12 @@ class LevelState:
             self.weapons.add(ws)
             self.all_sprites.add(ws)
 
+        # Glide feather pickups
+        for gx, gy in level_def.glide_positions:
+            gf = GlideFeather(gx, gy)
+            self.glide_pickups.add(gf)
+            self.all_sprites.add(gf)
+
         # Goal
         sz = SafeZone(level_def.goal_x, 200)
         self.goal = sz
@@ -386,6 +394,7 @@ def _build_level_4() -> LevelDef:
         heal_positions=[(1020, 360), (3420, 360), (4650, 380)],
         goal_x=5200, checkpoint_positions=[2000, 3800],
         weapon_positions=[(2200, FLOOR_Y)],
+        glide_positions=[(500, FLOOR_Y)],
         geyser_positions=[
             (700, FLOOR_Y), (1350, FLOOR_Y), (1950, FLOOR_Y),
             (2600, FLOOR_Y), (3200, FLOOR_Y),

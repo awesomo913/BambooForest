@@ -174,6 +174,21 @@ class HUD:
             pygame.draw.circle(screen, (30, 30, 30), (lx - 2, lives_y - 1), 2)
             pygame.draw.circle(screen, (30, 30, 30), (lx + 2, lives_y - 1), 2)
 
+        # Power-up indicators (below lives)
+        pwr_y = lives_y + 18
+        pwr_x = SCREEN_WIDTH - 100
+        if player.has_glide:
+            # Cyan feather icon
+            pygame.draw.polygon(screen, (140, 220, 255), [
+                (pwr_x, pwr_y), (pwr_x + 4, pwr_y - 10),
+                (pwr_x + 8, pwr_y)])
+            draw_text(screen, "GLIDE", 11, (140, 220, 255), pwr_x + 14, pwr_y - 2)
+            pwr_x += 60
+        if player.has_bamboo_weapon:
+            wt = int(player.weapon_time_remaining)
+            col = (255, 230, 120) if wt > 10 else (255, 100, 80)
+            draw_text(screen, f"SWORD {wt}s", 11, col, pwr_x, pwr_y - 2)
+
         # Combo counter
         if player.combo_count > 1:
             sz = int(28 * self.combo_scale)

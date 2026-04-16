@@ -20,7 +20,7 @@ from backgrounds import BiomeBackground
 from engine import Camera, ParticleSystem, ScreenShake
 from levels import build_level_state, LevelState
 from save import save_high_score
-from sprites import BambooShuriken, BambooStaff, Player
+from sprites import BambooShuriken, BambooStaff, GlideFeather, Player
 from ui import (
     DeathAnimation, GameOverScreen, HUD, LevelTransition,
     PauseOverlay, TitleScreen, VictoryScreen,
@@ -86,6 +86,10 @@ class Game:
         # Tutorial hints
         self._weapon_tutorial_timer: float = 0.0
         self._weapon_used: bool = False
+        self._glide_tutorial_timer: float = 0.0
+        self._glide_used: bool = False
+        # Glide persists across levels once collected
+        self._has_glide_permanent: bool = False
         # Hitstop: brief pause on enemy hit for impact feel
         self._hitstop_timer: float = 0.0
         # Level-end outro: Pain-da auto-runs off screen after reaching goal
@@ -227,8 +231,8 @@ class Game:
         self.player = Player(self.respawn_x, self.respawn_y)
         if level_num >= DOUBLE_JUMP_LEVEL:
             self.player.has_double_jump = True
-        # Glide unlocks at level 4+ (Caldera -- wider gap traversal)
-        if level_num >= 3:
+        # Glide persists once collected from a GlideFeather pickup
+        if self._has_glide_permanent:
             self.player.has_glide = True
         if self.level.is_icy:
             self.player.friction_mode = "ice"
@@ -274,8 +278,8 @@ class Game:
         self.player = Player(self.respawn_x, self.respawn_y)
         if self.current_level >= DOUBLE_JUMP_LEVEL:
             self.player.has_double_jump = True
-        # Glide unlocks at level 4+ (Caldera -- wider gap traversal)
-        if self.current_level >= 3:
+        # Glide persists once collected from a GlideFeather pickup
+        if self._has_glide_permanent:
             self.player.has_glide = True
         if self.level.is_icy:
             self.player.friction_mode = "ice"
@@ -382,6 +386,11 @@ class Game:
         # Player
         keys = pygame.key.get_pressed()
         self.player.update(effective_dt, keys, self.level.platforms)
+
+        # Detect glide use to dismiss tutorial
+        if self.player.is_gliding and not self._glide_used:
+            self._glide_used = True
+            self._glide_tutorial_timer = 0.0
 
         # Landing dust
         if self.player.is_on_ground and not self._was_on_ground:
@@ -514,8 +523,23 @@ class Game:
             self.particles.emit_sparkle(weapon.rect.centerx, weapon.rect.centery, 14)
             self.audio.play("collect")
 
+        # Glide feather pickup (permanent ability unlock)
+        for feather in pygame.sprite.spritecollide(
+                self.player, self.level.glide_pickups, True):
+            self.player.has_glide = True
+            self._has_glide_permanent = True
+            self._glide_tutorial_timer = 999.0
+            self._glide_used = False
+            self.hud.add_floating_text(
+                "GLIDE UNLOCKED!",
+                feather.rect.centerx, feather.rect.top - 10, (140, 220, 255))
+            self.particles.emit_sparkle(feather.rect.centerx,
+                                        feather.rect.centery, 16)
+            self.audio.play("collect")
+
         # Update weapon sprite animations
         self.level.weapons.update(effective_dt)
+        self.level.glide_pickups.update(effective_dt)
 
         # Heals
         for heal in pygame.sprite.spritecollide(
@@ -892,6 +916,10 @@ class Game:
         if (self.player.has_bamboo_weapon and not self._weapon_used):
             self._draw_weapon_hint()
 
+        # Glide tutorial hint -- persistent banner until first glide
+        if (self.player.has_glide and not self._glide_used):
+            self._draw_glide_hint()
+
         # --- NPC dialog box at bottom of screen ---
         active_npc = None
         for npc in self.level.npcs:
@@ -1018,6 +1046,28 @@ class Game:
         bg = pygame.Surface((w, h), pygame.SRCALPHA)
         bg.fill((20, 20, 30, alpha))
         pygame.draw.rect(bg, (255, 220, 120), (0, 0, w, h), 3, border_radius=6)
+        self.screen.blit(bg, (bx, by))
+        self.screen.blit(title, title.get_rect(center=(SCREEN_WIDTH // 2, by + 18)))
+        self.screen.blit(hint, hint.get_rect(center=(SCREEN_WIDTH // 2, by + 42)))
+
+    def _draw_glide_hint(self) -> None:
+        """Persistent banner teaching the player how to glide."""
+        t = pygame.time.get_ticks() / 200.0
+        alpha = int(180 + 55 * math.sin(t))
+        font_big = pygame.font.SysFont("consolas", 22, bold=True)
+        font_small = pygame.font.SysFont("consolas", 14)
+        title = font_big.render("GLIDE UNLOCKED!", True, (140, 220, 255))
+        hint = font_small.render(
+            "Hold  [ JUMP ]  while falling to glide!", True, (230, 230, 230))
+        w = max(title.get_width(), hint.get_width()) + 32
+        h = 58
+        bx = (SCREEN_WIDTH - w) // 2
+        # Stack below weapon hint if both are showing
+        by = 160 if (self.player.has_bamboo_weapon
+                     and not self._weapon_used) else 96
+        bg = pygame.Surface((w, h), pygame.SRCALPHA)
+        bg.fill((15, 25, 40, alpha))
+        pygame.draw.rect(bg, (140, 220, 255), (0, 0, w, h), 3, border_radius=6)
         self.screen.blit(bg, (bx, by))
         self.screen.blit(title, title.get_rect(center=(SCREEN_WIDTH // 2, by + 18)))
         self.screen.blit(hint, hint.get_rect(center=(SCREEN_WIDTH // 2, by + 42)))
