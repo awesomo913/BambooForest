@@ -639,9 +639,11 @@ class Player(pygame.sprite.Sprite):
         self.is_wall_sliding: bool = False
         # Ground slam (down+jump while airborne) -- available from start
         self.is_slamming: bool = False
-        # Glide (hold jump while falling) -- POWER-UP, unlocked per level
+        # Glide (hold jump while falling) -- TIMED pickup (10s duration)
         self.is_gliding: bool = False
-        self.has_glide: bool = False
+        self.glide_time_remaining: float = 0.0
+        # Dash (pickup-based item, 30s duration)
+        self.dash_time_remaining: float = 0.0
         # Bamboo throw projectile cooldown
         self.throw_cooldown: float = 0.0
         self.pending_throws: list = []
@@ -729,6 +731,19 @@ class Player(pygame.sprite.Sprite):
         # Throw cooldown
         if self.throw_cooldown > 0:
             self.throw_cooldown -= dt
+
+        # Dash item timer (counts down while equipped)
+        if self.dash_time_remaining > 0:
+            self.dash_time_remaining -= dt
+            if self.dash_time_remaining < 0:
+                self.dash_time_remaining = 0.0
+
+        # Glide timer decrements only while actively gliding
+        if self.is_gliding and self.glide_time_remaining > 0:
+            self.glide_time_remaining -= dt
+            if self.glide_time_remaining <= 0:
+                self.glide_time_remaining = 0.0
+                self.is_gliding = False
 
         # Ice magic cooldown + mana regen
         # Mana regenerates to full over 10 seconds (10/sec)
@@ -868,12 +883,19 @@ class Player(pygame.sprite.Sprite):
         return False
 
     def dash(self) -> bool:
-        """SHIFT-key dash. Short burst of horizontal speed, iframes while active."""
+        """SHIFT-key dash. Requires DashBoots pickup (timed item).
+
+        Pickup grants dash_time_remaining > 0 for a limited duration.
+        Player can still dash freely during that window, subject to the
+        normal 700ms cooldown between dashes.
+        """
+        if self.dash_time_remaining <= 0:
+            return False  # no dash boots equipped
         if self.is_dashing or self.dash_cooldown > 0:
             return False
         self.is_dashing = True
-        self.dash_timer = 0.18       # 180ms dash duration
-        self.dash_cooldown = 0.7     # 700ms between dashes
+        self.dash_timer = 0.18
+        self.dash_cooldown = 0.7
         self.input_locked = True
         self.invincible_timer = max(self.invincible_timer, 0.2)
         self.dash_direction = 1.0 if self.facing_right else -1.0
@@ -890,13 +912,31 @@ class Player(pygame.sprite.Sprite):
         return True
 
     def set_gliding(self, glide: bool) -> None:
-        """Toggle glide -- requires has_glide power-up (picked up per level)."""
-        if (glide and self.has_glide
+        """Toggle glide -- consumes glide_time_remaining.
+
+        Glide only activates while timer > 0. Timer counts down only while
+        actually gliding, so one 10s pickup = 10 seconds of cumulative glide.
+        """
+        if (glide and self.glide_time_remaining > 0
                 and not self.is_on_ground and self.velocity_y > 0
                 and not self.is_slamming and not self.is_dashing):
             self.is_gliding = True
         else:
             self.is_gliding = False
+
+    @property
+    def has_glide(self) -> bool:
+        """Legacy accessor -- returns True if player currently has glide time."""
+        return self.glide_time_remaining > 0
+
+    @has_glide.setter
+    def has_glide(self, value: bool) -> None:
+        """Legacy setter -- grants 10s of glide or clears timer."""
+        from config import GLIDE_DURATION_SEC
+        if value:
+            self.glide_time_remaining = GLIDE_DURATION_SEC
+        else:
+            self.glide_time_remaining = 0.0
 
     def throw_bamboo(self) -> bool:
         """Throw a bamboo shuriken. Returns True if thrown."""
@@ -1221,6 +1261,68 @@ class IceProjectile(pygame.sprite.Sprite):
         self.lifetime -= dt
         if self.lifetime <= 0 or self.pos_x < -50 or self.pos_x > 8000:
             self.kill()
+
+
+class DashBoots(pygame.sprite.Sprite):
+    """Pickup that grants 30 seconds of dash ability.
+
+    Rendered as stylized winged boots with orange speed trails.
+    """
+
+    def __init__(self, x: int, y: int) -> None:
+        super().__init__()
+        W, H = 42, 42
+        base = pygame.Surface((W, H), pygame.SRCALPHA)
+        # Boot sole (dark brown)
+        pygame.draw.rect(base, (90, 50, 30), (6, H - 10, W - 12, 6))
+        pygame.draw.rect(base, (60, 30, 15), (6, H - 4, W - 12, 2))
+        # Boot body (orange-red leather)
+        pygame.draw.polygon(base, (200, 80, 50), [
+            (8, H - 10), (W - 8, H - 10),
+            (W - 6, 20), (W - 14, 10),
+            (10, 14), (6, 22),
+        ])
+        # Highlight
+        pygame.draw.line(base, (255, 140, 90),
+                         (10, 22), (W - 14, 14), 2)
+        # Laces (dark X pattern)
+        for i in range(3):
+            y = 22 + i * 5
+            pygame.draw.line(base, (40, 20, 10),
+                             (12, y), (W - 12, y + 2), 1)
+        # Wing detail (small feathers on the side)
+        wing_col = (255, 180, 100)
+        wing_pts = [(W - 4, 18), (W + 2, 10), (W + 2, 16),
+                    (W + 4, 14), (W, 22)]
+        pygame.draw.polygon(base, wing_col, wing_pts)
+        pygame.draw.polygon(base, (255, 220, 140), wing_pts, 1)
+        # Speed streak behind
+        for i, a in [(0, 180), (3, 130), (6, 80)]:
+            streak = pygame.Surface((10, 3), pygame.SRCALPHA)
+            streak.fill((255, 200, 120, a))
+            base.blit(streak, (i, H // 2))
+
+        self._base = base
+        self.image = self._base.copy()
+        self.rect = self.image.get_rect(center=(x, y - 22))
+        self.base_y = float(self.rect.y)
+        self.glow_timer: float = 0.0
+
+    def update(self, dt: float) -> None:  # type: ignore[override]
+        self.glow_timer += dt * 3.0
+        self.rect.y = _fl(self.base_y + math.sin(self.glow_timer) * 4)
+        alpha = int(100 + 50 * (math.sin(self.glow_timer * 1.5) + 1) * 0.5)
+        W, H = self._base.get_size()
+        img = pygame.Surface((W + 16, H + 16), pygame.SRCALPHA)
+        cx, cy = (W + 16) // 2, (H + 16) // 2
+        for r, a_f in ((24, 0.3), (18, 0.55), (12, 0.9)):
+            halo = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
+            pygame.draw.circle(halo, (255, 160, 80, int(alpha * a_f)),
+                              (r, r), r)
+            img.blit(halo, (cx - r, cy - r),
+                    special_flags=pygame.BLEND_RGBA_ADD)
+        img.blit(self._base, (8, 8))
+        self.image = img
 
 
 class GlideFeather(pygame.sprite.Sprite):
@@ -1696,10 +1798,14 @@ class Boss(pygame.sprite.Sprite):
             if int(self.flash_timer * 20) % 2:
                 img = img.copy()
                 img.fill((255, 255, 255, 180), special_flags=pygame.BLEND_RGBA_ADD)
-        # Stun tint (blue overlay -- the vulnerable window)
+        # Stun tint (strong pulsing BLUE overlay -- the vulnerable window)
+        # Sword + stomp + ice all deal 1 HP while this is visible.
         if self.stunned:
             img = img.copy()
-            img.fill((80, 120, 255, 80), special_flags=pygame.BLEND_RGBA_ADD)
+            # Pulsing intensity synced to game clock for visibility
+            t = pygame.time.get_ticks() / 120.0
+            pulse = int(140 + 60 * math.sin(t))
+            img.fill((60, 140, 255, pulse), special_flags=pygame.BLEND_RGBA_ADD)
         self.image = img
 
     def take_hit(self) -> bool:

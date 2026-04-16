@@ -9,18 +9,20 @@ import pygame
 
 from config import FLOOR_Y, LEVEL_WIDTHS, SCREEN_HEIGHT
 from sprites import (
-    Bamboo, BambooStaff, Boss, ChaserEnemy, Checkpoint, FlyingEnemy,
-    GlideFeather, GrassTuft, HealingItem, MovingPlatform, PatrolEnemy,
-    Platform, SafeZone, SlimeEnemy,
+    Bamboo, BambooStaff, Boss, ChaserEnemy, Checkpoint, DashBoots,
+    FlyingEnemy, GlideFeather, GrassTuft, HealingItem, MovingPlatform,
+    PatrolEnemy, Platform, SafeZone, SlimeEnemy,
 )
 from biomes import (
     AshBat, BasaltGolem, BiomeMovingPlatform, BiomePlatform, BrineShard,
     CactusScorpion, Crystal, CrumblingPlatform, DustDevil, FalseGlowworm,
     Geyser, IcePlatform, KelpCrab, NPC, ReflectionPhantom,
     StalactiteSpider, SulfurSlime, ThermalUpdraft, WindZone,
-    # Levels 14-18 new classes
+    # Levels 14-18 original
     GravityDrone, GravityZone, MagmaLeaper, MushroomSpring, PhaseWraith,
     RisingLava, SporePuffer, TeleportPortal, TidalCrab, TimedGate,
+    # L14-L18 rework: new enemies + anti-cheese + dark walls
+    HomingSpecter, ForgeHammer, VoidEater, DarkWall,
 )
 
 
@@ -67,6 +69,7 @@ class LevelDef:
     npc_defs: list[tuple[int, int, str, list[str], tuple]] = field(default_factory=list)
     weapon_positions: list[tuple[int, int]] = field(default_factory=list)
     glide_positions: list[tuple[int, int]] = field(default_factory=list)
+    dash_positions: list[tuple[int, int]] = field(default_factory=list)
     # List of (start_x, end_x) floor gaps that are lethal pits
     trenches: list[tuple[int, int]] = field(default_factory=list)
     is_dark: bool = False
@@ -81,6 +84,8 @@ class LevelDef:
     portal_defs: list[tuple[int, int, int, int, int]] = field(default_factory=list)
     # (x, y, w, h, gravity_type "low"|"high"|"reverse")
     gravity_zone_defs: list[tuple[int, int, int, int, str]] = field(default_factory=list)
+    # (x, y, w, h) -- walls that block unless nearby crystal is lit
+    dark_wall_defs: list[tuple[int, int, int, int]] = field(default_factory=list)
 
 
 def _scatter_bamboos(platforms: list[PlatformDef], world_width: int,
@@ -138,6 +143,7 @@ class LevelState:
         self.npcs = pygame.sprite.Group()
         self.weapons = pygame.sprite.Group()
         self.glide_pickups = pygame.sprite.Group()
+        self.dash_pickups = pygame.sprite.Group()
         # Levels 14-18 groups
         self.mushrooms = pygame.sprite.Group()
         self.timed_gates = pygame.sprite.Group()
@@ -145,6 +151,7 @@ class LevelState:
         self.gravity_zones = pygame.sprite.Group()
         self.poison_spores = pygame.sprite.Group()
         self.rising_lava: RisingLava | None = None
+        self.dark_walls = pygame.sprite.Group()
 
         self.goal: SafeZone | None = None
         self.boss: Boss | None = None
@@ -271,6 +278,9 @@ class LevelState:
             "tidal_crab": lambda ed: TidalCrab(ed.x, ed.y, ed.patrol_width),
             "phase_wraith": lambda ed: PhaseWraith(ed.x, ed.y, ed.patrol_width),
             "gravity_drone": lambda ed: GravityDrone(ed.x, ed.y),
+            "homing_specter": lambda ed: HomingSpecter(ed.x, ed.y),
+            "forge_hammer": lambda ed: ForgeHammer(ed.x, ed.y),
+            "void_eater": lambda ed: VoidEater(ed.x, ed.y),
         }
         for ed in level_def.enemies:
             factory = _enemy_map.get(ed.kind)
@@ -297,11 +307,17 @@ class LevelState:
             self.weapons.add(ws)
             self.all_sprites.add(ws)
 
-        # Glide feather pickups
+        # Glide feather pickups (10-second timed buff)
         for gx, gy in level_def.glide_positions:
             gf = GlideFeather(gx, gy)
             self.glide_pickups.add(gf)
             self.all_sprites.add(gf)
+
+        # Dash boots pickups (30-second timed buff)
+        for dx, dy in level_def.dash_positions:
+            db = DashBoots(dx, dy)
+            self.dash_pickups.add(db)
+            self.all_sprites.add(db)
 
         # Mushroom springs (Level 14)
         for mx, my in level_def.mushroom_positions:
@@ -338,6 +354,13 @@ class LevelState:
             gz = GravityZone(gzx, gzy, gzw, gzh, gtype)
             self.gravity_zones.add(gz)
             self.all_sprites.add(gz)
+
+        # Dark walls (L7/L9/L13/L17) -- must be built AFTER crystals exist
+        for (dwx, dwy, dww, dwh) in level_def.dark_wall_defs:
+            dw = DarkWall(dwx, dwy, dww, dwh,
+                          self.crystals, self.platforms)
+            self.dark_walls.add(dw)
+            self.all_sprites.add(dw)
 
         # Goal
         sz = SafeZone(level_def.goal_x, 200)
@@ -381,6 +404,7 @@ def _build_level_1() -> LevelDef:
         heal_positions=[(950, 380), (2500, 400)],
         goal_x=2800, checkpoint_positions=[1500],
         weapon_positions=[(700, FLOOR_Y)],
+        dash_positions=[(400, FLOOR_Y)],  # L1 intro dash item
     )
 
 
@@ -403,6 +427,7 @@ def _build_level_2() -> LevelDef:
         heal_positions=[(1450, 410), (3490, 390)],
         goal_x=4200, checkpoint_positions=[1700, 3200],
         weapon_positions=[(2000, FLOOR_Y)],
+        dash_positions=[(600, FLOOR_Y)],
         trenches=[(1220, 1390), (2600, 2720)],
         npc_defs=[(3900, FLOOR_Y, "Sage",
                    ["The forest is sick... corruption spreads.",
@@ -433,6 +458,7 @@ def _build_level_3() -> LevelDef:
         heal_positions=[(1450, 410), (3080, 370), (4900, FLOOR_Y)],
         goal_x=5850, checkpoint_positions=[1800, 3500, 4900],
         weapon_positions=[(2500, FLOOR_Y)],
+        dash_positions=[(700, FLOOR_Y), (3500, FLOOR_Y)],
         trenches=[(1330, 1470), (2920, 3050), (4380, 4520)],
         has_boss=True, boss_pos=(5500, FLOOR_Y),
         npc_defs=[(4950, FLOOR_Y, "Elder",
@@ -464,7 +490,6 @@ def _build_level_4() -> LevelDef:
         heal_positions=[(1020, 360), (3420, 360), (4650, 380)],
         goal_x=5200, checkpoint_positions=[2000, 3800],
         weapon_positions=[(2200, FLOOR_Y)],
-        glide_positions=[(500, FLOOR_Y)],
         geyser_positions=[
             (700, FLOOR_Y), (1350, FLOOR_Y), (1950, FLOOR_Y),
             (2600, FLOOR_Y), (3200, FLOOR_Y),
@@ -497,6 +522,7 @@ def _build_level_5() -> LevelDef:
         heal_positions=[(980, 380), (2680, 400)],
         goal_x=4700, checkpoint_positions=[1800, 3300],
         weapon_positions=[(2000, FLOOR_Y)],
+        dash_positions=[(500, FLOOR_Y)],
         crumbling_defs=[
             PlatformDef(700, 400, 120), PlatformDef(1250, 350, 100),
             PlatformDef(1850, 380, 120), PlatformDef(2400, 340, 100),
@@ -573,6 +599,7 @@ def _build_level_7() -> LevelDef:
             (300, FLOOR_Y), (750, FLOOR_Y), (1250, FLOOR_Y),
             (1800, FLOOR_Y), (2500, FLOOR_Y), (3200, FLOOR_Y), (3900, FLOOR_Y),
         ],
+        dark_wall_defs=[(1100, 340, 40, 130), (2900, 340, 40, 130)],
         npc_defs=[(4300, FLOOR_Y, "Nyx",
                    ["I can hear the echoes of danger...",
                     "Strike the crystals to see!"],
@@ -761,6 +788,8 @@ def _build_level_12() -> LevelDef:
         heal_positions=[(1080, 350), (3130, 390), (5230, 380)],
         goal_x=6100, checkpoint_positions=[1800, 3400, 4900],
         weapon_positions=[(500, FLOOR_Y)],
+        glide_positions=[(200, FLOOR_Y), (2500, FLOOR_Y)],
+        dash_positions=[(1200, FLOOR_Y), (4000, FLOOR_Y)],
         trenches=[(490, 580), (970, 1040), (1460, 1540), (2020, 2090),
                   (2920, 3090), (4180, 4290)],
         npc_defs=[(5900, FLOOR_Y, "Capy",
@@ -803,8 +832,10 @@ def _build_level_13() -> LevelDef:
         heal_positions=[(940, 370), (3080, 370), (4130, 380), (4800, FLOOR_Y)],
         goal_x=6700, checkpoint_positions=[1800, 3500, 4900, 5800],
         weapon_positions=[(500, FLOOR_Y), (3200, FLOOR_Y)],
+        dash_positions=[(2500, FLOOR_Y)],
         crystal_positions=[(300, FLOOR_Y), (1200, FLOOR_Y), (2200, FLOOR_Y),
                           (3200, FLOOR_Y), (4200, FLOOR_Y), (5400, FLOOR_Y)],
+        dark_wall_defs=[(1500, 340, 40, 130), (3700, 340, 40, 130)],
         has_boss=True,
         boss_pos=(5500, FLOOR_Y),
         npc_defs=[(6500, FLOOR_Y, "Core Guardian",
@@ -840,6 +871,8 @@ def _build_level_14() -> LevelDef:
             EnemyDef(4700, 360, "chaser"),
             EnemyDef(1500, 260, "flying", 180),
             EnemyDef(3300, 260, "flying", 180),
+            EnemyDef(2600, 150, "homing_specter"),
+            EnemyDef(4500, 150, "homing_specter"),
         ],
         bamboo_positions=_scatter_bamboos(plats, LEVEL_WIDTHS[13], FLOOR_Y, 16),
         heal_positions=[(950, 380), (3120, 280), (5230, 400)],
@@ -856,9 +889,10 @@ def _build_level_14() -> LevelDef:
         ],
         crystal_positions=[(700, FLOOR_Y), (3900, FLOOR_Y)],
         trenches=[(1250, 1400), (3700, 3850)],
+        glide_positions=[(5400, 300)],
         npc_defs=[(5400, FLOOR_Y, "Myco",
                    ["Land on the mushroom caps to bounce super high!",
-                    "The spotted ones are the springy ones."],
+                    "Watch out -- specters track you in the air!"],
                    (180, 120, 200))],
     )
 
@@ -881,16 +915,22 @@ def _build_level_15() -> LevelDef:
         PlatformDef(6050, 320, 200),
     ]
     return LevelDef(
-        world_width=LEVEL_WIDTHS[14], platforms=plats, biome="volcanic",
+        world_width=LEVEL_WIDTHS[14], platforms=plats, biome="forge",
         enemies=[
-            EnemyDef(500, 420, "sulfur_slime", 180),
-            EnemyDef(1550, 400, "sulfur_slime", 160),
-            EnemyDef(2600, 320, "ash_bat"),
-            EnemyDef(3600, 290, "ash_bat"),
-            EnemyDef(4600, 280, "ash_bat"),
+            # Industrial forge denizens -- NOT volcanic reuse
+            EnemyDef(800, 430, "forge_hammer"),
+            EnemyDef(1700, 410, "forge_hammer"),
+            EnemyDef(2700, 330, "forge_hammer"),
+            EnemyDef(3700, 300, "forge_hammer"),
+            EnemyDef(4700, 290, "forge_hammer"),
+            EnemyDef(5500, 280, "forge_hammer"),
+            # Aerial trackers
+            EnemyDef(2200, 200, "homing_specter"),
+            EnemyDef(4200, 200, "homing_specter"),
+            EnemyDef(5600, 200, "homing_specter"),
+            # Ground patrol
+            EnemyDef(500, 420, "patrol", 180),
             EnemyDef(3100, 360, "magma_leaper"),
-            EnemyDef(4100, 330, "magma_leaper"),
-            EnemyDef(5100, 320, "magma_leaper"),
         ],
         bamboo_positions=_scatter_bamboos(plats, LEVEL_WIDTHS[14], FLOOR_Y, 16),
         heal_positions=[(1520, 410), (3570, 300), (5570, 280)],
@@ -898,13 +938,10 @@ def _build_level_15() -> LevelDef:
         rising_lava=True,
         lava_pause_ys=[460, 410, 360, 310],
         geyser_positions=[(800, FLOOR_Y), (2800, 400), (4300, 360)],
-        wind_zones=[
-            (1800, 280, 200, 220, 1.0),
-            (4400, 230, 200, 200, -1.0),
-        ],
+        dash_positions=[(400, 420)],
         npc_defs=[(6200, 310, "Vulcan",
-                   ["The lava NEVER stops rising!",
-                    "Climb! Do not stop! Do not look down!"],
+                   ["The forge hammers crush what lava doesn't burn.",
+                    "Dodge the slamming anvils and keep climbing!"],
                    (220, 100, 40))],
     )
 
@@ -975,14 +1012,18 @@ def _build_level_17() -> LevelDef:
         PlatformDef(5100, 410, 260),
     ]
     return LevelDef(
-        world_width=LEVEL_WIDTHS[16], platforms=plats, biome="cave", is_dark=True,
+        world_width=LEVEL_WIDTHS[16], platforms=plats, biome="void", is_dark=True,
         enemies=[
             EnemyDef(440, 410, "phase_wraith", 140),
             EnemyDef(1450, 400, "phase_wraith", 150),
             EnemyDef(3550, 400, "phase_wraith", 150),
-            EnemyDef(4650, 390, "chaser"),
-            EnemyDef(1000, 50, "stalactite_spider"),
-            EnemyDef(3000, 60, "stalactite_spider"),
+            # Void-specific: hungry mouths you can't stomp
+            EnemyDef(1200, 320, "void_eater"),
+            EnemyDef(2700, 300, "void_eater"),
+            EnemyDef(4500, 320, "void_eater"),
+            # Tracking specters
+            EnemyDef(2000, 200, "homing_specter"),
+            EnemyDef(4000, 200, "homing_specter"),
         ],
         bamboo_positions=_scatter_bamboos(plats, LEVEL_WIDTHS[16], FLOOR_Y, 15),
         heal_positions=[(950, 380), (3550, 410), (5130, 410)],
@@ -994,14 +1035,19 @@ def _build_level_17() -> LevelDef:
         ],
         # Portal pairs: x1, y1, x2, y2, pair_id
         portal_defs=[
-            (700, FLOOR_Y, 2200, FLOOR_Y, 0),     # cyan: bypass early gap
-            (1500, FLOOR_Y, 3800, FLOOR_Y, 1),    # magenta: mid shortcut
-            (2800, FLOOR_Y, 4200, FLOOR_Y, 2),    # gold: ground-to-ground shortcut
-            (1100, 360, 4700, 380, 3),            # green: elevated skip
+            (700, FLOOR_Y, 2200, FLOOR_Y, 0),
+            (1500, FLOOR_Y, 3800, FLOOR_Y, 1),
+            (2800, FLOOR_Y, 4200, FLOOR_Y, 2),
+            (1100, 360, 4700, 380, 3),
+        ],
+        # Dark walls force crystal-strikes before passage
+        dark_wall_defs=[
+            (1300, 340, 40, 120),
+            (3400, 340, 40, 120),
         ],
         npc_defs=[(5200, FLOOR_Y, "Rift",
-                   ["The portals bend space itself...",
-                    "Step in one, emerge from another!"],
+                   ["The void hungers. Stay moving.",
+                    "Strike crystals to melt the walls ahead!"],
                    (0, 180, 220))],
     )
 
@@ -1035,6 +1081,10 @@ def _build_level_18() -> LevelDef:
             EnemyDef(2700, 360, "gravity_drone"),
             EnemyDef(3500, 340, "gravity_drone"),
             EnemyDef(5700, 370, "gravity_drone"),
+            # Tracking specters around gravity zones
+            EnemyDef(2500, 250, "homing_specter"),
+            EnemyDef(4500, 250, "homing_specter"),
+            EnemyDef(6000, 250, "homing_specter"),
             EnemyDef(950, 360, "chaser"),
             EnemyDef(3200, 350, "chaser"),
             EnemyDef(5700, 380, "chaser"),

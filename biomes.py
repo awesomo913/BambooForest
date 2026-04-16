@@ -314,6 +314,60 @@ def generate_lair_tile(width: int, height: int) -> pygame.Surface:
     return surf
 
 
+def generate_forge_tile(width: int, height: int) -> pygame.Surface:
+    """Industrial iron forge -- rivets, soot, ember glow."""
+    surf = pygame.Surface((width, height))
+    for y in range(height):
+        t = y / max(1, height)
+        c = (int(75 - 25 * t), int(65 - 20 * t), int(65 - 20 * t))
+        pygame.draw.line(surf, (max(0, c[0]), max(0, c[1]), max(0, c[2])),
+                         (0, y), (width, y))
+    # Hot metal top edge
+    pygame.draw.rect(surf, (200, 100, 60), (0, 0, width, 3))
+    pygame.draw.rect(surf, (255, 180, 100), (0, 0, width, 1))
+    # Rivets (darker circles) along the top edge
+    for rx in range(8, width, 16):
+        pygame.draw.circle(surf, (30, 30, 35), (rx, height // 2), 2)
+        pygame.draw.circle(surf, (80, 80, 90), (rx - 1, height // 2 - 1), 1)
+    # Ember cracks
+    for _ in range(width // 15):
+        cx = random.randint(2, width - 10)
+        cy = random.randint(5, height - 4)
+        pygame.draw.line(surf, (255, 120, 40),
+                        (cx, cy), (cx + 6, cy + random.randint(-2, 2)), 1)
+    # Soot specks
+    for _ in range(width * height // 40):
+        sx = random.randint(1, width - 2)
+        sy = random.randint(2, height - 2)
+        surf.set_at((sx, sy), (20, 18, 18))
+    return surf
+
+
+def generate_void_tile(width: int, height: int) -> pygame.Surface:
+    """Ethereal void -- deep purple with swirling stars."""
+    surf = pygame.Surface((width, height))
+    for y in range(height):
+        t = y / max(1, height)
+        c = (int(35 - 10 * t), int(15 - 5 * t), int(65 - 20 * t))
+        pygame.draw.line(surf, (max(0, c[0]), max(0, c[1]), max(0, c[2])),
+                         (0, y), (width, y))
+    # Top ether-glow edge
+    pygame.draw.rect(surf, (160, 100, 220), (0, 0, width, 3))
+    pygame.draw.rect(surf, (220, 180, 255), (0, 0, width, 1))
+    # Purple sparkle stars
+    for _ in range(width // 8):
+        sx = random.randint(1, width - 2)
+        sy = random.randint(3, height - 2)
+        col = random.choice([(220, 180, 255), (180, 140, 230), (255, 220, 255)])
+        surf.set_at((sx, sy), col)
+    # Vertical ether wisps
+    for _ in range(width // 25):
+        wx = random.randint(2, width - 4)
+        pygame.draw.line(surf, (120, 80, 180),
+                        (wx, 3), (wx + random.randint(-2, 2), height - 2), 1)
+    return surf
+
+
 _TILE_GENERATORS = {
     "volcanic": generate_volcanic_tile,
     "basalt": generate_basalt_tile,
@@ -325,6 +379,8 @@ _TILE_GENERATORS = {
     "gravity": generate_gravity_tile,
     "corrupted": generate_corrupted_tile,
     "lair": generate_lair_tile,
+    "forge": generate_forge_tile,
+    "void": generate_void_tile,
 }
 
 
@@ -881,19 +937,38 @@ class BasaltGolem(pygame.sprite.Sprite):
 
 
 class DustDevil(pygame.sprite.Sprite):
-    """Level 6. Invincible erratic movement, must dodge."""
+    """Level 6. Invincible erratic sandstorm, must dodge. Minimum 150px patrol
+    to ensure the movement pattern reads clearly even in tight spaces.
+    """
     is_stompable: bool = False
 
     def __init__(self, x: int, y: int, patrol_width: float = 300.0) -> None:
         super().__init__()
-        self.image = pygame.Surface((30, 50), pygame.SRCALPHA)
-        for dy in range(0, 50, 3):
-            w = 15 + int(8 * math.sin(dy * 0.2))
-            pygame.draw.rect(self.image, (*COL_SANDSTONE, 120),
-                             (15 - w // 2, dy, w, 3))
+        # Enforce minimum width so small instances still move visibly
+        self.patrol_width = max(150.0, patrol_width)
+        # Build a bigger, more readable sandstorm sprite (44x72)
+        W, H = 44, 72
+        self._frames = []
+        for frame_offset in range(4):
+            surf = pygame.Surface((W, H), pygame.SRCALPHA)
+            for dy in range(0, H, 3):
+                # Wider base, narrower top (tornado shape)
+                base_w = 10 + int(14 * (dy / H))
+                wobble = int(7 * math.sin(dy * 0.15 + frame_offset))
+                w = base_w + wobble
+                # Darker sand at core, lighter at edges
+                alpha = 140 if abs(wobble) < 4 else 90
+                pygame.draw.rect(surf, (*COL_SANDSTONE, alpha),
+                                 (W // 2 - w // 2, dy, w, 3))
+            # Darker swirl lines
+            for i in range(4):
+                sx = (frame_offset * 3 + i * 5) % W
+                pygame.draw.line(surf, (140, 100, 60, 160),
+                                 (sx, 10), (sx + 6, H - 8), 1)
+            self._frames.append(surf)
+        self.image = self._frames[0]
         self.rect = self.image.get_rect(bottomleft=(x, y))
         self.origin_x = float(x)
-        self.patrol_width = patrol_width
         self.pos_x = float(x)
         self.time: float = random.uniform(0, 6.28)
         self.alive_flag = True
@@ -904,10 +979,16 @@ class DustDevil(pygame.sprite.Sprite):
         self.pos_x = self.origin_x + math.sin(self.time) * self.patrol_width * 0.5
         self.pos_x += math.sin(self.time * 2.7) * self.patrol_width * 0.3
         self.rect.x = _fl(self.pos_x)
-        self.rect.y = _fl(FLOOR_Y - 50 + math.sin(self.time * 1.5) * 10)
+        self.rect.y = _fl(FLOOR_Y - 72 + math.sin(self.time * 1.5) * 10)
+        # Cycle through swirl frames for visible animation
+        frame_idx = int(self.time * 8) % len(self._frames)
+        self.image = self._frames[frame_idx]
 
     def die(self) -> None:
-        pass  # invincible
+        pass
+
+    def alive(self) -> bool:  # type: ignore[override]
+        return self.alive_flag
 
 
 class CactusScorpion(pygame.sprite.Sprite):
@@ -1873,3 +1954,270 @@ class GravityDrone(pygame.sprite.Sprite):
 
     def alive(self) -> bool:  # type: ignore[override]
         return self.alive_flag
+
+
+# ===================================================================
+# HomingSpecter -- tracking aerial enemy (anti-glide-cheese)
+# ===================================================================
+
+class HomingSpecter(pygame.sprite.Sprite):
+    """Ghostly flier that always tracks the player. Stompable.
+
+    Accelerates when player is airborne/gliding -- designed to punish
+    air-cheese strategies.
+    """
+
+    is_stompable: bool = True
+
+    def __init__(self, x: int, y: int, patrol_width: float = 0.0) -> None:
+        super().__init__()
+        W, H = 34, 28
+        self._base = pygame.Surface((W, H), pygame.SRCALPHA)
+        body_pts = [(W // 2, 2), (W - 2, H // 2),
+                    (W - 6, H - 2), (W // 2, H - 6),
+                    (6, H - 2), (2, H // 2)]
+        pygame.draw.polygon(self._base, (180, 100, 200, 180), body_pts)
+        pygame.draw.polygon(self._base, (230, 160, 255, 220), body_pts, 2)
+        pygame.draw.circle(self._base, (255, 80, 80),
+                          (W // 2 - 5, H // 2), 3)
+        pygame.draw.circle(self._base, (255, 80, 80),
+                          (W // 2 + 5, H // 2), 3)
+        pygame.draw.circle(self._base, COL_WHITE,
+                          (W // 2 - 5, H // 2 - 1), 1)
+        pygame.draw.circle(self._base, COL_WHITE,
+                          (W // 2 + 5, H // 2 - 1), 1)
+        self.image = self._base
+        self.rect = self.image.get_rect(center=(x, y))
+        self._px, self._py = float(x), float(y)
+        self._vx, self._vy = 0.0, 0.0
+        self.alive_flag = True
+        self.flash: float = 0.0
+        self._base_speed = 90.0
+        self._chase_speed = 180.0
+
+    def update(self, dt, platforms=None, player=None):
+        if not self.alive_flag:
+            return
+        if self.flash > 0:
+            self.flash -= dt
+        if player is not None:
+            target = self._base_speed
+            if not player.is_on_ground:
+                target = self._chase_speed
+            if getattr(player, 'is_gliding', False):
+                target = self._chase_speed * 1.3
+            dx = player.rect.centerx - self._px
+            dy = player.rect.centery - self._py
+            dist = math.hypot(dx, dy)
+            if dist > 5:
+                self._vx = (dx / dist) * target
+                self._vy = (dy / dist) * target
+            else:
+                self._vx = self._vy = 0
+        self._px += self._vx * dt
+        self._py += self._vy * dt
+        self.rect.center = (int(self._px), int(self._py))
+        self.rect.y += int(math.sin(pygame.time.get_ticks() / 180.0) * 2)
+        if self.flash > 0:
+            img = self._base.copy()
+            img.fill((255, 255, 255, 80), special_flags=pygame.BLEND_RGBA_ADD)
+            self.image = img
+        else:
+            self.image = self._base
+
+    def die(self):
+        self.alive_flag = False
+        self.kill()
+
+    def alive(self):
+        return self.alive_flag
+
+
+# ===================================================================
+# ForgeHammer -- L15 ceiling hammer, lethal while slamming
+# ===================================================================
+
+class ForgeHammer(pygame.sprite.Sprite):
+    """Ceiling-mounted iron hammer. Periodically slams to floor."""
+
+    is_stompable: bool = False
+
+    def __init__(self, x, y, patrol_width=0.0):
+        super().__init__()
+        W, H = 60, 40
+        self._base = pygame.Surface((W, H), pygame.SRCALPHA)
+        pygame.draw.rect(self._base, (50, 50, 60), (4, 4, W - 8, H - 8))
+        pygame.draw.rect(self._base, (90, 90, 110), (6, 6, W - 12, 4))
+        pygame.draw.rect(self._base, (30, 30, 40), (4, H - 8, W - 8, 4))
+        pygame.draw.circle(self._base, (160, 120, 60), (W // 2, 12), 4)
+        pygame.draw.circle(self._base, (220, 180, 100), (W // 2, 12), 2)
+        for i, j in [(8, 8), (W - 12, 8), (8, H - 12), (W - 12, H - 12)]:
+            pygame.draw.circle(self._base, (20, 20, 25), (i, j), 2)
+        self.image = self._base
+        self.rect = self.image.get_rect(topleft=(x, 0))
+        self.base_x = float(x)
+        self._top_y = 0.0
+        self._bottom_y = float(y)
+        self._py = self._top_y
+        self.state = "holding"
+        self.timer = random.uniform(1.0, 3.0)
+        self.alive_flag = True
+        self.flash = 0.0
+
+    def update(self, dt, platforms=None, player=None):
+        self.timer -= dt
+        if self.state == "holding":
+            if self.timer <= 0:
+                self.state = "telegraph"
+                self.timer = 0.5
+        elif self.state == "telegraph":
+            if self.timer <= 0:
+                self.state = "slamming"
+        elif self.state == "slamming":
+            self._py += 1400 * dt
+            if self._py >= self._bottom_y:
+                self._py = self._bottom_y
+                self.state = "rising"
+                self.timer = 0.3
+        elif self.state == "rising":
+            if self.timer <= 0:
+                self._py -= 200 * dt
+                if self._py <= self._top_y:
+                    self._py = self._top_y
+                    self.state = "holding"
+                    self.timer = random.uniform(2.5, 4.0)
+        self.rect.x = int(self.base_x)
+        self.rect.y = int(self._py)
+
+    def is_lethal(self):
+        return self.state == "slamming"
+
+    def die(self):
+        pass
+
+    def alive(self):
+        return True
+
+
+# ===================================================================
+# VoidEater -- L17 Contact damage when open
+# ===================================================================
+
+class VoidEater(pygame.sprite.Sprite):
+    is_stompable: bool = False
+
+    def __init__(self, x, y, patrol_width=0.0):
+        super().__init__()
+        self._base = self._make_surf(False)
+        self._open = self._make_surf(True)
+        self.image = self._base
+        self.rect = self.image.get_rect(center=(x, y))
+        self.base_x, self.base_y = float(x), float(y)
+        self.alive_flag = True
+        self.flash = 0.0
+        self._pulse = 0.0
+        self.open_timer = random.uniform(1.5, 3.0)
+        self.state = "closed"
+
+    @staticmethod
+    def _make_surf(open_mouth):
+        W, H = 36, 36
+        surf = pygame.Surface((W, H), pygame.SRCALPHA)
+        for r, a in [(16, 120), (14, 180), (12, 230)]:
+            pygame.draw.circle(surf, (20, 5, 40, a), (W // 2, H // 2), r)
+        pygame.draw.circle(surf, (140, 60, 180), (W // 2, H // 2), 16, 2)
+        if open_mouth:
+            pygame.draw.circle(surf, COL_BLACK, (W // 2, H // 2), 10)
+            for ang in range(0, 360, 45):
+                t = math.radians(ang)
+                tx = int(W // 2 + math.cos(t) * 10)
+                ty = int(H // 2 + math.sin(t) * 10)
+                pygame.draw.circle(surf, (220, 220, 255), (tx, ty), 2)
+        else:
+            pygame.draw.line(surf, (80, 20, 100),
+                           (W // 2 - 6, H // 2), (W // 2 + 6, H // 2), 2)
+        pygame.draw.circle(surf, (220, 100, 255),
+                         (W // 2 - 4, H // 2 - 4), 2)
+        return surf
+
+    def update(self, dt, platforms=None, player=None):
+        if not self.alive_flag:
+            return
+        if self.flash > 0:
+            self.flash -= dt
+        self._pulse += dt * 2.0
+        self.open_timer -= dt
+        if self.open_timer <= 0:
+            if self.state == "closed":
+                self.state = "open"
+                self.open_timer = 1.0
+                self.image = self._open
+            else:
+                self.state = "closed"
+                self.open_timer = random.uniform(2.0, 3.5)
+                self.image = self._base
+        self.rect.x = int(self.base_x)
+        self.rect.y = int(self.base_y + math.sin(self._pulse) * 8)
+        if self.flash > 0:
+            img = self.image.copy()
+            img.fill((255, 255, 255, 80), special_flags=pygame.BLEND_RGBA_ADD)
+            self.image = img
+
+    def is_dangerous(self):
+        return self.state == "open"
+
+    def die(self):
+        self.alive_flag = False
+        self.kill()
+
+    def alive(self):
+        return self.alive_flag
+
+
+# ===================================================================
+# DarkWall -- blocks movement unless crystal lit nearby (L7/L9/L13/L17)
+# ===================================================================
+
+class DarkWall(pygame.sprite.Sprite):
+    """Wall that only disappears when a crystal within range is lit."""
+
+    def __init__(self, x, y, w, h, crystals_group, platforms_group,
+                 reveal_range=350.0):
+        super().__init__()
+        self.rect = pygame.Rect(x, y, w, h)
+        self._crystals = crystals_group
+        self._platforms = platforms_group
+        self._reveal_range = reveal_range
+        solid = pygame.Surface((w, h), pygame.SRCALPHA)
+        solid.fill((30, 10, 40))
+        pygame.draw.rect(solid, (100, 60, 120), (0, 0, w, h), 2)
+        for _ in range(max(1, w // 20)):
+            gx = random.randint(2, max(3, w - 2))
+            gy = random.randint(2, max(3, h - 2))
+            pygame.draw.circle(solid, (220, 100, 255), (gx, gy), 1)
+        self._solid = solid
+        faded = solid.copy()
+        faded.set_alpha(50)
+        self._faded = faded
+        self.solid = True
+        self.image = self._solid
+        platforms_group.add(self)
+
+    def update(self, dt):
+        nearby_lit = False
+        for cr in self._crystals:
+            if getattr(cr, 'is_lit', lambda: False)():
+                dx = cr.rect.centerx - self.rect.centerx
+                dy = cr.rect.centery - self.rect.centery
+                if math.hypot(dx, dy) < self._reveal_range:
+                    nearby_lit = True
+                    break
+        should_solid = not nearby_lit
+        if should_solid and not self.solid:
+            self.solid = True
+            self._platforms.add(self)
+            self.image = self._solid
+        elif not should_solid and self.solid:
+            self.solid = False
+            self._platforms.remove(self)
+            self.image = self._faded

@@ -100,6 +100,10 @@ BRINE_GROW_RATE: float = 0.5
 BRINE_DMG_RADIUS: float = 40.0
 PHANTOM_SPEED: float = 100.0
 
+# --- Power-up Durations ---
+GLIDE_DURATION_SEC: float = 10.0
+DASH_DURATION_SEC: float = 30.0
+
 # --- Level 14: Fungal Hollows ---
 MUSHROOM_BOUNCE: float = -1100.0
 MUSHROOM_COMPRESS_SEC: float = 0.15

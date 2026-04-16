@@ -200,15 +200,22 @@ class HUD:
             pygame.draw.circle(screen, (30, 30, 30), (lx - 2, lives_y - 1), 2)
             pygame.draw.circle(screen, (30, 30, 30), (lx + 2, lives_y - 1), 2)
 
-        # Power-up indicators (below lives)
+        # Power-up indicators (below lives) -- show countdown timers
         pwr_y = lives_y + 18
         pwr_x = SCREEN_WIDTH - 100
-        if player.has_glide:
+        if player.glide_time_remaining > 0:
+            gt = int(player.glide_time_remaining)
+            col = (140, 220, 255) if gt > 3 else (255, 100, 100)
             # Cyan feather icon
-            pygame.draw.polygon(screen, (140, 220, 255), [
+            pygame.draw.polygon(screen, col, [
                 (pwr_x, pwr_y), (pwr_x + 4, pwr_y - 10),
                 (pwr_x + 8, pwr_y)])
-            draw_text(screen, "GLIDE", 11, (140, 220, 255), pwr_x + 14, pwr_y - 2)
+            draw_text(screen, f"GLIDE {gt}s", 11, col, pwr_x + 14, pwr_y - 2)
+            pwr_x += 75
+        if player.dash_time_remaining > 0:
+            dt_ = int(player.dash_time_remaining)
+            col = (255, 180, 100) if dt_ > 5 else (255, 100, 100)
+            draw_text(screen, f"DASH {dt_}s", 11, col, pwr_x, pwr_y - 2)
             pwr_x += 60
         if player.has_bamboo_weapon:
             wt = int(player.weapon_time_remaining)
@@ -280,9 +287,10 @@ def _get_sprite_cache() -> dict[str, pygame.Surface]:
     # Biome enemies (level 4-8)
     from biomes import (SulfurSlime, AshBat, KelpCrab, BasaltGolem,
                         DustDevil, CactusScorpion, StalactiteSpider,
-                        FalseGlowworm, BrineShard, ReflectionPhantom)
+                        FalseGlowworm, BrineShard, ReflectionPhantom,
+                        SporePuffer, MagmaLeaper, TidalCrab, PhaseWraith,
+                        GravityDrone, HomingSpecter, ForgeHammer, VoidEater)
     from config import FLOOR_Y
-    # Each gets a small instance just for its sprite
     _sprite_cache["sulfur"] = pygame.transform.scale(SulfurSlime(0, FLOOR_Y).image, (54, 50))
     _sprite_cache["ashbat"] = pygame.transform.scale(AshBat(0, FLOOR_Y).image, (54, 44))
     _sprite_cache["crab"] = pygame.transform.scale(KelpCrab(0, FLOOR_Y).image, (54, 36))
@@ -293,6 +301,15 @@ def _get_sprite_cache() -> dict[str, pygame.Surface]:
     _sprite_cache["glow"] = pygame.transform.scale(FalseGlowworm(0, 0).image, (32, 32))
     _sprite_cache["brine"] = pygame.transform.scale(BrineShard(0, FLOOR_Y).image, (32, 54))
     _sprite_cache["phantom"] = pygame.transform.scale(ReflectionPhantom(0, FLOOR_Y).image, (54, 54))
+    # Levels 14-18 new enemies
+    _sprite_cache["puffer"] = pygame.transform.scale(SporePuffer(0, FLOOR_Y).image, (42, 50))
+    _sprite_cache["leaper"] = pygame.transform.scale(MagmaLeaper(0, FLOOR_Y).image, (45, 45))
+    _sprite_cache["tidalcrab"] = pygame.transform.scale(TidalCrab(0, FLOOR_Y).image, (45, 33))
+    _sprite_cache["wraith"] = pygame.transform.scale(PhaseWraith(0, FLOOR_Y).image, (45, 60))
+    _sprite_cache["drone"] = pygame.transform.scale(GravityDrone(0, FLOOR_Y).image, (45, 45))
+    _sprite_cache["specter"] = pygame.transform.scale(HomingSpecter(0, FLOOR_Y).image, (51, 42))
+    _sprite_cache["hammer"] = pygame.transform.scale(ForgeHammer(0, 400).image, (72, 48))
+    _sprite_cache["voideater"] = pygame.transform.scale(VoidEater(0, FLOOR_Y).image, (54, 54))
 
     return _sprite_cache
 
@@ -346,6 +363,31 @@ _CHARACTERS = [
     {"name": "Phantom", "role": "MIRROR", "desc": "Only visible in reflection",
      "key": "phantom", "color": (220, 220, 240),
      "story": "A translucent spectre that roams the salt flats. Hard to see in the real world -- watch the mirror surface to spot them. Still does damage even when invisible.\n\nHOW TO BEAT: Use the reflection on the salt surface to track it. Stomp from above when you know where it is."},
+    # --- Level 14-18 enemies ---
+    {"name": "Puff-cap", "role": "SPORE", "desc": "Stationary, releases clouds",
+     "key": "puffer", "color": (120, 200, 120),
+     "story": "Sentient mushroom that periodically puffs drifting poison spores in two directions. Doesn't move, but its spores slowly float upward and damage on contact.\n\nHOW TO BEAT: Stomp it directly to kill -- this also clears its active spores. Or stay below its altitude."},
+    {"name": "Magma-Leap", "role": "ERUPTER", "desc": "Jumps from rising lava",
+     "key": "leaper", "color": (255, 150, 80),
+     "story": "Molten creature that lurks beneath the rising lava. Periodically erupts in an arc, landing briefly before sinking back. Tracks toward the player during the rise.\n\nHOW TO BEAT: Stomp it while it's airborne -- it's vulnerable then. If it lands near you, dash away."},
+    {"name": "Tide-Claw", "role": "CYCLING", "desc": "Patrols the timed gates",
+     "key": "tidalcrab", "color": (80, 160, 180),
+     "story": "Coastal crab that walks the alternating stone gates. When its gate vanishes, it plummets to the next solid surface and resumes patrolling. Their positions change every 3 seconds.\n\nHOW TO BEAT: Stomp from above. Just be aware its gate can disappear under you too."},
+    {"name": "Phase-Wraith", "role": "TELEPORT", "desc": "Uses portals too",
+     "key": "wraith", "color": (200, 140, 255),
+     "story": "Ghostly figure that also uses the teleport portals. Patrols normally, then occasionally jumps through an active portal and reappears at its partner. Stompable but hard to predict.\n\nHOW TO BEAT: Track portal pairs. If you see it near a portal, expect it on the partner side next."},
+    {"name": "Grav-Drone", "role": "PULLER", "desc": "Pulls you toward itself",
+     "key": "drone", "color": (180, 120, 255),
+     "story": "Floating mechanical sphere with a gravitational field. When you enter its 200px range, it drags your velocity toward its center -- disrupting jumps and platforming.\n\nHOW TO BEAT: Stomp it to kill. Or use the ice spell from outside its range."},
+    {"name": "Specter", "role": "TRACKER", "desc": "ALWAYS homes on the player",
+     "key": "specter", "color": (230, 160, 255),
+     "story": "Ghostly flier designed to punish air-cheese. Slow on the ground but ACCELERATES when Pain-da is airborne -- especially when gliding. Red eyes lock on from across the level.\n\nHOW TO BEAT: Land often. Stomp it when it closes. Or freeze it with the ice spell."},
+    {"name": "Forge-Hammer", "role": "CRUSHER", "desc": "Slams from the ceiling",
+     "key": "hammer", "color": (100, 100, 120),
+     "story": "Ceiling-mounted iron hammer on an invisible chain. Telegraphs for 0.5 seconds, then slams down with crushing force. Damages double on contact while slamming.\n\nHOW TO BEAT: Cannot be killed. Watch the telegraph flash and sprint out of its column."},
+    {"name": "Void-Eater", "role": "MOUTH", "desc": "Hungry maw -- not stompable",
+     "key": "voideater", "color": (140, 60, 200),
+     "story": "A hungry void-spawn with a mouth that opens and closes on a timer. While open, it damages on contact. Floating bob pattern makes it tricky to predict.\n\nHOW TO BEAT: Not stompable. Freeze it with the ice spell, or dash past while its mouth is closed."},
 ]
 
 

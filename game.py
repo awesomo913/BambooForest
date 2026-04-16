@@ -22,7 +22,7 @@ from backgrounds import BiomeBackground
 from engine import Camera, ParticleSystem, ScreenShake
 from levels import build_level_state, LevelState
 from save import save_high_score
-from sprites import BambooShuriken, BambooStaff, GlideFeather, IceProjectile, Player
+from sprites import BambooShuriken, BambooStaff, DashBoots, GlideFeather, IceProjectile, Player
 from ui import (
     DeathAnimation, GameOverScreen, HUD, LevelTransition,
     PauseOverlay, TitleScreen, VictoryScreen,
@@ -269,13 +269,12 @@ class Game:
         self.player = Player(self.respawn_x, self.respawn_y)
         if level_num >= DOUBLE_JUMP_LEVEL:
             self.player.has_double_jump = True
-        # Glide persists once collected from a GlideFeather pickup
-        if self._has_glide_permanent:
-            self.player.has_glide = True
+        # Glide + Dash are per-level timed pickups (not permanent).
+        # Player must collect them each level to use those abilities.
         # Ice magic persists once unlocked from boss kill
         if self._has_ice_magic_permanent:
             self.player.has_ice_magic = True
-            self.player.mana = self.player.mana_max  # respawn with full mana
+            self.player.mana = self.player.mana_max
         if self.level.is_icy:
             self.player.friction_mode = "ice"
         else:
@@ -320,13 +319,12 @@ class Game:
         self.player = Player(self.respawn_x, self.respawn_y)
         if self.current_level >= DOUBLE_JUMP_LEVEL:
             self.player.has_double_jump = True
-        # Glide persists once collected from a GlideFeather pickup
-        if self._has_glide_permanent:
-            self.player.has_glide = True
+        # Glide + Dash are per-level timed pickups (not permanent).
+        # Player must collect them each level to use those abilities.
         # Ice magic persists once unlocked from boss kill
         if self._has_ice_magic_permanent:
             self.player.has_ice_magic = True
-            self.player.mana = self.player.mana_max  # respawn with full mana
+            self.player.mana = self.player.mana_max
         if self.level.is_icy:
             self.player.friction_mode = "ice"
         else:
@@ -625,6 +623,28 @@ class Game:
                     self.player.velocity_x += pull_x
                     self.player.velocity_y += pull_y
 
+        # --- ForgeHammer lethality check ---
+        for enemy in self.level.enemies:
+            if (enemy.__class__.__name__ == "ForgeHammer"
+                    and getattr(enemy, "is_lethal", lambda: False)()):
+                if pygame.sprite.collide_rect(self.player, enemy):
+                    if self.player.take_damage(PLAYER_DAMAGE * 2):
+                        self.shake.trigger(12, 0.3)
+                        self.audio.play("hit")
+
+        # --- VoidEater contact damage while open ---
+        for enemy in self.level.enemies:
+            if (enemy.__class__.__name__ == "VoidEater"
+                    and getattr(enemy, "is_dangerous", lambda: False)()):
+                if pygame.sprite.collide_rect(self.player, enemy):
+                    if self.player.take_damage(PLAYER_DAMAGE):
+                        self.shake.trigger(8, 0.2)
+                        self.audio.play("hit")
+
+        # --- Dark walls: update their solid/faded state based on nearby crystals ---
+        for dw in self.level.dark_walls:
+            dw.update(effective_dt)
+
         # --- NPCs ---
         for npc in self.level.npcs:
             npc.update(effective_dt, self.player)
@@ -670,23 +690,35 @@ class Game:
             self.particles.emit_sparkle(weapon.rect.centerx, weapon.rect.centery, 14)
             self.audio.play("collect")
 
-        # Glide feather pickup (permanent ability unlock)
+        # Glide feather pickup (10-second timed buff)
+        from config import GLIDE_DURATION_SEC, DASH_DURATION_SEC
         for feather in pygame.sprite.spritecollide(
                 self.player, self.level.glide_pickups, True):
-            self.player.has_glide = True
-            self._has_glide_permanent = True
+            self.player.glide_time_remaining = GLIDE_DURATION_SEC
             self._glide_tutorial_timer = 999.0
             self._glide_used = False
             self.hud.add_floating_text(
-                "GLIDE UNLOCKED!",
+                f"GLIDE! {int(GLIDE_DURATION_SEC)}s",
                 feather.rect.centerx, feather.rect.top - 10, (140, 220, 255))
             self.particles.emit_sparkle(feather.rect.centerx,
                                         feather.rect.centery, 16)
             self.audio.play("collect")
 
+        # Dash boots pickup (30-second timed buff)
+        for boots in pygame.sprite.spritecollide(
+                self.player, self.level.dash_pickups, True):
+            self.player.dash_time_remaining = DASH_DURATION_SEC
+            self.hud.add_floating_text(
+                f"DASH! {int(DASH_DURATION_SEC)}s",
+                boots.rect.centerx, boots.rect.top - 10, (255, 180, 100))
+            self.particles.emit_sparkle(boots.rect.centerx,
+                                        boots.rect.centery, 16)
+            self.audio.play("collect")
+
         # Update weapon sprite animations
         self.level.weapons.update(effective_dt)
         self.level.glide_pickups.update(effective_dt)
+        self.level.dash_pickups.update(effective_dt)
 
         # Heals
         for heal in pygame.sprite.spritecollide(
@@ -919,26 +951,29 @@ class Game:
             self.death_anim = DeathAnimation()
             self.audio.play("death")
 
-        # --- Level end outro: victory dance then run off screen ---
+        # --- Level end outro: victory dance then advance ---
+        # Player is LOCKED in place during dance -- no walking off screen.
         if self._outro_active:
-            # Play dance sound ONCE when the dance starts (frame 0 of anim)
+            # Play dance sound ONCE at the start of the dance
             if (self._outro_timer > 1.4 and not self.player.is_victory_dancing):
                 self.audio.play("dance")
+                # Remember dance anchor so player doesn't drift
+                self._outro_anchor_x = self.player.rect.x
             self._outro_timer -= effective_dt
             if self._outro_timer > 1.4:
+                # Active dance: lock player in place, play anim, NO sparkles
                 self.player.is_victory_dancing = True
                 self.player.velocity_x = 0
-                # Confetti sparkles during dance
-                if int(self._outro_timer * 10) % 2 == 0:
-                    self.particles.emit_sparkle(
-                        self.player.rect.centerx,
-                        self.player.rect.centery, 3)
+                self.player.velocity_y = min(self.player.velocity_y, 0)
+                # Snap back to anchor to prevent sliding
+                if hasattr(self, '_outro_anchor_x'):
+                    self.player.rect.x = self._outro_anchor_x
             else:
+                # Dance done -- small triumphant bounce in place, then advance
                 self.player.is_victory_dancing = False
-                self.player.rect.x += math.floor(self._outro_speed * effective_dt)
-                self.player.facing_right = True
-                self.player.velocity_x = self._outro_speed
-                self.player.anim_state = "run"
+                self.player.velocity_x = 0
+                if hasattr(self, '_outro_anchor_x'):
+                    self.player.rect.x = self._outro_anchor_x
             if self._outro_timer <= 0:
                 self._outro_active = False
                 self.player.is_victory_dancing = False
