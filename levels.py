@@ -18,6 +18,9 @@ from biomes import (
     CactusScorpion, Crystal, CrumblingPlatform, DustDevil, FalseGlowworm,
     Geyser, IcePlatform, KelpCrab, NPC, ReflectionPhantom,
     StalactiteSpider, SulfurSlime, ThermalUpdraft, WindZone,
+    # Levels 14-18 new classes
+    GravityDrone, GravityZone, MagmaLeaper, MushroomSpring, PhaseWraith,
+    RisingLava, SporePuffer, TeleportPortal, TidalCrab, TimedGate,
 )
 
 
@@ -68,6 +71,16 @@ class LevelDef:
     trenches: list[tuple[int, int]] = field(default_factory=list)
     is_dark: bool = False
     is_icy: bool = False
+    # Levels 14-18
+    mushroom_positions: list[tuple[int, int]] = field(default_factory=list)
+    rising_lava: bool = False
+    lava_pause_ys: list[int] = field(default_factory=list)
+    # (x, y, w, h, group_id "A"|"B")
+    timed_gate_defs: list[tuple[int, int, int, int, str]] = field(default_factory=list)
+    # (x1, y1, x2, y2, pair_id)
+    portal_defs: list[tuple[int, int, int, int, int]] = field(default_factory=list)
+    # (x, y, w, h, gravity_type "low"|"high"|"reverse")
+    gravity_zone_defs: list[tuple[int, int, int, int, str]] = field(default_factory=list)
 
 
 def _scatter_bamboos(platforms: list[PlatformDef], world_width: int,
@@ -125,6 +138,13 @@ class LevelState:
         self.npcs = pygame.sprite.Group()
         self.weapons = pygame.sprite.Group()
         self.glide_pickups = pygame.sprite.Group()
+        # Levels 14-18 groups
+        self.mushrooms = pygame.sprite.Group()
+        self.timed_gates = pygame.sprite.Group()
+        self.portals = pygame.sprite.Group()
+        self.gravity_zones = pygame.sprite.Group()
+        self.poison_spores = pygame.sprite.Group()
+        self.rising_lava: RisingLava | None = None
 
         self.goal: SafeZone | None = None
         self.boss: Boss | None = None
@@ -245,6 +265,12 @@ class LevelState:
             "false_glowworm": lambda ed: FalseGlowworm(ed.x, ed.y),
             "brine_shard": lambda ed: BrineShard(ed.x, ed.y),
             "reflection_phantom": lambda ed: ReflectionPhantom(ed.x, ed.y, ed.patrol_width),
+            # Levels 14-18 enemies
+            "spore_puffer": lambda ed: SporePuffer(ed.x, ed.y),
+            "magma_leaper": lambda ed: MagmaLeaper(ed.x, ed.y),
+            "tidal_crab": lambda ed: TidalCrab(ed.x, ed.y, ed.patrol_width),
+            "phase_wraith": lambda ed: PhaseWraith(ed.x, ed.y, ed.patrol_width),
+            "gravity_drone": lambda ed: GravityDrone(ed.x, ed.y),
         }
         for ed in level_def.enemies:
             factory = _enemy_map.get(ed.kind)
@@ -276,6 +302,42 @@ class LevelState:
             gf = GlideFeather(gx, gy)
             self.glide_pickups.add(gf)
             self.all_sprites.add(gf)
+
+        # Mushroom springs (Level 14)
+        for mx, my in level_def.mushroom_positions:
+            ms = MushroomSpring(mx, my)
+            self.mushrooms.add(ms)
+            self.all_sprites.add(ms)
+
+        # Rising lava (Level 15)
+        if level_def.rising_lava:
+            self.rising_lava = RisingLava(
+                level_def.world_width, level_def.lava_pause_ys)
+            self.all_sprites.add(self.rising_lava)
+
+        # Timed gates (Level 16)
+        for (tgx, tgy, tgw, tgh, group_id) in level_def.timed_gate_defs:
+            tg = TimedGate(tgx, tgy, tgw, tgh, group_id, self.platforms)
+            tg.image = tg._solid_img if tg.solid else tg._intangible_img
+            self.timed_gates.add(tg)
+            self.all_sprites.add(tg)
+
+        # Teleport portals (Level 17)
+        _portal_bucket: dict[int, list[TeleportPortal]] = {}
+        for (x1, y1, x2, y2, pair_id) in level_def.portal_defs:
+            p1 = TeleportPortal(x1, y1, pair_id)
+            p2 = TeleportPortal(x2, y2, pair_id)
+            p1.partner = p2
+            p2.partner = p1
+            self.portals.add(p1, p2)
+            self.all_sprites.add(p1, p2)
+            _portal_bucket.setdefault(pair_id, []).extend([p1, p2])
+
+        # Gravity zones (Level 18)
+        for (gzx, gzy, gzw, gzh, gtype) in level_def.gravity_zone_defs:
+            gz = GravityZone(gzx, gzy, gzw, gzh, gtype)
+            self.gravity_zones.add(gz)
+            self.all_sprites.add(gz)
 
         # Goal
         sz = SafeZone(level_def.goal_x, 200)
@@ -332,7 +394,7 @@ def _build_level_2() -> LevelDef:
         PlatformDef(3450, 390, 240), PlatformDef(3950, 380, 220),
     ]
     return LevelDef(
-        world_width=LEVEL_WIDTHS[1], platforms=plats,
+        world_width=LEVEL_WIDTHS[1], platforms=plats, biome="corrupted",
         enemies=[EnemyDef(440, 410, "patrol", 180), EnemyDef(1440, 400, "patrol", 200),
                  EnemyDef(2480, 390, "patrol", 160), EnemyDef(3480, 380, "slime", 180),
                  EnemyDef(950, 360, "chaser"), EnemyDef(2990, 340, "chaser"),
@@ -342,6 +404,10 @@ def _build_level_2() -> LevelDef:
         goal_x=4200, checkpoint_positions=[1700, 3200],
         weapon_positions=[(2000, FLOOR_Y)],
         trenches=[(1220, 1390), (2600, 2720)],
+        npc_defs=[(3900, FLOOR_Y, "Sage",
+                   ["The forest is sick... corruption spreads.",
+                    "The lair lies ahead. Be ready, Pain-da."],
+                   (120, 160, 100))],
     )
 
 
@@ -356,7 +422,7 @@ def _build_level_3() -> LevelDef:
         PlatformDef(5100, 420, 700, 20),
     ]
     return LevelDef(
-        world_width=LEVEL_WIDTHS[2], platforms=plats,
+        world_width=LEVEL_WIDTHS[2], platforms=plats, biome="lair",
         enemies=[EnemyDef(440, 410, "patrol", 180), EnemyDef(1440, 400, "patrol", 200),
                  EnemyDef(2540, 390, "slime", 180), EnemyDef(3090, 360, "patrol", 160),
                  EnemyDef(4140, 370, "patrol", 160), EnemyDef(950, 360, "chaser"),
@@ -369,6 +435,10 @@ def _build_level_3() -> LevelDef:
         weapon_positions=[(2500, FLOOR_Y)],
         trenches=[(1330, 1470), (2920, 3050), (4380, 4520)],
         has_boss=True, boss_pos=(5500, FLOOR_Y),
+        npc_defs=[(4950, FLOOR_Y, "Elder",
+                   ["The mutant waits beyond this gate.",
+                    "You alone can end this, Pain-da!"],
+                   (180, 140, 90))],
     )
 
 
@@ -744,12 +814,267 @@ def _build_level_13() -> LevelDef:
     )
 
 
+def _build_level_14() -> LevelDef:
+    """Fungal Hollows -- bouncy mushroom springs + spore puffers."""
+    plats = [
+        PlatformDef(400, 420, 220),
+        PlatformDef(900, 380, 180),
+        PlatformDef(1450, 410, 220),
+        PlatformDef(2000, 370, 200, moving=True, axis="horizontal", distance=90),
+        PlatformDef(2550, 400, 200),
+        # High platforms reachable ONLY via mushroom bounce:
+        PlatformDef(3100, 280, 160),
+        PlatformDef(3600, 290, 160),
+        PlatformDef(4100, 400, 220),
+        PlatformDef(4600, 360, 200, moving=True, axis="vertical", distance=50),
+        PlatformDef(5200, 400, 260),
+    ]
+    return LevelDef(
+        world_width=LEVEL_WIDTHS[13], platforms=plats, biome="mushroom",
+        enemies=[
+            EnemyDef(440, 410, "patrol", 180),
+            EnemyDef(1490, 400, "slime", 180),
+            EnemyDef(800, 360, "spore_puffer"),
+            EnemyDef(2600, 390, "spore_puffer"),
+            EnemyDef(4150, 390, "spore_puffer"),
+            EnemyDef(4700, 360, "chaser"),
+            EnemyDef(1500, 260, "flying", 180),
+            EnemyDef(3300, 260, "flying", 180),
+        ],
+        bamboo_positions=_scatter_bamboos(plats, LEVEL_WIDTHS[13], FLOOR_Y, 16),
+        heal_positions=[(950, 380), (3120, 280), (5230, 400)],
+        goal_x=5800, checkpoint_positions=[2000, 4200],
+        weapon_positions=[(1200, FLOOR_Y)],
+        mushroom_positions=[
+            (2800, FLOOR_Y), (3350, FLOOR_Y), (3850, FLOOR_Y),
+            (4400, FLOOR_Y), (5000, FLOOR_Y),
+        ],
+        crumbling_defs=[
+            PlatformDef(1750, 380, 120),
+            PlatformDef(3350, 280, 100),  # crumbles after bounce
+            PlatformDef(4900, 370, 120),
+        ],
+        crystal_positions=[(700, FLOOR_Y), (3900, FLOOR_Y)],
+        trenches=[(1250, 1400), (3700, 3850)],
+        npc_defs=[(5400, FLOOR_Y, "Myco",
+                   ["Land on the mushroom caps to bounce super high!",
+                    "The spotted ones are the springy ones."],
+                   (180, 120, 200))],
+    )
+
+
+def _build_level_15() -> LevelDef:
+    """The Crucible -- rising lava, constant upward pressure."""
+    plats = [
+        # Ascending platforms, left-to-right climb
+        PlatformDef(400, 430, 240),
+        PlatformDef(950, 380, 200),
+        PlatformDef(1500, 410, 200),
+        PlatformDef(2050, 360, 180, moving=True, axis="vertical", distance=50),
+        PlatformDef(2550, 330, 160),
+        PlatformDef(3050, 370, 180),
+        PlatformDef(3550, 300, 160),
+        PlatformDef(4050, 340, 180, moving=True, axis="vertical", distance=60),
+        PlatformDef(4550, 290, 160),
+        PlatformDef(5050, 330, 180),
+        PlatformDef(5550, 280, 160),
+        PlatformDef(6050, 320, 200),
+    ]
+    return LevelDef(
+        world_width=LEVEL_WIDTHS[14], platforms=plats, biome="volcanic",
+        enemies=[
+            EnemyDef(500, 420, "sulfur_slime", 180),
+            EnemyDef(1550, 400, "sulfur_slime", 160),
+            EnemyDef(2600, 320, "ash_bat"),
+            EnemyDef(3600, 290, "ash_bat"),
+            EnemyDef(4600, 280, "ash_bat"),
+            EnemyDef(3100, 360, "magma_leaper"),
+            EnemyDef(4100, 330, "magma_leaper"),
+            EnemyDef(5100, 320, "magma_leaper"),
+        ],
+        bamboo_positions=_scatter_bamboos(plats, LEVEL_WIDTHS[14], FLOOR_Y, 16),
+        heal_positions=[(1520, 410), (3570, 300), (5570, 280)],
+        goal_x=6400, checkpoint_positions=[2200, 4300],
+        rising_lava=True,
+        lava_pause_ys=[460, 410, 360, 310],
+        geyser_positions=[(800, FLOOR_Y), (2800, 400), (4300, 360)],
+        wind_zones=[
+            (1800, 280, 200, 220, 1.0),
+            (4400, 230, 200, 200, -1.0),
+        ],
+        npc_defs=[(6200, 310, "Vulcan",
+                   ["The lava NEVER stops rising!",
+                    "Climb! Do not stop! Do not look down!"],
+                   (220, 100, 40))],
+    )
+
+
+def _build_level_16() -> LevelDef:
+    """Tidal Locks -- timed gates cycle every 3 seconds."""
+    plats = [
+        PlatformDef(400, 420, 220),
+        PlatformDef(950, 380, 180),
+        PlatformDef(2000, 400, 200),  # after first gate section
+        PlatformDef(2500, 370, 180),
+        PlatformDef(3700, 400, 200),  # after second gate section
+        PlatformDef(4200, 380, 180),
+        PlatformDef(4700, 410, 220),
+        PlatformDef(5200, 380, 240),
+    ]
+    return LevelDef(
+        world_width=LEVEL_WIDTHS[15], platforms=plats, biome="tidal",
+        enemies=[
+            EnemyDef(440, 410, "tidal_crab", 150),
+            EnemyDef(2040, 390, "tidal_crab", 140),
+            EnemyDef(3740, 390, "tidal_crab", 150),
+            EnemyDef(4740, 400, "patrol", 160),
+            EnemyDef(1100, 260, "flying", 200),
+            EnemyDef(3000, 260, "flying", 200),
+        ],
+        bamboo_positions=_scatter_bamboos(plats, LEVEL_WIDTHS[15], FLOOR_Y, 14),
+        heal_positions=[(970, 380), (4220, 380), (5230, 380)],
+        goal_x=5800, checkpoint_positions=[2000, 4000],
+        weapon_positions=[(1000, FLOOR_Y)],
+        # Alternating A/B gates bridging two big trenches
+        # First section: 3 gates bridging a gap 1100-1920
+        timed_gate_defs=[
+            (1200, 400, 120, 20, "A"),
+            (1400, 380, 120, 20, "B"),
+            (1600, 400, 120, 20, "A"),
+            (1800, 380, 120, 20, "B"),
+            # Second section: bridge a gap 2800-3600
+            (2900, 400, 120, 20, "B"),
+            (3100, 380, 120, 20, "A"),
+            (3300, 400, 120, 20, "B"),
+            (3500, 380, 120, 20, "A"),
+        ],
+        crumbling_defs=[
+            PlatformDef(1100, 420, 80),
+            PlatformDef(2700, 400, 100),
+        ],
+        trenches=[(1130, 1920), (2800, 3600), (4100, 4190)],
+        npc_defs=[(5600, FLOOR_Y, "Chronos",
+                   ["The ancient locks run on a cycle.",
+                    "Watch the glow -- step when it's bright!"],
+                   (100, 160, 200))],
+    )
+
+
+def _build_level_17() -> LevelDef:
+    """Phantom Corridor -- teleport portals + dark caves."""
+    plats = [
+        PlatformDef(400, 420, 220),
+        PlatformDef(900, 380, 180),
+        PlatformDef(1400, 410, 220),
+        PlatformDef(1900, 360, 180, moving=True, axis="horizontal", distance=100),
+        PlatformDef(2450, 400, 200),
+        PlatformDef(2950, 370, 180),
+        PlatformDef(3500, 410, 220),
+        PlatformDef(4050, 380, 200),
+        PlatformDef(4600, 400, 220),
+        PlatformDef(5100, 410, 260),
+    ]
+    return LevelDef(
+        world_width=LEVEL_WIDTHS[16], platforms=plats, biome="cave", is_dark=True,
+        enemies=[
+            EnemyDef(440, 410, "phase_wraith", 140),
+            EnemyDef(1450, 400, "phase_wraith", 150),
+            EnemyDef(3550, 400, "phase_wraith", 150),
+            EnemyDef(4650, 390, "chaser"),
+            EnemyDef(1000, 50, "stalactite_spider"),
+            EnemyDef(3000, 60, "stalactite_spider"),
+        ],
+        bamboo_positions=_scatter_bamboos(plats, LEVEL_WIDTHS[16], FLOOR_Y, 15),
+        heal_positions=[(950, 380), (3550, 410), (5130, 410)],
+        goal_x=5400, checkpoint_positions=[2000, 4000],
+        weapon_positions=[(700, FLOOR_Y)],
+        crystal_positions=[
+            (300, FLOOR_Y), (1700, FLOOR_Y), (3200, FLOOR_Y),
+            (4400, FLOOR_Y), (5000, FLOOR_Y),
+        ],
+        # Portal pairs: x1, y1, x2, y2, pair_id
+        portal_defs=[
+            (700, FLOOR_Y, 2200, FLOOR_Y, 0),     # cyan: bypass early gap
+            (1500, FLOOR_Y, 3800, FLOOR_Y, 1),    # magenta: mid shortcut
+            (2800, FLOOR_Y, 4200, FLOOR_Y, 2),    # gold: ground-to-ground shortcut
+            (1100, 360, 4700, 380, 3),            # green: elevated skip
+        ],
+        npc_defs=[(5200, FLOOR_Y, "Rift",
+                   ["The portals bend space itself...",
+                    "Step in one, emerge from another!"],
+                   (0, 180, 220))],
+    )
+
+
+def _build_level_18() -> LevelDef:
+    """The Gravity Engine -- altered gravity zones + final boss."""
+    plats = [
+        PlatformDef(400, 420, 220),
+        PlatformDef(900, 380, 180),
+        PlatformDef(1400, 410, 220),
+        PlatformDef(1900, 370, 180, moving=True, axis="horizontal", distance=100),
+        # Inside low-gravity zone ahead (wide gap; floating crossing)
+        PlatformDef(2700, 390, 180),
+        PlatformDef(3200, 370, 180),
+        PlatformDef(3700, 400, 200),
+        # Reverse gravity tunnel ceilings (high up so player falls "up" onto them)
+        PlatformDef(4200, 180, 200, 20),
+        PlatformDef(4500, 180, 200, 20),
+        PlatformDef(4800, 180, 200, 20),
+        PlatformDef(5200, 400, 220),
+        # High gravity approach
+        PlatformDef(5700, 380, 200),
+        PlatformDef(6200, 400, 200),
+        PlatformDef(6700, 420, 700, 20),  # boss arena
+    ]
+    return LevelDef(
+        world_width=LEVEL_WIDTHS[17], platforms=plats, biome="gravity",
+        enemies=[
+            EnemyDef(450, 410, "patrol", 180),
+            EnemyDef(1450, 400, "slime", 160),
+            EnemyDef(2700, 360, "gravity_drone"),
+            EnemyDef(3500, 340, "gravity_drone"),
+            EnemyDef(5700, 370, "gravity_drone"),
+            EnemyDef(950, 360, "chaser"),
+            EnemyDef(3200, 350, "chaser"),
+            EnemyDef(5700, 380, "chaser"),
+            EnemyDef(1000, 260, "flying", 200),
+            EnemyDef(3500, 260, "flying", 200),
+            EnemyDef(6100, 260, "flying", 200),
+        ],
+        bamboo_positions=_scatter_bamboos(plats, LEVEL_WIDTHS[17], FLOOR_Y, 22),
+        heal_positions=[(940, 380), (3220, 370), (5220, 400), (6400, FLOOR_Y)],
+        goal_x=7300, checkpoint_positions=[2000, 4000, 5500, 6700],
+        weapon_positions=[(500, FLOOR_Y), (5300, FLOOR_Y)],
+        crystal_positions=[(300, FLOOR_Y), (2400, 450), (5000, 450), (6600, FLOOR_Y)],
+        # Gravity zones: (x, y, w, h, type)
+        gravity_zone_defs=[
+            (2300, 200, 500, 240, "low"),      # floating low-grav chasm
+            (4100, 200, 900, 250, "reverse"),  # reverse ceiling tunnel
+            (5600, 300, 700, 200, "high"),     # high gravity approach
+        ],
+        crumbling_defs=[
+            PlatformDef(3900, 200, 150),  # in reverse gravity zone
+            PlatformDef(4400, 200, 150),
+        ],
+        wind_zones=[(2600, 250, 150, 180, 1.0)],
+        geyser_positions=[(6450, FLOOR_Y)],
+        has_boss=True, boss_pos=(7000, FLOOR_Y),
+        npc_defs=[(7250, FLOOR_Y, "The Architect",
+                   ["You have mastered gravity itself.",
+                    "The bamboo forest is safe again, Pain-da."],
+                   (200, 180, 255))],
+    )
+
+
 _BUILDERS = [
     _build_level_1, _build_level_2, _build_level_3,
     _build_level_4, _build_level_5, _build_level_6,
     _build_level_7, _build_level_8,
     _build_level_9, _build_level_10, _build_level_11,
     _build_level_12, _build_level_13,
+    _build_level_14, _build_level_15, _build_level_16,
+    _build_level_17, _build_level_18,
 ]
 
 

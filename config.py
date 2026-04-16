@@ -100,6 +100,37 @@ BRINE_GROW_RATE: float = 0.5
 BRINE_DMG_RADIUS: float = 40.0
 PHANTOM_SPEED: float = 100.0
 
+# --- Level 14: Fungal Hollows ---
+MUSHROOM_BOUNCE: float = -1100.0
+MUSHROOM_COMPRESS_SEC: float = 0.15
+SPORE_INTERVAL: float = 3.0
+SPORE_LIFETIME: float = 4.0
+SPORE_DRIFT: float = 40.0
+SPORE_DAMAGE: int = 15
+
+# --- Level 15: The Crucible (Rising Lava) ---
+LAVA_RISE_SPEED: float = 25.0
+LAVA_PAUSE_SEC: float = 3.0
+LAVA_START_Y: int = 600
+LEAPER_JUMP: float = -700.0
+LEAPER_INTERVAL: float = 4.0
+
+# --- Level 16: Tidal Locks (Timed Gates) ---
+GATE_CYCLE_SEC: float = 3.0
+GATE_TELEGRAPH_SEC: float = 0.5
+TIDAL_CRAB_SPEED: float = 90.0
+
+# --- Level 17: Phantom Corridor (Portals) ---
+PORTAL_COOLDOWN_SEC: float = 2.0
+WRAITH_SPEED: float = 110.0
+
+# --- Level 18: The Gravity Engine ---
+GRAVITY_LOW_MULT: float = 0.3
+GRAVITY_HIGH_MULT: float = 2.0
+GRAVITY_REVERSE_MULT: float = -1.0
+DRONE_RANGE: float = 200.0
+DRONE_PULL: float = 150.0
+
 # --- NPC ---
 NPC_RANGE: float = 60.0
 
@@ -134,19 +165,25 @@ COL_SALT = (200, 220, 240)
 COL_TOXIC = (120, 200, 40)
 COL_ICE = (180, 220, 255)
 COL_CRYSTAL = (100, 200, 255)
+COL_MUSHROOM = (180, 60, 160)
+COL_TIDAL = (60, 100, 140)
+COL_GRAVITY = (80, 50, 120)
 
 # --- Levels ---
-LEVEL_COUNT: int = 13
+LEVEL_COUNT: int = 18
 LEVEL_WIDTHS: list[int] = [
     3000, 4500, 6000, 5500, 5000, 6500, 5500, 7000,
     6000, 5500, 6000, 6500, 7000,
+    6000, 6500, 6000, 5500, 7500,
 ]
 LEVEL_NAMES: list[str] = [
-    "Bamboo Grove", "Mountain Pass", "Mutant Lair",
+    "Bamboo Grove", "Corrupted Thicket", "Mutant Lair",
     "The Caldera", "Basalt Columns", "The Arid Rift",
     "Karst Caves", "Salt Flats",
     "Abyssal Trench", "Orogeny Peak", "Hypersaline Rift",
     "Tabletop Canopy", "Crystal Geode",
+    "Fungal Hollows", "The Crucible", "Tidal Locks",
+    "Phantom Corridor", "The Gravity Engine",
 ]
 FLOOR_Y: int = 490
 TRENCH_DEATH_Y: int = 560  # fall below this = death

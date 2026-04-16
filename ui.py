@@ -129,10 +129,12 @@ class HUD:
 
     def draw(self, screen: pygame.Surface, player: Player,
              level_num: int, camera: Camera) -> None:
-        # HUD backing
-        hud_surf = pygame.Surface((260, 85), pygame.SRCALPHA)
+        # HUD backing (tall if mana bar visible)
+        hud_h = 100 if player.has_ice_magic else 85
+        hud_surf = pygame.Surface((260, hud_h), pygame.SRCALPHA)
         hud_surf.fill((*COL_HUD_BG, 190))
-        pygame.draw.rect(hud_surf, (60, 60, 60, 100), (0, 0, 260, 85), 2, border_radius=8)
+        pygame.draw.rect(hud_surf, (60, 60, 60, 100),
+                        (0, 0, 260, hud_h), 2, border_radius=8)
         screen.blit(hud_surf, (8, 8))
 
         # HP label + bar
@@ -144,12 +146,36 @@ class HUD:
         # HP text
         draw_text(screen, f"{int(self.displayed_hp)}", 14, COL_WHITE, 123, 28)
 
-        # Score
-        draw_text(screen, f"SCORE: {player.score}", 20, COL_GOLD, 138, 50, bold=True)
+        # Mana bar (only shown if player has ice magic unlocked)
+        if player.has_ice_magic:
+            draw_text(screen, "MP", 14, COL_WHITE, 30, 44)
+            # Background
+            pygame.draw.rect(screen, (40, 40, 70), (48, 40, 150, 10),
+                            border_radius=3)
+            mana_w = max(0, int(player.mana * 1.5))
+            if mana_w > 0:
+                # Cyan gradient
+                col = (80, 180, 240) if player.mana >= player.mana_max else (60, 140, 200)
+                pygame.draw.rect(screen, col, (48, 40, mana_w, 10),
+                                border_radius=3)
+                # Bright edge highlight
+                pygame.draw.rect(screen, (180, 230, 255),
+                                (48, 40, mana_w, 2), border_radius=2)
+            # "READY" indicator when full
+            if player.mana >= player.mana_max:
+                t = pygame.time.get_ticks() / 200.0
+                pulse = 0.7 + 0.3 * math.sin(t)
+                pygame.draw.circle(screen,
+                                  (int(255 * pulse), 255, int(255 * pulse)),
+                                  (207, 45), 3)
+
+        # Score (shift down if mana bar visible)
+        score_y = 65 if player.has_ice_magic else 50
+        draw_text(screen, f"SCORE: {player.score}", 20, COL_GOLD, 138, score_y, bold=True)
 
         # Bamboo counter with checkmark icons
         bx = 22
-        by = 65
+        by = 80 if player.has_ice_magic else 65
         for i in range(min(self.total_bamboos, 12)):
             checked = i < self.collected_bamboos
             _draw_bamboo_icon(screen, bx + i * 14, by, checked)

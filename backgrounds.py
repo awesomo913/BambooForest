@@ -498,8 +498,298 @@ class SaltFlatsBackground(_BaseBackground):
 
 
 # ---------------------------------------------------------------------------
+# Mushroom (Level 14) -- deep purple sky, giant glowing mushrooms, spores
+# ---------------------------------------------------------------------------
+
+class MushroomBackground(_BaseBackground):
+    """Bioluminescent underground mushroom forest."""
+
+    def _build(self) -> pygame.Surface:
+        surf = pygame.Surface((self.w, SCREEN_HEIGHT))
+        # Deep purple / midnight gradient
+        self._sky_gradient(surf, (30, 15, 50), (60, 30, 80))
+        random.seed(142)
+        # Giant background mushrooms (silhouettes with soft glow)
+        for i in range(6):
+            cx = int(i * self.w / 5) + random.randint(-30, 30)
+            stalk_h = random.randint(140, 220)
+            cap_r = random.randint(60, 100)
+            base_y = SCREEN_HEIGHT - 10
+            # Stalk (pale)
+            stalk_col = (120, 110, 140)
+            pygame.draw.rect(surf, stalk_col,
+                            (cx - 8, base_y - stalk_h, 16, stalk_h))
+            # Cap (glowing magenta)
+            cap_col = (120, 50, 130)
+            self._wrap_polygon(surf, cap_col, [
+                (cx - cap_r, base_y - stalk_h),
+                (cx, base_y - stalk_h - cap_r // 2),
+                (cx + cap_r, base_y - stalk_h),
+            ])
+            # Bright highlight on top of cap
+            hl_col = (200, 100, 220)
+            pygame.draw.ellipse(surf, hl_col,
+                              (cx - cap_r // 2, base_y - stalk_h - cap_r // 3,
+                               cap_r, cap_r // 4))
+            # Yellow spots
+            for _ in range(3):
+                sx = cx + random.randint(-cap_r // 2, cap_r // 2)
+                sy = base_y - stalk_h - random.randint(5, cap_r // 3)
+                pygame.draw.circle(surf, (255, 240, 150), (sx, sy), 5)
+        # Drifting spores (small glowing dots)
+        random.seed(271)
+        for _ in range(120):
+            sx = random.randint(0, self.w)
+            sy = random.randint(0, SCREEN_HEIGHT - 40)
+            col = random.choice([(220, 130, 220), (130, 230, 180),
+                                 (220, 230, 130)])
+            r = random.choice([1, 1, 2])
+            pygame.draw.circle(surf, col, (sx, sy), r)
+        random.seed()
+        return surf
+
+
+# ---------------------------------------------------------------------------
+# Tidal (Level 16) -- stormy gray-blue sky, lighthouse, crashing spray
+# ---------------------------------------------------------------------------
+
+class TidalBackground(_BaseBackground):
+    """Stormy coastal ruin with rocks, lighthouse, and waves."""
+
+    def _build(self) -> pygame.Surface:
+        surf = pygame.Surface((self.w, SCREEN_HEIGHT))
+        # Stormy gray-blue gradient
+        self._sky_gradient(surf, (70, 90, 110), (120, 140, 160))
+        random.seed(242)
+        # Distant rain / mist streaks
+        for _ in range(50):
+            sx = random.randint(0, self.w)
+            sy = random.randint(0, 200)
+            pygame.draw.line(surf, (180, 200, 220, 100),
+                            (sx, sy), (sx - 2, sy + 8), 1)
+        # Coastal rocks (dark silhouettes)
+        for i in range(5):
+            cx = int(i * self.w / 4) + random.randint(-40, 40)
+            r_w = random.randint(60, 110)
+            r_h = random.randint(40, 90)
+            base_y = SCREEN_HEIGHT - 30
+            col = (50, 70, 85)
+            self._wrap_polygon(surf, col, [
+                (cx - r_w, base_y),
+                (cx - r_w // 2, base_y - r_h),
+                (cx, base_y - r_h + 10),
+                (cx + r_w // 2, base_y - r_h),
+                (cx + r_w, base_y),
+            ])
+        # Lighthouse (centered ish)
+        lh_x = self.w // 2 + 80
+        lh_base_y = SCREEN_HEIGHT - 80
+        # Tower (red/white bands)
+        pygame.draw.rect(surf, (220, 220, 210),
+                        (lh_x - 10, lh_base_y - 80, 20, 80))
+        pygame.draw.rect(surf, (180, 50, 50),
+                        (lh_x - 10, lh_base_y - 65, 20, 10))
+        pygame.draw.rect(surf, (180, 50, 50),
+                        (lh_x - 10, lh_base_y - 35, 20, 10))
+        # Lantern room
+        pygame.draw.rect(surf, (50, 50, 60),
+                        (lh_x - 8, lh_base_y - 95, 16, 15))
+        # Light beam
+        pygame.draw.circle(surf, (255, 230, 120), (lh_x, lh_base_y - 88), 5)
+        # Crashing wave foam near the bottom
+        for _ in range(40):
+            sx = random.randint(0, self.w)
+            sy = SCREEN_HEIGHT - random.randint(5, 25)
+            pygame.draw.circle(surf, (220, 230, 240), (sx, sy), 2)
+        random.seed()
+        return surf
+
+
+# ---------------------------------------------------------------------------
+# Gravity (Level 18) -- void with floating crystals, gears, energy veins
+# ---------------------------------------------------------------------------
+
+class GravityBackground(_BaseBackground):
+    """Arcane void with floating structures and pulsing veins."""
+
+    def _build(self) -> pygame.Surface:
+        surf = pygame.Surface((self.w, SCREEN_HEIGHT))
+        # Deep void purple-black
+        self._sky_gradient(surf, (15, 5, 25), (40, 20, 60))
+        random.seed(342)
+        # Distant stars / energy dots
+        for _ in range(100):
+            sx = random.randint(0, self.w)
+            sy = random.randint(0, SCREEN_HEIGHT - 30)
+            col = random.choice([(200, 180, 255), (255, 220, 255),
+                                 (180, 220, 255)])
+            surf.set_at((sx, sy), col)
+        # Floating crystal structures (geometric silhouettes)
+        for i in range(5):
+            cx = int(i * self.w / 4) + random.randint(-40, 40)
+            cy = random.randint(100, 350)
+            c_sz = random.randint(30, 60)
+            col = (80, 50, 130)
+            self._wrap_polygon(surf, col, [
+                (cx, cy - c_sz),
+                (cx + c_sz // 2, cy),
+                (cx, cy + c_sz),
+                (cx - c_sz // 2, cy),
+            ])
+            # Highlight facet
+            hl_col = (140, 100, 200)
+            self._wrap_polygon(surf, hl_col, [
+                (cx, cy - c_sz),
+                (cx + c_sz // 3, cy - c_sz // 3),
+                (cx, cy),
+                (cx - c_sz // 3, cy - c_sz // 3),
+            ])
+        # Mechanical gears (silhouettes)
+        for i in range(3):
+            cx = int(i * self.w / 2.5) + random.randint(-30, 30)
+            cy = random.randint(80, SCREEN_HEIGHT - 100)
+            r = random.randint(25, 45)
+            col = (60, 40, 90)
+            pygame.draw.circle(surf, col, (cx, cy), r)
+            pygame.draw.circle(surf, (40, 25, 60), (cx, cy), r // 2)
+            # Teeth
+            for ang in range(0, 360, 30):
+                t = math.radians(ang)
+                x1 = cx + int(math.cos(t) * r)
+                y1 = cy + int(math.sin(t) * r)
+                x2 = cx + int(math.cos(t) * (r + 6))
+                y2 = cy + int(math.sin(t) * (r + 6))
+                pygame.draw.line(surf, col, (x1, y1), (x2, y2), 4)
+        # Energy veins (glowing lines)
+        for _ in range(8):
+            vx = random.randint(0, self.w)
+            vy_start = random.randint(0, SCREEN_HEIGHT // 2)
+            vlen = random.randint(80, 180)
+            pygame.draw.line(surf, (180, 120, 255),
+                            (vx, vy_start), (vx + 20, vy_start + vlen), 2)
+        random.seed()
+        return surf
+
+
+# ---------------------------------------------------------------------------
 # Factory
 # ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Corrupted Forest (Level 2) -- sickly version of the bamboo grove
+# ---------------------------------------------------------------------------
+
+class CorruptedForestBackground(_BaseBackground):
+    """Sickly forest with purple-tinted vegetation -- corruption creeping in."""
+
+    def _build(self) -> pygame.Surface:
+        surf = pygame.Surface((self.w, SCREEN_HEIGHT))
+        # Overcast purple-green sky
+        self._sky_gradient(surf, (130, 100, 140), (170, 160, 170))
+        random.seed(202)
+        # Sickly distant mountains
+        for i in range(4):
+            cx = int(i * self.w / 3) + random.randint(-40, 40)
+            m_h = random.randint(80, 140)
+            m_w = random.randint(150, 220)
+            col = (70, 60, 85)
+            self._wrap_polygon(surf, col, [
+                (cx - m_w, SCREEN_HEIGHT - 100),
+                (cx - m_w // 3, SCREEN_HEIGHT - 100 - m_h),
+                (cx + m_w // 3, SCREEN_HEIGHT - 100 - m_h + 20),
+                (cx + m_w, SCREEN_HEIGHT - 100),
+            ])
+        # Dying trees (dark twisted silhouettes)
+        for i in range(10):
+            tx = int(i * self.w / 8) + random.randint(-30, 30)
+            trunk_h = random.randint(90, 140)
+            base_y = SCREEN_HEIGHT - 60
+            # Twisted trunk
+            pygame.draw.line(surf, (40, 30, 40),
+                           (tx, base_y), (tx + random.randint(-10, 10),
+                                          base_y - trunk_h), 4)
+            # Dead canopy (dark purple-green)
+            pygame.draw.circle(surf, (70, 60, 80),
+                             (tx + random.randint(-5, 5),
+                              base_y - trunk_h - random.randint(5, 15)),
+                             random.randint(20, 35))
+        # Purple corruption wisps floating
+        random.seed(303)
+        for _ in range(40):
+            wx = random.randint(0, self.w)
+            wy = random.randint(50, SCREEN_HEIGHT - 80)
+            col = random.choice([(180, 100, 180), (140, 70, 150),
+                                 (200, 120, 200)])
+            pygame.draw.circle(surf, col, (wx, wy), 2)
+        # Dark twisted bamboo in the foreground
+        random.seed(404)
+        for i in range(15):
+            bx = int(i * self.w / 14) + random.randint(-15, 15)
+            by = SCREEN_HEIGHT - random.randint(40, 80)
+            bh = random.randint(60, 120)
+            col = (50, 60, 40)  # darker bamboo
+            pygame.draw.rect(surf, col, (bx, by - bh, 5, bh))
+            # Corruption spots on bamboo
+            pygame.draw.circle(surf, (150, 60, 140), (bx + 2, by - bh // 2), 2)
+        random.seed()
+        return surf
+
+
+# ---------------------------------------------------------------------------
+# Mutant Lair (Level 3) -- epicenter of corruption, boss fight arena
+# ---------------------------------------------------------------------------
+
+class MutantLairBackground(_BaseBackground):
+    """Dark red-purple lair. Throbbing corruption, boss epicenter."""
+
+    def _build(self) -> pygame.Surface:
+        surf = pygame.Surface((self.w, SCREEN_HEIGHT))
+        # Blood-purple sky gradient
+        self._sky_gradient(surf, (60, 20, 45), (120, 40, 70))
+        random.seed(1111)
+        # Throbbing corruption clouds
+        for _ in range(8):
+            cx = random.randint(50, self.w - 50)
+            cy = random.randint(30, 180)
+            cr = random.randint(40, 80)
+            col = (110, 40, 100)
+            for r, a in [(cr, 40), (cr - 10, 60), (cr - 20, 90)]:
+                cloud = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
+                pygame.draw.circle(cloud, (*col, a), (r, r), r)
+                surf.blit(cloud, (cx - r, cy - r))
+        # Twisted black spires (from ground, dead trees/corruption)
+        for i in range(8):
+            tx = int(i * self.w / 6) + random.randint(-40, 40)
+            spire_h = random.randint(130, 220)
+            base_y = SCREEN_HEIGHT - 60
+            col = (20, 10, 25)
+            self._wrap_polygon(surf, col, [
+                (tx - 20, base_y),
+                (tx - 8, base_y - spire_h + 40),
+                (tx, base_y - spire_h),
+                (tx + 8, base_y - spire_h + 40),
+                (tx + 20, base_y),
+            ])
+            # Crimson vein glow on spire
+            for _ in range(3):
+                vy = base_y - random.randint(30, spire_h - 20)
+                pygame.draw.line(surf, (180, 50, 70),
+                               (tx - 3, vy), (tx + 3, vy), 2)
+        # Pulsing ember particles
+        random.seed(2222)
+        for _ in range(80):
+            ex = random.randint(0, self.w)
+            ey = random.randint(100, SCREEN_HEIGHT - 60)
+            col = random.choice([(220, 80, 50), (255, 120, 80), (180, 40, 60)])
+            pygame.draw.circle(surf, col, (ex, ey), 1)
+        # Bones/skulls in the distance (tiny silhouettes)
+        for _ in range(5):
+            bx = random.randint(30, self.w - 30)
+            by = SCREEN_HEIGHT - random.randint(50, 70)
+            pygame.draw.circle(surf, (30, 15, 20), (bx, by), 4)
+        random.seed()
+        return surf
+
 
 _BIOME_MAP = {
     "forest": ForestBackground,
@@ -508,6 +798,11 @@ _BIOME_MAP = {
     "desert": DesertBackground,
     "cave": CaveBackground,
     "salt": SaltFlatsBackground,
+    "mushroom": MushroomBackground,
+    "tidal": TidalBackground,
+    "gravity": GravityBackground,
+    "corrupted": CorruptedForestBackground,
+    "lair": MutantLairBackground,
 }
 
 

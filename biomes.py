@@ -21,6 +21,15 @@ from config import (
     SPIDER_DROP_RANGE, SPIDER_DROP_SPEED, SULFUR_SPEED,
     SULFUR_TRAIL_DMG, SULFUR_TRAIL_LIFE, TERMINAL_VELOCITY,
     WIND_PUSH,
+    # Level 14-18 new constants
+    MUSHROOM_BOUNCE, MUSHROOM_COMPRESS_SEC, SPORE_INTERVAL,
+    SPORE_LIFETIME, SPORE_DRIFT, SPORE_DAMAGE,
+    LAVA_RISE_SPEED, LAVA_PAUSE_SEC, LAVA_START_Y,
+    LEAPER_JUMP, LEAPER_INTERVAL,
+    GATE_CYCLE_SEC, GATE_TELEGRAPH_SEC, TIDAL_CRAB_SPEED,
+    PORTAL_COOLDOWN_SEC, WRAITH_SPEED,
+    GRAVITY_LOW_MULT, GRAVITY_HIGH_MULT, GRAVITY_REVERSE_MULT,
+    DRONE_RANGE, DRONE_PULL,
 )
 
 # ===================================================================
@@ -163,12 +172,159 @@ def generate_salt_tile(width: int, height: int) -> pygame.Surface:
     return surf
 
 
+def generate_mushroom_tile(width: int, height: int) -> pygame.Surface:
+    """Bioluminescent fungal soil -- dark purple with glowing spores."""
+    surf = pygame.Surface((width, height))
+    # Base: deep moss purple
+    for y in range(height):
+        t = y / max(1, height)
+        c = (int(55 - 20 * t), int(30 - 10 * t), int(65 - 20 * t))
+        pygame.draw.line(surf, (max(0, c[0]), max(0, c[1]), max(0, c[2])),
+                         (0, y), (width, y))
+    # Top moss
+    pygame.draw.rect(surf, (80, 160, 110), (0, 0, width, 3))
+    pygame.draw.rect(surf, (120, 200, 140), (0, 0, width, 1))
+    # Glowing spores (pink/cyan pixels)
+    for _ in range(width // 6):
+        sx = random.randint(1, width - 2)
+        sy = random.randint(3, height - 2)
+        col = random.choice([(220, 100, 200), (100, 220, 220), (200, 220, 100)])
+        surf.set_at((sx, sy), col)
+    # Tiny mushroom stems along top
+    for _ in range(width // 30):
+        mx = random.randint(2, width - 4)
+        pygame.draw.line(surf, (200, 220, 200), (mx, 3), (mx, 6), 1)
+        pygame.draw.circle(surf, (220, 100, 180), (mx, 2), 2)
+    return surf
+
+
+def generate_tidal_tile(width: int, height: int) -> pygame.Surface:
+    """Barnacled coastal stone with teal water stains."""
+    surf = pygame.Surface((width, height))
+    for y in range(height):
+        t = y / max(1, height)
+        c = (int(90 - 30 * t), int(110 - 30 * t), int(130 - 30 * t))
+        pygame.draw.line(surf, (max(0, c[0]), max(0, c[1]), max(0, c[2])),
+                         (0, y), (width, y))
+    # Wet top strip
+    pygame.draw.rect(surf, (60, 130, 150), (0, 0, width, 3))
+    pygame.draw.rect(surf, (90, 170, 190), (0, 0, width, 1))
+    # Barnacle clusters
+    for _ in range(width // 15):
+        bx = random.randint(2, width - 4)
+        by = random.randint(4, height - 4)
+        pygame.draw.circle(surf, (240, 230, 210), (bx, by), 2)
+        pygame.draw.circle(surf, (180, 160, 140), (bx, by), 2, 1)
+    # Teal drips
+    for _ in range(width // 25):
+        dx = random.randint(0, width - 2)
+        pygame.draw.line(surf, (80, 180, 180), (dx, 3),
+                         (dx, random.randint(5, height - 2)), 1)
+    return surf
+
+
+def generate_gravity_tile(width: int, height: int) -> pygame.Surface:
+    """Arcane metal with glowing circuit veins."""
+    surf = pygame.Surface((width, height))
+    # Dark metallic base
+    for y in range(height):
+        t = y / max(1, height)
+        c = (int(40 - 10 * t), int(30 - 10 * t), int(55 - 15 * t))
+        pygame.draw.line(surf, (max(0, c[0]), max(0, c[1]), max(0, c[2])),
+                         (0, y), (width, y))
+    # Top ridge
+    pygame.draw.rect(surf, (120, 90, 160), (0, 0, width, 3))
+    pygame.draw.rect(surf, (180, 150, 220), (0, 0, width, 1))
+    # Circuit lines
+    for _ in range(width // 12):
+        cx = random.randint(2, width - 10)
+        cy = random.randint(5, height - 3)
+        cw = random.randint(6, 14)
+        pygame.draw.line(surf, (150, 120, 220), (cx, cy), (cx + cw, cy), 1)
+        pygame.draw.circle(surf, (220, 180, 255), (cx, cy), 1)
+        pygame.draw.circle(surf, (220, 180, 255), (cx + cw, cy), 1)
+    # Rivets
+    for _ in range(width // 25):
+        rx = random.randint(2, width - 4)
+        pygame.draw.circle(surf, (80, 60, 100), (rx, height // 2), 1)
+    return surf
+
+
+def generate_corrupted_tile(width: int, height: int) -> pygame.Surface:
+    """Sickly forest ground -- dark green with purple corruption veins."""
+    surf = pygame.Surface((width, height))
+    # Darker moss base
+    for y in range(height):
+        t = y / max(1, height)
+        c = (int(55 - 20 * t), int(85 - 30 * t), int(50 - 20 * t))
+        pygame.draw.line(surf, (max(0, c[0]), max(0, c[1]), max(0, c[2])),
+                         (0, y), (width, y))
+    # Sickly grass top (darkened)
+    pygame.draw.rect(surf, (70, 110, 60), (0, 0, width, 3))
+    pygame.draw.rect(surf, (100, 150, 80), (0, 0, width, 1))
+    # Purple corruption veins creeping through
+    for _ in range(width // 15):
+        vx = random.randint(2, width - 10)
+        vy = random.randint(4, height - 4)
+        vlen = random.randint(4, 12)
+        pygame.draw.line(surf, (140, 60, 150), (vx, vy),
+                        (vx + vlen, vy + random.randint(-2, 2)), 1)
+    # Dead grass specks
+    for _ in range(width // 8):
+        sx = random.randint(1, width - 2)
+        sy = random.randint(3, height - 2)
+        surf.set_at((sx, sy), (60, 70, 40))
+    # Rot spots
+    for _ in range(width // 30):
+        rx = random.randint(3, width - 6)
+        ry = random.randint(5, height - 4)
+        pygame.draw.circle(surf, (80, 40, 90), (rx, ry), 2)
+    return surf
+
+
+def generate_lair_tile(width: int, height: int) -> pygame.Surface:
+    """Corrupted boss-lair ground -- crimson shadow with dark veins."""
+    surf = pygame.Surface((width, height))
+    for y in range(height):
+        t = y / max(1, height)
+        c = (int(50 - 15 * t), int(20 - 5 * t), int(35 - 10 * t))
+        pygame.draw.line(surf, (max(0, c[0]), max(0, c[1]), max(0, c[2])),
+                         (0, y), (width, y))
+    # Top crust (dark red-purple)
+    pygame.draw.rect(surf, (80, 30, 50), (0, 0, width, 3))
+    pygame.draw.rect(surf, (130, 40, 70), (0, 0, width, 1))
+    # Crimson veins
+    for _ in range(width // 14):
+        vx = random.randint(2, width - 10)
+        vy = random.randint(5, height - 4)
+        vlen = random.randint(5, 14)
+        pygame.draw.line(surf, (180, 50, 70), (vx, vy),
+                        (vx + vlen, vy + random.randint(-2, 2)), 1)
+    # Pulsing ember spots
+    for _ in range(width // 25):
+        ex = random.randint(2, width - 4)
+        ey = random.randint(5, height - 3)
+        pygame.draw.circle(surf, (220, 80, 50), (ex, ey), 1)
+        pygame.draw.circle(surf, (255, 150, 100), (ex, ey), 1, 1)
+    # Dark specks
+    for _ in range(width // 8):
+        sx = random.randint(1, width - 2)
+        sy = random.randint(3, height - 2)
+        surf.set_at((sx, sy), (30, 10, 20))
+    return surf
+
+
 _TILE_GENERATORS = {
     "volcanic": generate_volcanic_tile,
     "basalt": generate_basalt_tile,
     "desert": generate_sandstone_tile,
     "cave": generate_limestone_tile,
     "salt": generate_salt_tile,
+    "mushroom": generate_mushroom_tile,
+    "tidal": generate_tidal_tile,
+    "gravity": generate_gravity_tile,
+    "corrupted": generate_corrupted_tile,
+    "lair": generate_lair_tile,
 }
 
 
@@ -1020,3 +1176,700 @@ class NPC(pygame.sprite.Sprite):
         dist = math.hypot(player.rect.centerx - self.rect.centerx,
                           player.rect.centery - self.rect.centery)
         self.show_dialog = dist < NPC_RANGE
+
+
+# ===================================================================
+# LEVEL 14: FUNGAL HOLLOWS -- MushroomSpring + SporePuffer
+# ===================================================================
+
+class MushroomSpring(pygame.sprite.Sprite):
+    """Always-active bounce pad. Player landing on it gets launched upward."""
+
+    def __init__(self, x: int, y: int) -> None:
+        super().__init__()
+        self._base = self._make_surf(False)
+        self._compressed = self._make_surf(True)
+        self.image = self._base
+        self.rect = self.image.get_rect(midbottom=(x, y))
+        self.compress_timer: float = 0.0
+
+    @staticmethod
+    def _make_surf(compressed: bool) -> pygame.Surface:
+        W, H = 56, 32 if not compressed else 20
+        surf = pygame.Surface((W, H), pygame.SRCALPHA)
+        # Short stalk (white) at the bottom
+        stalk_h = 6 if not compressed else 3
+        pygame.draw.rect(surf, (230, 220, 210),
+                         (W // 2 - 4, H - stalk_h, 8, stalk_h))
+        # Cap (magenta with yellow spots)
+        cap_h = H - stalk_h
+        pygame.draw.ellipse(surf, (180, 60, 160), (0, 0, W, cap_h))
+        # Highlight on top
+        pygame.draw.ellipse(surf, (230, 130, 200),
+                            (6, 2, W - 12, cap_h // 2))
+        # Yellow spots
+        for dx, dy in [(W // 4, cap_h // 2), (W * 3 // 4, cap_h // 2),
+                       (W // 2, cap_h // 4)]:
+            pygame.draw.circle(surf, (255, 240, 130), (dx, dy), 3)
+            pygame.draw.circle(surf, (255, 255, 200), (dx - 1, dy - 1), 1)
+        return surf
+
+    def compress(self) -> None:
+        self.compress_timer = MUSHROOM_COMPRESS_SEC
+        self.image = self._compressed
+        # Adjust rect so bottom stays in place when image shrinks
+        self.rect = self.image.get_rect(midbottom=self.rect.midbottom)
+
+    def update(self, dt: float) -> None:  # type: ignore[override]
+        if self.compress_timer > 0:
+            self.compress_timer -= dt
+            if self.compress_timer <= 0:
+                old_midbottom = self.rect.midbottom
+                self.image = self._base
+                self.rect = self.image.get_rect(midbottom=old_midbottom)
+
+
+class PoisonSpore(pygame.sprite.Sprite):
+    """Slow-drifting spore cloud that damages on contact."""
+
+    def __init__(self, x: int, y: int, drift_x: float) -> None:
+        super().__init__()
+        W, H = 22, 22
+        self._base = pygame.Surface((W, H), pygame.SRCALPHA)
+        # Fuzzy sickly-green orb
+        for r, a in [(10, 80), (7, 140), (4, 200)]:
+            surf = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
+            pygame.draw.circle(surf, (160, 220, 120, a), (r, r), r)
+            self._base.blit(surf, (W // 2 - r, H // 2 - r))
+        self.image = self._base
+        self.rect = self.image.get_rect(center=(x, y))
+        self._px, self._py = float(x), float(y)
+        self._vx = drift_x
+        self._vy = -SPORE_DRIFT
+        self.lifetime: float = SPORE_LIFETIME
+        self.damage: int = SPORE_DAMAGE
+
+    def update(self, dt: float) -> None:  # type: ignore[override]
+        self._px += self._vx * dt
+        self._py += self._vy * dt
+        self.rect.center = (int(self._px), int(self._py))
+        self.lifetime -= dt
+        if self.lifetime <= 0:
+            self.kill()
+
+
+class SporePuffer(pygame.sprite.Sprite):
+    """Stationary fungus that releases drifting poison spores."""
+
+    is_stompable: bool = True
+
+    def __init__(self, x: int, y: int, patrol_width: float = 0.0) -> None:
+        super().__init__()
+        W, H = 32, 38
+        self._base = pygame.Surface((W, H), pygame.SRCALPHA)
+        # Stalk
+        pygame.draw.rect(self._base, (240, 230, 210), (W // 2 - 4, 12, 8, H - 12))
+        # Cap (rounded fungus head)
+        pygame.draw.ellipse(self._base, (100, 160, 100), (2, 0, W - 4, 22))
+        pygame.draw.ellipse(self._base, (150, 200, 140), (6, 2, W - 12, 10))
+        # Dark spots
+        for dx, dy in [(W // 3, 10), (W * 2 // 3, 12), (W // 2, 6)]:
+            pygame.draw.circle(self._base, (60, 90, 60), (dx, dy), 2)
+        # Eyes
+        pygame.draw.circle(self._base, COL_WHITE, (W // 2 - 4, 14), 2)
+        pygame.draw.circle(self._base, COL_WHITE, (W // 2 + 4, 14), 2)
+        pygame.draw.circle(self._base, COL_BLACK, (W // 2 - 4, 14), 1)
+        pygame.draw.circle(self._base, COL_BLACK, (W // 2 + 4, 14), 1)
+        self.image = self._base.copy()
+        self.rect = self.image.get_rect(bottomleft=(x, y))
+        self.puff_timer: float = random.uniform(0.5, SPORE_INTERVAL)
+        self.pending_spores: list[PoisonSpore] = []
+        self.alive_flag: bool = True
+        self.flash: float = 0.0
+
+    def update(self, dt: float, platforms=None, player=None) -> None:  # type: ignore[override]
+        if not self.alive_flag:
+            return
+        self.puff_timer -= dt
+        if self.flash > 0:
+            self.flash -= dt
+            img = self._base.copy()
+            img.fill((255, 255, 255, 80), special_flags=pygame.BLEND_RGBA_ADD)
+            self.image = img
+        else:
+            self.image = self._base
+        if self.puff_timer <= 0:
+            self.puff_timer = SPORE_INTERVAL
+            # Emit 2 spores drifting in opposite horizontal directions
+            sx = self.rect.centerx
+            sy = self.rect.top + 4
+            self.pending_spores.append(PoisonSpore(sx, sy, -SPORE_DRIFT * 0.6))
+            self.pending_spores.append(PoisonSpore(sx, sy, SPORE_DRIFT * 0.6))
+
+    def get_new_spores(self) -> list[PoisonSpore]:
+        spores = self.pending_spores
+        self.pending_spores = []
+        return spores
+
+    def die(self) -> None:
+        self.alive_flag = False
+        self.kill()
+
+    def alive(self) -> bool:  # type: ignore[override]
+        return self.alive_flag
+
+
+# ===================================================================
+# LEVEL 15: THE CRUCIBLE -- RisingLava + MagmaLeaper
+# ===================================================================
+
+class RisingLava(pygame.sprite.Sprite):
+    """Lethal lava floor that rises steadily from below.
+
+    Pauses at configured Y values for a breathing period, then resumes.
+    """
+
+    def __init__(self, world_width: int, pause_ys: list[int] | None = None) -> None:
+        super().__init__()
+        self.world_width = world_width
+        self.pause_ys = sorted(pause_ys or [], reverse=False)  # ascending (top-most first after sort)
+        # Actually we want highest-y first (deepest), then pause higher as we rise
+        # pause_ys are Y values where lava pauses. Lower Y = higher on screen.
+        # So after rising past y=450 (pause #1), next is y=400, then y=350.
+        self.pause_ys = sorted(pause_ys or [], reverse=True)  # e.g. [450, 400, 350]
+        self._next_pause_idx: int = 0
+        self.current_y: float = float(LAVA_START_Y)  # starts below screen
+        self.paused: bool = False
+        self.pause_timer: float = 0.0
+        self._base = self._make_surf()
+        self.image = self._base
+        self.rect = self.image.get_rect(topleft=(0, int(self.current_y)))
+        self._wave_timer: float = 0.0
+
+    def _make_surf(self) -> pygame.Surface:
+        W, H = self.world_width, 260
+        surf = pygame.Surface((W, H), pygame.SRCALPHA)
+        # Molten body gradient
+        for y in range(H):
+            t = y / H
+            r = int(240 - 40 * t)
+            g = int(90 - 70 * t)
+            b = int(20 - 15 * t)
+            pygame.draw.line(surf, (max(0, r), max(0, g), max(0, b)),
+                             (0, y), (W, y))
+        # Bright crust at top
+        pygame.draw.rect(surf, (255, 220, 100), (0, 0, W, 4))
+        pygame.draw.rect(surf, (255, 255, 180), (0, 0, W, 1))
+        # Bubble specks
+        for _ in range(W // 40):
+            bx = random.randint(10, W - 10)
+            by = random.randint(6, H - 4)
+            pygame.draw.circle(surf, (255, 200, 80), (bx, by), 2)
+        return surf
+
+    def update(self, dt: float) -> None:  # type: ignore[override]
+        self._wave_timer += dt
+        if self.paused:
+            self.pause_timer -= dt
+            if self.pause_timer <= 0:
+                self.paused = False
+        else:
+            self.current_y -= LAVA_RISE_SPEED * dt  # y decreases as lava rises
+            # Check pause points
+            if self._next_pause_idx < len(self.pause_ys):
+                target = self.pause_ys[self._next_pause_idx]
+                if self.current_y <= target:
+                    self.current_y = float(target)
+                    self.paused = True
+                    self.pause_timer = LAVA_PAUSE_SEC
+                    self._next_pause_idx += 1
+        # Subtle wave offset on y
+        wave_y = int(self.current_y) + int(math.sin(self._wave_timer * 3) * 2)
+        self.rect.y = wave_y
+
+
+class MagmaLeaper(pygame.sprite.Sprite):
+    """Fiery creature that leaps out of the lava in arcs."""
+
+    is_stompable: bool = True
+
+    def __init__(self, x: int, y: int, patrol_width: float = 0.0) -> None:
+        super().__init__()
+        W, H = 30, 30
+        self._base = pygame.Surface((W, H), pygame.SRCALPHA)
+        pygame.draw.ellipse(self._base, (220, 80, 30), (0, 0, W, H))
+        pygame.draw.ellipse(self._base, (255, 150, 50), (4, 2, W - 8, H - 8))
+        pygame.draw.circle(self._base, (255, 240, 120), (W // 2, H // 2), 6)
+        # Fiery eyes
+        pygame.draw.circle(self._base, COL_WHITE, (W // 2 - 5, H // 2 - 2), 2)
+        pygame.draw.circle(self._base, COL_WHITE, (W // 2 + 5, H // 2 - 2), 2)
+        pygame.draw.circle(self._base, COL_BLACK, (W // 2 - 5, H // 2 - 2), 1)
+        pygame.draw.circle(self._base, COL_BLACK, (W // 2 + 5, H // 2 - 2), 1)
+        self.image = self._base
+        # Spawn far below, then leap periodically
+        self.start_x = float(x)
+        self.start_y = float(y)
+        self.rect = self.image.get_rect(center=(x, y + 200))  # submerged
+        self._px, self._py = self.start_x, self.start_y + 200
+        self._vy = 0.0
+        self.state = "submerged"  # submerged / leaping / falling
+        self.leap_timer: float = random.uniform(1.0, LEAPER_INTERVAL)
+        self.alive_flag = True
+        self.flash: float = 0.0
+
+    def update(self, dt: float, platforms=None, player=None) -> None:  # type: ignore[override]
+        if not self.alive_flag:
+            return
+        if self.flash > 0:
+            self.flash -= dt
+        if self.state == "submerged":
+            self.leap_timer -= dt
+            if self.leap_timer <= 0:
+                self.state = "leaping"
+                self._vy = LEAPER_JUMP
+                # Leap from current x position; slightly track toward player
+                if player is not None:
+                    dx = player.rect.centerx - self._px
+                    self._px += max(-100, min(100, dx * 0.3))
+                self._py = self.start_y
+        elif self.state in ("leaping", "falling"):
+            self._vy += GRAVITY * dt
+            self._py += self._vy * dt
+            if self._vy > 0:
+                self.state = "falling"
+            if self._py > self.start_y + 200:
+                # Back under
+                self.state = "submerged"
+                self.leap_timer = LEAPER_INTERVAL
+                self._py = self.start_y + 200
+        self.rect.center = (int(self._px), int(self._py))
+        # Flash on hit
+        if self.flash > 0:
+            img = self._base.copy()
+            img.fill((255, 255, 255, 80), special_flags=pygame.BLEND_RGBA_ADD)
+            self.image = img
+        else:
+            self.image = self._base
+
+    def die(self) -> None:
+        self.alive_flag = False
+        self.kill()
+
+    def alive(self) -> bool:  # type: ignore[override]
+        return self.alive_flag
+
+
+# ===================================================================
+# LEVEL 16: TIDAL LOCKS -- TimedGate + TidalCrab
+# ===================================================================
+
+class TimedGate(pygame.sprite.Sprite):
+    """Platform that cycles between solid and intangible.
+
+    Gates in group A are solid while group B is intangible, then swap.
+    Added/removed from platforms_group automatically.
+    """
+
+    # Shared class-level clock so all gates stay in sync
+    _global_timer: float = 0.0
+
+    def __init__(self, x: int, y: int, w: int, h: int,
+                 group_id: str, platforms_group: pygame.sprite.Group) -> None:
+        super().__init__()
+        self.group_id = group_id  # "A" or "B"
+        self._platforms_group = platforms_group
+        self.rect = pygame.Rect(x, y, w, h)
+        self._solid_img = self._make_surf(w, h, lit=True)
+        self._intangible_img = self._make_surf(w, h, lit=False)
+        self.solid: bool = (group_id == "A")  # A starts solid, B starts intangible
+        self.image = self._solid_img if self.solid else self._intangible_img
+        if self.solid:
+            platforms_group.add(self)
+        self._flicker: float = 0.0
+
+    @staticmethod
+    def _make_surf(w: int, h: int, lit: bool) -> pygame.Surface:
+        surf = pygame.Surface((w, h), pygame.SRCALPHA)
+        if lit:
+            # Solid stone with glowing cyan runes
+            pygame.draw.rect(surf, (80, 100, 130), (0, 0, w, h))
+            pygame.draw.rect(surf, (140, 180, 220), (0, 0, w, 3))
+            pygame.draw.rect(surf, (60, 80, 110), (0, h - 3, w, 3))
+            # Cyan rune dots
+            for i in range(w // 24):
+                rx = 12 + i * 24
+                if rx < w - 6:
+                    pygame.draw.circle(surf, (80, 220, 255),
+                                      (rx, h // 2), 3)
+        else:
+            # Ghostly outline
+            pygame.draw.rect(surf, (80, 100, 130, 60), (0, 0, w, h))
+            pygame.draw.rect(surf, (140, 180, 220, 120), (0, 0, w, h), 2)
+            for i in range(w // 24):
+                rx = 12 + i * 24
+                if rx < w - 6:
+                    pygame.draw.circle(surf, (80, 180, 220, 80),
+                                      (rx, h // 2), 3, 1)
+        return surf
+
+    @classmethod
+    def tick_global(cls, dt: float) -> None:
+        cls._global_timer += dt
+        if cls._global_timer >= GATE_CYCLE_SEC:
+            cls._global_timer = 0.0
+
+    def update(self, dt: float) -> None:  # type: ignore[override]
+        # Flicker during telegraph phase
+        in_phase_a = TimedGate._global_timer < (GATE_CYCLE_SEC * 0.5)
+        time_until_swap = (GATE_CYCLE_SEC * 0.5) - (
+            TimedGate._global_timer % (GATE_CYCLE_SEC * 0.5))
+        flickering = time_until_swap < GATE_TELEGRAPH_SEC
+
+        should_be_solid = (self.group_id == "A") == in_phase_a
+        if should_be_solid and not self.solid:
+            self.solid = True
+            self._platforms_group.add(self)
+        elif not should_be_solid and self.solid:
+            self.solid = False
+            self._platforms_group.remove(self)
+        # Choose image with flicker
+        if flickering and self.solid:
+            # Alternate between solid and intangible at 10Hz
+            t = pygame.time.get_ticks()
+            self.image = self._solid_img if (t // 100) % 2 == 0 else self._intangible_img
+        else:
+            self.image = self._solid_img if self.solid else self._intangible_img
+
+
+class TidalCrab(pygame.sprite.Sprite):
+    """Patrols on gates. Falls when its gate vanishes, relocates on landing."""
+
+    is_stompable: bool = True
+
+    def __init__(self, x: int, y: int, patrol_width: float = 150.0) -> None:
+        super().__init__()
+        W, H = 30, 22
+        self._left = pygame.Surface((W, H), pygame.SRCALPHA)
+        # Teal body
+        pygame.draw.ellipse(self._left, (80, 140, 160), (3, 4, W - 6, H - 6))
+        # Orange claws
+        pygame.draw.circle(self._left, (220, 130, 60), (3, H // 2), 4)
+        pygame.draw.circle(self._left, (220, 130, 60), (W - 3, H // 2), 4)
+        # Eye stalks
+        pygame.draw.line(self._left, (80, 140, 160),
+                         (W // 2 - 3, 5), (W // 2 - 3, 1), 1)
+        pygame.draw.line(self._left, (80, 140, 160),
+                         (W // 2 + 3, 5), (W // 2 + 3, 1), 1)
+        pygame.draw.circle(self._left, COL_BLACK, (W // 2 - 3, 1), 1)
+        pygame.draw.circle(self._left, COL_BLACK, (W // 2 + 3, 1), 1)
+        self._right = pygame.transform.flip(self._left, True, False)
+        self.image = self._left
+        self.rect = self.image.get_rect(bottomleft=(x, y))
+        self._px = float(x)
+        self._py = float(y - H)
+        self.vx = -TIDAL_CRAB_SPEED
+        self.vy = 0.0
+        self.start_x = x
+        self.patrol_width = patrol_width
+        self.alive_flag = True
+        self.flash: float = 0.0
+
+    def update(self, dt: float, platforms, player) -> None:  # type: ignore[override]
+        if not self.alive_flag:
+            return
+        if self.flash > 0:
+            self.flash -= dt
+        # Gravity
+        self.vy += GRAVITY * dt
+        if self.vy > TERMINAL_VELOCITY:
+            self.vy = TERMINAL_VELOCITY
+        # X movement + patrol bounds
+        self._px += self.vx * dt
+        if self._px < self.start_x - self.patrol_width:
+            self._px = self.start_x - self.patrol_width
+            self.vx = abs(self.vx)
+        elif self._px > self.start_x + self.patrol_width:
+            self._px = self.start_x + self.patrol_width
+            self.vx = -abs(self.vx)
+        self.image = self._left if self.vx < 0 else self._right
+        # Y movement
+        self._py += self.vy * dt
+        self.rect.x = int(self._px)
+        self.rect.y = int(self._py)
+        # Floor collision (via platforms group)
+        hit = pygame.sprite.spritecollideany(self, platforms)
+        if hit and self.vy > 0:
+            self.rect.bottom = hit.rect.top
+            self._py = float(self.rect.y)
+            self.vy = 0.0
+        # Fall off screen if gate vanishes
+        if self.rect.top > 600:
+            self._py = -40.0  # respawn up top, re-fall
+            self.rect.y = int(self._py)
+        if self.flash > 0:
+            img = self.image.copy()
+            img.fill((255, 255, 255, 80), special_flags=pygame.BLEND_RGBA_ADD)
+            self.image = img
+
+    def die(self) -> None:
+        self.alive_flag = False
+        self.kill()
+
+    def alive(self) -> bool:  # type: ignore[override]
+        return self.alive_flag
+
+
+# ===================================================================
+# LEVEL 17: PHANTOM CORRIDOR -- TeleportPortal + PhaseWraith
+# ===================================================================
+
+_PORTAL_PAIR_COLORS = [
+    (0, 220, 255), (255, 80, 220), (255, 200, 50), (120, 255, 120),
+]
+
+
+class TeleportPortal(pygame.sprite.Sprite):
+    """Linked portal. Entering transports player to partner's position."""
+
+    def __init__(self, x: int, y: int, pair_id: int) -> None:
+        super().__init__()
+        self.pair_id = pair_id
+        self.color = _PORTAL_PAIR_COLORS[pair_id % len(_PORTAL_PAIR_COLORS)]
+        self.partner: TeleportPortal | None = None
+        self.active: bool = True
+        self.cooldown: float = 0.0
+        self._rot: float = 0.0
+        self._w, self._h = 44, 64
+        self.rect = pygame.Rect(0, 0, self._w, self._h)
+        self.rect.midbottom = (x, y)
+        self.image = self._make_surf()
+
+    def _make_surf(self) -> pygame.Surface:
+        W, H = self._w, self._h
+        surf = pygame.Surface((W, H), pygame.SRCALPHA)
+        alpha_scale = 1.0 if self.active else 0.4
+        cr, cg, cb = self.color
+        # Outer glowing ring
+        for r, a_f in ((1.0, 80), (0.8, 140), (0.6, 200)):
+            w2 = int(W * r)
+            h2 = int(H * r)
+            ox = (W - w2) // 2
+            oy = (H - h2) // 2
+            alpha = int(a_f * alpha_scale)
+            pygame.draw.ellipse(surf, (cr, cg, cb, alpha),
+                                (ox, oy, w2, h2), 2)
+        # Swirl lines
+        cx, cy = W // 2, H // 2
+        for i in range(4):
+            angle = self._rot + i * math.pi / 2
+            x1 = cx + int(math.cos(angle) * W * 0.25)
+            y1 = cy + int(math.sin(angle) * H * 0.25)
+            x2 = cx + int(math.cos(angle) * W * 0.4)
+            y2 = cy + int(math.sin(angle) * H * 0.4)
+            pygame.draw.line(surf, (cr, cg, cb, int(220 * alpha_scale)),
+                             (x1, y1), (x2, y2), 2)
+        # Core
+        pygame.draw.circle(surf, (255, 255, 255, int(200 * alpha_scale)),
+                          (cx, cy), 5)
+        return surf
+
+    def teleport(self) -> None:
+        self.active = False
+        self.cooldown = PORTAL_COOLDOWN_SEC
+
+    def update(self, dt: float) -> None:  # type: ignore[override]
+        self._rot += dt * 3.0
+        if self.cooldown > 0:
+            self.cooldown -= dt
+            if self.cooldown <= 0:
+                self.active = True
+        self.image = self._make_surf()
+
+
+class PhaseWraith(pygame.sprite.Sprite):
+    """Patrols and teleports through nearby active portals."""
+
+    is_stompable: bool = True
+
+    def __init__(self, x: int, y: int, patrol_width: float = 150.0) -> None:
+        super().__init__()
+        W, H = 30, 40
+        self._base = pygame.Surface((W, H), pygame.SRCALPHA)
+        # Ghostly translucent body
+        body_pts = [(W // 2, 2), (W - 4, H // 2), (W - 6, H - 4),
+                    (W // 2, H - 6), (6, H - 4), (4, H // 2)]
+        pygame.draw.polygon(self._base, (180, 140, 220, 160), body_pts)
+        pygame.draw.polygon(self._base, (220, 180, 255, 200), body_pts, 2)
+        # Glowing eyes
+        pygame.draw.circle(self._base, (255, 200, 255),
+                          (W // 2 - 5, H // 2 - 2), 3)
+        pygame.draw.circle(self._base, (255, 200, 255),
+                          (W // 2 + 5, H // 2 - 2), 3)
+        pygame.draw.circle(self._base, COL_BLACK,
+                          (W // 2 - 5, H // 2 - 2), 1)
+        pygame.draw.circle(self._base, COL_BLACK,
+                          (W // 2 + 5, H // 2 - 2), 1)
+        self.image = self._base
+        self.rect = self.image.get_rect(bottomleft=(x, y))
+        self._px = float(x)
+        self._py = float(y - H)
+        self.vx = -WRAITH_SPEED
+        self.start_x = x
+        self.patrol_width = patrol_width
+        self.alive_flag = True
+        self.flash: float = 0.0
+        self.teleport_cooldown: float = 0.0
+
+    def update(self, dt: float, platforms, player) -> None:  # type: ignore[override]
+        if not self.alive_flag:
+            return
+        if self.flash > 0:
+            self.flash -= dt
+        if self.teleport_cooldown > 0:
+            self.teleport_cooldown -= dt
+        self._px += self.vx * dt
+        if self._px < self.start_x - self.patrol_width:
+            self._px = self.start_x - self.patrol_width
+            self.vx = abs(self.vx)
+        elif self._px > self.start_x + self.patrol_width:
+            self._px = self.start_x + self.patrol_width
+            self.vx = -abs(self.vx)
+        self.rect.x = int(self._px)
+        self.rect.y = int(self._py)
+        # Subtle float
+        self._py += math.sin(pygame.time.get_ticks() / 200.0) * 0.3
+        if self.flash > 0:
+            img = self._base.copy()
+            img.fill((255, 255, 255, 80), special_flags=pygame.BLEND_RGBA_ADD)
+            self.image = img
+        else:
+            self.image = self._base
+
+    def teleport_to(self, x: int, y: int) -> None:
+        self._px = float(x)
+        self._py = float(y - self.rect.height)
+        self.teleport_cooldown = 2.0
+
+    def die(self) -> None:
+        self.alive_flag = False
+        self.kill()
+
+    def alive(self) -> bool:  # type: ignore[override]
+        return self.alive_flag
+
+
+# ===================================================================
+# LEVEL 18: THE GRAVITY ENGINE -- GravityZone + GravityDrone
+# ===================================================================
+
+class GravityZone(pygame.sprite.Sprite):
+    """Rectangular zone that alters player gravity while inside.
+
+    Types: 'low' (0.3x), 'high' (2.0x), 'reverse' (-1.0x).
+    """
+
+    def __init__(self, x: int, y: int, w: int, h: int, gravity_type: str) -> None:
+        super().__init__()
+        self.gravity_type = gravity_type
+        self.rect = pygame.Rect(x, y, w, h)
+        self.image = self._make_surf(w, h, gravity_type)
+        self._wave_timer: float = 0.0
+
+    @staticmethod
+    def _make_surf(w: int, h: int, gtype: str) -> pygame.Surface:
+        surf = pygame.Surface((w, h), pygame.SRCALPHA)
+        if gtype == "low":
+            # Pale blue with upward lines
+            surf.fill((100, 180, 255, 30))
+            pygame.draw.rect(surf, (140, 220, 255, 120), (0, 0, w, h), 2)
+            for i in range(0, w, 20):
+                pygame.draw.line(surf, (160, 230, 255, 80),
+                                 (i + 10, h), (i + 10, h - 20), 2)
+                # Arrow up
+                pygame.draw.line(surf, (160, 230, 255, 120),
+                                 (i + 10, h - 20), (i + 6, h - 16), 2)
+                pygame.draw.line(surf, (160, 230, 255, 120),
+                                 (i + 10, h - 20), (i + 14, h - 16), 2)
+        elif gtype == "reverse":
+            # Purple with inverted arrows
+            surf.fill((180, 100, 220, 40))
+            pygame.draw.rect(surf, (220, 140, 255, 140), (0, 0, w, h), 2)
+            for i in range(0, w, 30):
+                # Arrow pointing UP (player falls up)
+                pygame.draw.line(surf, (220, 140, 255, 120),
+                                 (i + 15, h - 10), (i + 15, 10), 2)
+                pygame.draw.line(surf, (220, 140, 255, 140),
+                                 (i + 15, 10), (i + 10, 18), 2)
+                pygame.draw.line(surf, (220, 140, 255, 140),
+                                 (i + 15, 10), (i + 20, 18), 2)
+        else:  # high
+            # Dark red with downward lines
+            surf.fill((180, 40, 40, 35))
+            pygame.draw.rect(surf, (220, 70, 70, 130), (0, 0, w, h), 2)
+            for i in range(0, w, 20):
+                pygame.draw.line(surf, (255, 100, 80, 120),
+                                 (i + 10, 0), (i + 10, 20), 3)
+                pygame.draw.line(surf, (255, 100, 80, 140),
+                                 (i + 10, 20), (i + 6, 16), 2)
+                pygame.draw.line(surf, (255, 100, 80, 140),
+                                 (i + 10, 20), (i + 14, 16), 2)
+        return surf
+
+    def get_multiplier(self) -> float:
+        if self.gravity_type == "low":
+            return GRAVITY_LOW_MULT
+        if self.gravity_type == "high":
+            return GRAVITY_HIGH_MULT
+        return GRAVITY_REVERSE_MULT
+
+    def update(self, dt: float) -> None:  # type: ignore[override]
+        # Static zone; no state to update
+        pass
+
+
+class GravityDrone(pygame.sprite.Sprite):
+    """Hovering mech sphere that pulls the player toward itself."""
+
+    is_stompable: bool = True
+
+    def __init__(self, x: int, y: int, patrol_width: float = 0.0) -> None:
+        super().__init__()
+        W, H = 32, 32
+        self._base = pygame.Surface((W, H), pygame.SRCALPHA)
+        # Metal sphere body
+        pygame.draw.circle(self._base, (100, 110, 130), (W // 2, H // 2), W // 2 - 2)
+        pygame.draw.circle(self._base, (140, 150, 180),
+                          (W // 2 - 3, H // 2 - 3), W // 3)
+        # Glowing core
+        pygame.draw.circle(self._base, (180, 120, 255), (W // 2, H // 2), 5)
+        pygame.draw.circle(self._base, (230, 200, 255), (W // 2, H // 2), 3)
+        # Ring
+        pygame.draw.ellipse(self._base, (180, 150, 220),
+                           (2, H // 2 - 2, W - 4, 4), 2)
+        self.image = self._base
+        self.rect = self.image.get_rect(center=(x, y))
+        self.base_y = float(y)
+        self.alive_flag = True
+        self.flash: float = 0.0
+        self._bob: float = random.uniform(0, 6.28)
+
+    def update(self, dt: float, platforms=None, player=None) -> None:  # type: ignore[override]
+        if not self.alive_flag:
+            return
+        if self.flash > 0:
+            self.flash -= dt
+        self._bob += dt * 2.0
+        self.rect.y = int(self.base_y + math.sin(self._bob) * 6)
+        if self.flash > 0:
+            img = self._base.copy()
+            img.fill((255, 255, 255, 80), special_flags=pygame.BLEND_RGBA_ADD)
+            self.image = img
+        else:
+            self.image = self._base
+
+    def die(self) -> None:
+        self.alive_flag = False
+        self.kill()
+
+    def alive(self) -> bool:  # type: ignore[override]
+        return self.alive_flag

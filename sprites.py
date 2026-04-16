@@ -645,6 +645,14 @@ class Player(pygame.sprite.Sprite):
         # Bamboo throw projectile cooldown
         self.throw_cooldown: float = 0.0
         self.pending_throws: list = []
+        # Gravity multiplier (1.0 normal, 0.3 low, 2.0 high, -1.0 reverse)
+        self.gravity_multiplier: float = 1.0
+        # Ice magic (unlocked after Level 3 boss defeat)
+        self.has_ice_magic: bool = False
+        self.mana: float = 0.0
+        self.mana_max: float = 100.0
+        self.ice_cast_cooldown: float = 0.0
+        self.pending_ice_casts: list = []  # (x, y, direction) tuples
 
     def update(self, dt: float, keys: pygame.key.ScancodeWrapper,
                platforms: pygame.sprite.Group) -> None:
@@ -722,6 +730,14 @@ class Player(pygame.sprite.Sprite):
         if self.throw_cooldown > 0:
             self.throw_cooldown -= dt
 
+        # Ice magic cooldown + mana regen
+        # Mana regenerates to full over 10 seconds (10/sec)
+        if self.has_ice_magic:
+            if self.ice_cast_cooldown > 0:
+                self.ice_cast_cooldown -= dt
+            if self.mana < self.mana_max:
+                self.mana = min(self.mana_max, self.mana + 10.0 * dt)
+
         # ==============================================================
         # X-AXIS MOVEMENT + COLLISION (strictly separated from Y)
         # Use the actual attempted delta (dx) to decide which side to snap
@@ -740,18 +756,23 @@ class Player(pygame.sprite.Sprite):
                 self.velocity_x = 0
                 self._sub_x = 0.0
 
-        # Power-modulated gravity
+        # Power-modulated gravity (multiplied by gravity zone multiplier)
+        g_mult = self.gravity_multiplier
+        effective_gravity = GRAVITY * g_mult
         if self.is_slamming:
-            self.velocity_y += GRAVITY * 1.3 * dt  # heavier drop
-        elif self.is_gliding and self.velocity_y >= 0:
-            # Slow fall while holding jump and airborne
-            self.velocity_y = min(self.velocity_y + GRAVITY * 0.15 * dt, 120.0)
+            self.velocity_y += effective_gravity * 1.3 * dt
+        elif self.is_gliding and self.velocity_y >= 0 and g_mult > 0:
+            # Slow fall while holding jump (only in normal/low gravity)
+            self.velocity_y = min(self.velocity_y + effective_gravity * 0.15 * dt, 120.0)
         elif self.is_wall_sliding and self.velocity_y >= 0:
-            self.velocity_y = min(self.velocity_y + GRAVITY * 0.3 * dt, 150.0)
+            self.velocity_y = min(self.velocity_y + effective_gravity * 0.3 * dt, 150.0)
         else:
-            self.velocity_y += GRAVITY * dt
+            self.velocity_y += effective_gravity * dt
+        # Clamp to terminal velocity (both directions for reverse gravity)
         if self.velocity_y > TERMINAL_VELOCITY:
             self.velocity_y = TERMINAL_VELOCITY
+        elif self.velocity_y < -TERMINAL_VELOCITY:
+            self.velocity_y = -TERMINAL_VELOCITY
         # ==============================================================
         # Y-AXIS MOVEMENT + COLLISION (strictly separated from X)
         # ==============================================================
@@ -888,6 +909,25 @@ class Player(pygame.sprite.Sprite):
                                    1.0 if self.facing_right else -1.0))
         return True
 
+    def cast_ice_spell(self) -> bool:
+        """Cast an ice projectile. Requires full mana and unlock.
+
+        Returns True if cast, False if blocked (no unlock / no mana / cd).
+        """
+        if not self.has_ice_magic:
+            return False
+        if self.ice_cast_cooldown > 0:
+            return False
+        if self.mana < self.mana_max:
+            return False
+        # Consume all mana and set 10s cooldown
+        self.mana = 0.0
+        self.ice_cast_cooldown = 10.0
+        self.pending_ice_casts.append((
+            self.rect.centerx, self.rect.centery,
+            1.0 if self.facing_right else -1.0))
+        return True
+
     def reset_state(self) -> None:
         """Called on level load / respawn to clear any transient locks."""
         self.input_locked = False
@@ -905,6 +945,10 @@ class Player(pygame.sprite.Sprite):
         self.velocity_x = 0.0
         self.velocity_y = 0.0
         self._sub_x = 0.0
+        self.gravity_multiplier = 1.0
+        # Ice magic: reset cooldown + pending cast list, keep has_ice_magic
+        self.ice_cast_cooldown = 0.0
+        self.pending_ice_casts = []
 
     def get_attack_rect(self) -> pygame.Rect:
         """Stab hitbox: fast out, hold, quick retract."""
@@ -1113,6 +1157,69 @@ class BambooShuriken(pygame.sprite.Sprite):
         self.rect = self.image.get_rect(center=old_center)
         self.lifetime -= dt
         if self.lifetime <= 0 or self.pos_y > 600:
+            self.kill()
+
+
+class IceProjectile(pygame.sprite.Sprite):
+    """Ice spell projectile. Travels in a straight line, pierces enemies,
+    explodes at max range or on wall contact. Leaves a freeze particle trail.
+    """
+
+    def __init__(self, x: int, y: int, direction: float) -> None:
+        super().__init__()
+        self._base = self._make_shard()
+        self.image = self._base
+        self.rect = self.image.get_rect(center=(x, y))
+        self.direction = direction
+        self.pos_x = float(x)
+        self.pos_y = float(y)
+        self.vx = 800.0 * direction  # faster than shuriken
+        self.vy = 0.0  # travels straight (no gravity)
+        self.rotation: float = 0.0
+        self.lifetime: float = 1.5  # ~1200px travel range
+        self.damage: int = 999  # instant-kill vs non-boss enemies
+        # Trail buffer
+        self._trail: list[tuple[float, float]] = []
+
+    @staticmethod
+    def _make_shard() -> pygame.Surface:
+        """Glowing cyan-white diamond-shaped ice shard."""
+        W, H = 36, 20
+        surf = pygame.Surface((W, H), pygame.SRCALPHA)
+        # Outer glow halo (concentric ellipses)
+        for r_scale, alpha in [(1.0, 60), (0.8, 120), (0.6, 180)]:
+            w2, h2 = int(W * r_scale), int(H * r_scale)
+            ox, oy = (W - w2) // 2, (H - h2) // 2
+            pygame.draw.ellipse(surf, (140, 220, 255, alpha),
+                                (ox, oy, w2, h2))
+        # Core ice shard (diamond shape)
+        pts = [(2, H // 2), (W // 2, 3), (W - 3, H // 2),
+               (W // 2, H - 3)]
+        pygame.draw.polygon(surf, (200, 240, 255), pts)
+        # Inner highlight
+        pts2 = [(6, H // 2), (W // 2, 6), (W - 7, H // 2), (W // 2, H - 6)]
+        pygame.draw.polygon(surf, (255, 255, 255), pts2)
+        # Tip sparkles
+        pygame.draw.circle(surf, (255, 255, 255), (W - 3, H // 2), 2)
+        pygame.draw.circle(surf, (255, 255, 255), (2, H // 2), 2)
+        return surf
+
+    def update(self, dt: float) -> None:  # type: ignore[override]
+        # Store trail point (for drawing)
+        self._trail.append((self.pos_x, self.pos_y))
+        if len(self._trail) > 8:
+            self._trail.pop(0)
+        self.pos_x += self.vx * dt
+        self.pos_y += self.vy * dt
+        # Flip image horizontally based on direction
+        if self.direction < 0:
+            self.image = pygame.transform.flip(self._base, True, False)
+        else:
+            self.image = self._base
+        self.rect = self.image.get_rect(center=(_fl(self.pos_x),
+                                                _fl(self.pos_y)))
+        self.lifetime -= dt
+        if self.lifetime <= 0 or self.pos_x < -50 or self.pos_x > 8000:
             self.kill()
 
 

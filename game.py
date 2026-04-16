@@ -14,13 +14,15 @@ from config import (
     SCREEN_WIDTH, STARTING_LIVES, STOMP_SCORE, ST_GAME_OVER,
     ST_LEVEL_TRANS, ST_MENU, ST_PAUSED, ST_PLAYING, ST_VICTORY,
     SULFUR_TRAIL_DMG, THERMAL_FORCE, TITLE, BOSS_KILL_SCORE,
+    # Levels 14-18
+    MUSHROOM_BOUNCE, DRONE_RANGE, DRONE_PULL,
 )
 from audio import AudioManager
 from backgrounds import BiomeBackground
 from engine import Camera, ParticleSystem, ScreenShake
 from levels import build_level_state, LevelState
 from save import save_high_score
-from sprites import BambooShuriken, BambooStaff, GlideFeather, Player
+from sprites import BambooShuriken, BambooStaff, GlideFeather, IceProjectile, Player
 from ui import (
     DeathAnimation, GameOverScreen, HUD, LevelTransition,
     PauseOverlay, TitleScreen, VictoryScreen,
@@ -90,6 +92,10 @@ class Game:
         self._glide_used: bool = False
         # Glide persists across levels once collected
         self._has_glide_permanent: bool = False
+        # Ice magic: unlocked on first boss kill (Level 3), persists
+        self._has_ice_magic_permanent: bool = False
+        self._ice_tutorial_timer: float = 0.0
+        self._ice_used: bool = False
         # Hitstop: brief pause on enemy hit for impact feel
         self._hitstop_timer: float = 0.0
         # Level-end outro: Pain-da auto-runs off screen after reaching goal
@@ -161,6 +167,26 @@ class Game:
                 self.screen = pygame.display.set_mode(
                     (SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SCALED)
 
+    def _maybe_unlock_ice_magic(self) -> None:
+        """Grant ice magic on first boss defeat. Persists across levels."""
+        if self._has_ice_magic_permanent:
+            return
+        self._has_ice_magic_permanent = True
+        self.player.has_ice_magic = True
+        self.player.mana = self.player.mana_max  # full mana as reward
+        self._ice_tutorial_timer = 999.0
+        self._ice_used = False
+        self.hud.add_floating_text(
+            "ICE MAGIC UNLOCKED!",
+            self.player.rect.centerx, self.player.rect.top - 40,
+            (140, 220, 255))
+        # Big sparkle burst around player
+        for _ in range(20):
+            self.particles.emit_sparkle(
+                self.player.rect.centerx,
+                self.player.rect.centery, 1)
+        self.audio.play("crystal")
+
     def _on_key_down(self, key: int) -> None:
         if self.state == ST_MENU:
             # If title screen detail popup is open, ESC closes it (not app)
@@ -199,6 +225,18 @@ class Game:
             elif key in (pygame.K_LCTRL, pygame.K_RCTRL, pygame.K_q):
                 if self.player and self.player.throw_bamboo():
                     self.audio.play("stomp")
+            elif key == pygame.K_r:
+                # Cast ice spell (requires boss-kill unlock + full mana)
+                if self.player and self.player.cast_ice_spell():
+                    self.audio.play("crystal")
+                    self._ice_used = True
+                    self._ice_tutorial_timer = 0.0
+                    # Cast burst particles at player
+                    for _ in range(12):
+                        self.particles.emit_sparkle(
+                            self.player.rect.centerx,
+                            self.player.rect.centery, 1)
+                    self.shake.trigger(4, 0.1)
         elif self.state == ST_PAUSED:
             if key == pygame.K_ESCAPE:
                 self.state = ST_PLAYING
@@ -234,6 +272,10 @@ class Game:
         # Glide persists once collected from a GlideFeather pickup
         if self._has_glide_permanent:
             self.player.has_glide = True
+        # Ice magic persists once unlocked from boss kill
+        if self._has_ice_magic_permanent:
+            self.player.has_ice_magic = True
+            self.player.mana = self.player.mana_max  # respawn with full mana
         if self.level.is_icy:
             self.player.friction_mode = "ice"
         else:
@@ -281,6 +323,10 @@ class Game:
         # Glide persists once collected from a GlideFeather pickup
         if self._has_glide_permanent:
             self.player.has_glide = True
+        # Ice magic persists once unlocked from boss kill
+        if self._has_ice_magic_permanent:
+            self.player.has_ice_magic = True
+            self.player.mana = self.player.mana_max  # respawn with full mana
         if self.level.is_icy:
             self.player.friction_mode = "ice"
         else:
@@ -463,11 +509,16 @@ class Game:
                     self.level.projectiles.add(proj)
                     self.level.all_sprites.add(proj)
         self.level.projectiles.update(effective_dt)
-        for proj in pygame.sprite.spritecollide(
-                self.player, self.level.projectiles, True):
-            if self.player.take_damage(PLAYER_DAMAGE):
-                self.shake.trigger()
-                self.audio.play("hit")
+        # Enemy projectiles damage player. Friendly projectiles (shurikens,
+        # ice shards) are thrown by player and must not hurt self.
+        for proj in list(self.level.projectiles):
+            if isinstance(proj, (BambooShuriken, IceProjectile)):
+                continue
+            if proj.rect.colliderect(self.player.rect):
+                if self.player.take_damage(PLAYER_DAMAGE):
+                    self.shake.trigger()
+                    self.audio.play("hit")
+                proj.kill()
 
         # --- Crystal interaction (Level 7: Cave) ---
         for crystal in self.level.crystals:
@@ -477,6 +528,102 @@ class Game:
                 crystal.strike()
                 self.particles.emit_sparkle(crystal.rect.centerx, crystal.rect.centery)
                 self.audio.play("crystal")
+
+        # --- Mushroom springs (Level 14) ---
+        for mush in self.level.mushrooms:
+            mush.update(effective_dt)
+            # Player must be descending and feet contact the cap
+            if (self.player.velocity_y > 0
+                    and mush.compress_timer <= 0
+                    and pygame.sprite.collide_rect(self.player, mush)
+                    and self.player.rect.bottom < mush.rect.centery + 10):
+                self.player.velocity_y = MUSHROOM_BOUNCE
+                self.player.is_on_ground = False
+                # Reset jumps so double-jump is available mid-bounce
+                self.player.jumps_remaining = 2 if self.player.has_double_jump else 1
+                mush.compress()
+                self.particles.emit_sparkle(
+                    mush.rect.centerx, mush.rect.top, 10)
+                self.audio.play("jump")
+
+        # --- Poison spores from SporePuffers (Level 14) ---
+        for enemy in self.level.enemies:
+            if hasattr(enemy, "get_new_spores"):
+                for spore in enemy.get_new_spores():
+                    self.level.poison_spores.add(spore)
+                    self.level.all_sprites.add(spore)
+        self.level.poison_spores.update(effective_dt)
+        for spore in pygame.sprite.spritecollide(
+                self.player, self.level.poison_spores, False):
+            if self.player.take_damage(spore.damage):
+                self.shake.trigger(4, 0.1)
+                self.audio.play("hit")
+                spore.kill()
+
+        # --- Rising lava (Level 15) ---
+        if self.level.rising_lava is not None:
+            self.level.rising_lava.update(effective_dt)
+            # Instant death if player's feet dip into lava
+            if (self.player.rect.bottom > self.level.rising_lava.rect.top + 4
+                    and self.player.invincible_timer <= 0):
+                self.player.health = 0
+                self.player.dead = True
+                self.audio.play("death")
+                self.shake.trigger(12, 0.4)
+
+        # --- Magma leaper projectiles handled in standard enemy update ---
+
+        # --- Timed gates (Level 16) ---
+        if len(self.level.timed_gates) > 0:
+            from biomes import TimedGate
+            TimedGate.tick_global(effective_dt)
+            for gate in self.level.timed_gates:
+                gate.update(effective_dt)
+
+        # --- Teleport portals (Level 17) ---
+        for portal in self.level.portals:
+            portal.update(effective_dt)
+        # Check player overlap with active portals
+        for portal in self.level.portals:
+            if (portal.active
+                    and portal.partner is not None
+                    and pygame.sprite.collide_rect(self.player, portal)):
+                # Teleport player to partner's position
+                target = portal.partner
+                self.player.rect.midbottom = target.rect.midbottom
+                self.player.velocity_x = 0.0
+                self.player.velocity_y = 0.0
+                portal.teleport()
+                target.teleport()
+                self.player.invincible_timer = max(
+                    self.player.invincible_timer, 0.3)
+                self.particles.emit_sparkle(
+                    portal.rect.centerx, portal.rect.centery, 12)
+                self.particles.emit_sparkle(
+                    target.rect.centerx, target.rect.centery, 12)
+                self.audio.play("crystal")
+                break  # one teleport per frame
+
+        # --- Gravity zones (Level 18) ---
+        # Determine which zone the player is in (if any)
+        active_multiplier = 1.0
+        for gz in self.level.gravity_zones:
+            if pygame.sprite.collide_rect(self.player, gz):
+                active_multiplier = gz.get_multiplier()
+                break
+        self.player.gravity_multiplier = active_multiplier
+
+        # --- Gravity drones: pull player toward them ---
+        for enemy in self.level.enemies:
+            if enemy.__class__.__name__ == "GravityDrone" and enemy.alive():
+                dx = enemy.rect.centerx - self.player.rect.centerx
+                dy = enemy.rect.centery - self.player.rect.centery
+                dist = math.hypot(dx, dy)
+                if 10 < dist < DRONE_RANGE:
+                    pull_x = (dx / dist) * DRONE_PULL * effective_dt
+                    pull_y = (dy / dist) * DRONE_PULL * effective_dt
+                    self.player.velocity_x += pull_x
+                    self.player.velocity_y += pull_y
 
         # --- NPCs ---
         for npc in self.level.npcs:
@@ -576,6 +723,45 @@ class Game:
                     shur.kill()
                     break
 
+        # Spawn pending ice casts
+        if self.player.pending_ice_casts:
+            for (ix, iy, idir) in self.player.pending_ice_casts:
+                ice = IceProjectile(ix, iy, idir)
+                self.level.projectiles.add(ice)
+                self.level.all_sprites.add(ice)
+            self.player.pending_ice_casts.clear()
+
+        # Ice projectile pierces all non-boss enemies (frozen shatter)
+        for ice in list(self.level.projectiles):
+            if not isinstance(ice, IceProjectile):
+                continue
+            for enemy in list(self.level.enemies):
+                if (getattr(enemy, "alive_flag", True)
+                        and ice.rect.colliderect(enemy.rect)):
+                    # Ice CAN kill invincibles -- it freezes them
+                    enemy.die()
+                    self.player.score += STOMP_SCORE
+                    # Big ice-shatter burst
+                    for _ in range(8):
+                        self.particles.emit_sparkle(
+                            enemy.rect.centerx, enemy.rect.centery, 1)
+                    self.particles.emit_death(
+                        enemy.rect.centerx, enemy.rect.centery, 10)
+                    self.audio.play("crystal")
+                    # Don't kill the ice shard -- it pierces
+            # Boss: deal 1 hit if stunned
+            if (self.level.boss and self.level.boss.alive()
+                    and self.level.boss.stunned
+                    and ice.rect.colliderect(self.level.boss.rect)):
+                killed = self.level.boss.take_hit()
+                self.audio.play("boss_hit")
+                self.shake.trigger(6, 0.15)
+                if killed:
+                    self.particles.emit_death(
+                        self.level.boss.rect.centerx,
+                        self.level.boss.rect.centery, 30)
+                    self.player.score += BOSS_KILL_SCORE
+
         # Bamboo staff attack hits ALL enemies (even bats/flying that can't be stomped)
         # The staff is a weapon -- it damages what a foot cannot.
         if self.player.is_attacking:
@@ -612,6 +798,7 @@ class Game:
                             self.level.boss.rect.centerx,
                             self.level.boss.rect.centery, 30)
                         self.player.score += BOSS_KILL_SCORE
+                        self._maybe_unlock_ice_magic()
 
         # Enemy collisions (stomp or damage)
         for enemy in pygame.sprite.spritecollide(
@@ -662,6 +849,7 @@ class Game:
                                 f"+{BOSS_KILL_SCORE}",
                                 self.level.boss.rect.centerx,
                                 self.level.boss.rect.top, COL_GOLD)
+                            self._maybe_unlock_ice_magic()
                     else:
                         # NON-STUNNED head-camp: boss shakes player off with
                         # a strong sideways knockback + damage. No free ride.
@@ -804,6 +992,20 @@ class Game:
             if dec.rect.colliderect(visible):
                 self.screen.blit(dec.image, dec.rect.move(cam_x, cam_y))
 
+        # Ice projectile trails (drawn BEFORE the shard itself for depth)
+        for sprite in self.level.projectiles:
+            if isinstance(sprite, IceProjectile) and sprite._trail:
+                for idx, (tx, ty) in enumerate(sprite._trail):
+                    alpha = int(180 * (idx + 1) / len(sprite._trail))
+                    r = 4 + idx
+                    glow = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
+                    pygame.draw.circle(glow, (160, 220, 255, alpha),
+                                      (r, r), r)
+                    self.screen.blit(
+                        glow,
+                        (int(tx) - r + cam_x, int(ty) - r + cam_y),
+                        special_flags=pygame.BLEND_RGBA_ADD)
+
         for sprite in self.level.all_sprites:
             if not sprite.rect.colliderect(visible):
                 continue
@@ -919,6 +1121,10 @@ class Game:
         # Glide tutorial hint -- persistent banner until first glide
         if (self.player.has_glide and not self._glide_used):
             self._draw_glide_hint()
+
+        # Ice magic tutorial hint -- persistent until first cast
+        if (self.player.has_ice_magic and not self._ice_used):
+            self._draw_ice_hint()
 
         # --- NPC dialog box at bottom of screen ---
         active_npc = None
@@ -1065,6 +1271,33 @@ class Game:
         # Stack below weapon hint if both are showing
         by = 160 if (self.player.has_bamboo_weapon
                      and not self._weapon_used) else 96
+        bg = pygame.Surface((w, h), pygame.SRCALPHA)
+        bg.fill((15, 25, 40, alpha))
+        pygame.draw.rect(bg, (140, 220, 255), (0, 0, w, h), 3, border_radius=6)
+        self.screen.blit(bg, (bx, by))
+        self.screen.blit(title, title.get_rect(center=(SCREEN_WIDTH // 2, by + 18)))
+        self.screen.blit(hint, hint.get_rect(center=(SCREEN_WIDTH // 2, by + 42)))
+
+    def _draw_ice_hint(self) -> None:
+        """Persistent banner teaching the player how to cast ice."""
+        t = pygame.time.get_ticks() / 200.0
+        alpha = int(180 + 55 * math.sin(t))
+        font_big = pygame.font.SysFont("consolas", 22, bold=True)
+        font_small = pygame.font.SysFont("consolas", 14)
+        title = font_big.render("ICE MAGIC UNLOCKED!", True, (140, 220, 255))
+        hint = font_small.render(
+            "Press  [ R ]  to cast Ice Shard  (10s cooldown)",
+            True, (230, 230, 230))
+        w = max(title.get_width(), hint.get_width()) + 32
+        h = 58
+        bx = (SCREEN_WIDTH - w) // 2
+        # Stack below other hints if showing
+        offset = 0
+        if self.player.has_bamboo_weapon and not self._weapon_used:
+            offset += 64
+        if self.player.has_glide and not self._glide_used:
+            offset += 64
+        by = 96 + offset
         bg = pygame.Surface((w, h), pygame.SRCALPHA)
         bg.fill((15, 25, 40, alpha))
         pygame.draw.rect(bg, (140, 220, 255), (0, 0, w, h), 3, border_radius=6)
