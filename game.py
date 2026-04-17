@@ -405,26 +405,25 @@ class Game:
                 return
 
         # Moving platforms -- player inherits platform velocity when standing on it.
-        # Critical: detect riding BEFORE the platform moves, then TELEPORT player
-        # to stay on platform surface. Fixes vertical-platform fall-through.
+        # Detect riding BEFORE the platform moves, then SNAP player after.
+        # Wider tolerance for vertical platforms where gravity can push
+        # the player below the surface between frames.
         for mp in self.level.moving_platforms:
             old_mx, old_my = mp.rect.x, mp.rect.y
-            # Broader riding test: player must be touching platform top within 6px
             feet_y = self.player.rect.bottom
             plat_top = old_my
-            horiz_overlap = (self.player.rect.right > old_mx - 2
-                             and self.player.rect.left < old_mx + mp.rect.w + 2)
-            was_riding = (horiz_overlap and -6 <= (feet_y - plat_top) <= 6)
+            horiz_overlap = (self.player.rect.right > old_mx - 4
+                             and self.player.rect.left < old_mx + mp.rect.w + 4)
+            # Wider vertical tolerance: 10px window catches gravity drift
+            was_riding = (horiz_overlap and -10 <= (feet_y - plat_top) <= 10)
             mp.update_moving(effective_dt)
             if was_riding:
                 dx = mp.rect.x - old_mx
                 dy = mp.rect.y - old_my
                 self.player.rect.x += dx
-                # Snap player bottom to platform top exactly (anti-clip)
+                # ALWAYS snap player bottom to platform top (prevents fall-through)
                 self.player.rect.bottom = mp.rect.top
-                # Kill any downward velocity so gravity doesn't fight the platform
-                if self.player.velocity_y > 0:
-                    self.player.velocity_y = 0
+                self.player.velocity_y = 0
                 self.player.is_on_ground = True
 
         # Player
