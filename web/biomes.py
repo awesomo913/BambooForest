@@ -7,6 +7,10 @@ import random
 from math import floor as _fl
 
 import pygame
+# Pygbag/WASM: explicit lazy submodule imports (see web/main.py for why)
+import pygame.sprite  # noqa: F401
+import pygame.transform  # noqa: F401
+import pygame.draw  # noqa: F401
 
 from config import (
     ASH_BAT_RANGE, ASH_BAT_SWOOP, BRINE_DMG_RADIUS, BRINE_GROW_RATE,

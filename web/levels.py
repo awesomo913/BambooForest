@@ -6,6 +6,7 @@ import random
 from dataclasses import dataclass, field
 
 import pygame
+import pygame.sprite  # noqa: F401 -- Pygbag lazy submodule
 
 from config import FLOOR_Y, LEVEL_WIDTHS, SCREEN_HEIGHT
 from sprites import (

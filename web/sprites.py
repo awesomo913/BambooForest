@@ -7,6 +7,12 @@ import random
 from math import floor as _fl
 
 import pygame
+# Pygbag/WASM: explicitly import lazy submodules so pygame.sprite.Sprite
+# and pygame.transform.* etc. resolve during class definition.
+import pygame.sprite  # noqa: F401
+import pygame.transform  # noqa: F401
+import pygame.draw  # noqa: F401
+import pygame.font  # noqa: F401
 
 from config import (
     BOSS_CHARGE_SPEED, BOSS_HP, BOSS_IDLE_SEC, BOSS_SIZE,
