@@ -1,4 +1,11 @@
-"""Procedural sound effect generation via WAV synthesis."""
+"""Procedural sound effect generation via WAV synthesis.
+
+WEB BUILD NOTE: `from __future__ import annotations` is critical here.
+Pygbag's WASM build may not always expose `pygame.mixer`, so we defer
+evaluation of type annotations so the module can import cleanly.
+"""
+
+from __future__ import annotations
 
 import array
 import math
@@ -104,16 +111,30 @@ class AudioManager:
 
     def __init__(self) -> None:
         self.enabled = True
-        self.sounds: dict[str, pygame.mixer.Sound] = {}
+        self.sounds: dict = {}
         self._last_play_time: dict[str, float] = {}
+        # Web build: mixer may be unavailable. Catch ANY failure and
+        # disable audio gracefully instead of crashing the whole game.
+        if not hasattr(pygame, "mixer"):
+            self.enabled = False
+            return
         try:
             pygame.mixer.init(SAMPLE_RATE, -16, 1, 512)
-            # Reserve 12 channels for polyphony (pygame default is 8)
             pygame.mixer.set_num_channels(16)
-        except pygame.error:
+        except (pygame.error, AttributeError, Exception):
             self.enabled = False
             return
 
+        try:
+            self._build_sounds()
+        except (pygame.error, AttributeError, Exception):
+            self.enabled = False
+            self.sounds = {}
+            return
+
+    def _build_sounds(self) -> None:
+        """Build all procedural sounds. Wrapped so any single failure
+        doesn't take down the whole audio system."""
         self.sounds["jump"] = _to_sound(
             _apply_envelope(_sweep_samples(200, 600, 0.15, 0.35), 0.005, 0.04)
         )
