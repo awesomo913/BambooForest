@@ -417,11 +417,13 @@ class Game:
             # Wider vertical tolerance: 10px window catches gravity drift
             was_riding = (horiz_overlap and -10 <= (feet_y - plat_top) <= 10)
             mp.update_moving(effective_dt)
-            if was_riding:
+            # CRITICAL: only snap to platform if player is NOT jumping up.
+            # Active upward velocity (velocity_y < 0) means the player just
+            # pressed jump -- we must not drag them back down.
+            if was_riding and self.player.velocity_y >= 0:
                 dx = mp.rect.x - old_mx
                 dy = mp.rect.y - old_my
                 self.player.rect.x += dx
-                # ALWAYS snap player bottom to platform top (prevents fall-through)
                 self.player.rect.bottom = mp.rect.top
                 self.player.velocity_y = 0
                 self.player.is_on_ground = True
