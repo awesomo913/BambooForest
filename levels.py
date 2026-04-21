@@ -889,7 +889,7 @@ def _build_level_14() -> LevelDef:
         ],
         crystal_positions=[(700, FLOOR_Y), (3900, FLOOR_Y)],
         trenches=[(1250, 1400), (3700, 3850)],
-        glide_positions=[(5400, 300)],
+        glide_positions=[(5200, FLOOR_Y)],
         npc_defs=[(5400, FLOOR_Y, "Myco",
                    ["Land on the mushroom caps to bounce super high!",
                     "Watch out -- specters track you in the air!"],
