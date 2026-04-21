@@ -23,10 +23,12 @@
   <!-- ═══ HERO ═══ -->
   <section id="hero">
     <div class="hero-inner">
-      <h1>Revolutionary<br>Designs</h1>
-      <!-- TODO: Replace with your tagline -->
-      <p class="tagline">Games, tools, and experiments.</p>
-      <a href="/game/" class="btn-primary">Play Bamboo Forest →</a>
+      <h1>
+        <span id="hero-line1"></span><br>
+        <span id="hero-line2"></span><span class="cursor-blink" id="hero-cursor">|</span>
+      </h1>
+      <p class="tagline hero-reveal">Games, tools, and experiments.</p>
+      <a href="/game/" class="btn-primary hero-reveal">Play Bamboo Forest →</a>
     </div>
   </section>
 
@@ -35,7 +37,24 @@
     <div class="section-inner">
       <h2>Projects</h2>
       <div class="projects-grid" id="projects-grid">
-        <!-- Cards are injected by loadProjects() below -->
+
+        <!-- ── Typing Speed Test — Coming Soon ── -->
+        <article class="project-card project-card--featured">
+          <div class="project-body">
+            <div class="badge-row">
+              <span class="badge-coming-soon">Coming Soon</span>
+              <span class="badge-android">Android</span>
+            </div>
+            <h3>Typing Speed Test</h3>
+            <p>Precision WPM tracking with a clean, distraction-free interface. Fully offline-capable. Launching on Google Play.</p>
+            <div class="project-meta"></div>
+            <div class="project-links">
+              <span class="link-coming-soon">Google Play — Coming Soon</span>
+            </div>
+          </div>
+        </article>
+
+        <!-- Dynamic GitHub repo cards injected below -->
         <div class="projects-loading" id="projects-loading">
           <span class="loading-dot"></span>
           <span class="loading-dot"></span>
@@ -76,16 +95,6 @@
           </svg>
           eBay Store
         </a>
-        <!-- TODO: Add your itch.io link
-        <a href="https://YOUR-NAME.itch.io" class="contact-link" target="_blank" rel="noopener">
-          itch.io
-        </a>
-        -->
-        <!-- TODO: Add email link if desired
-        <a href="mailto:your-address-here" class="contact-link">
-          Email
-        </a>
-        -->
       </div>
     </div>
   </section>
@@ -95,7 +104,70 @@
   </footer>
 
   <script>
-    // Language colour map (GitHub's official colours)
+    /* ════════════════════════════════════════════
+       Hero typewriter animation
+       ════════════════════════════════════════════ */
+    function typeWriter(el, text, speed) {
+      return new Promise(resolve => {
+        let i = 0;
+        el.textContent = '';
+        (function next() {
+          if (i < text.length) {
+            el.textContent += text[i++];
+            setTimeout(next, speed);
+          } else {
+            resolve();
+          }
+        })();
+      });
+    }
+
+    async function runHeroAnimation() {
+      const line1   = document.getElementById('hero-line1');
+      const line2   = document.getElementById('hero-line2');
+      const reveals = document.querySelectorAll('.hero-reveal');
+      if (!line1 || !line2) return;
+
+      // Respect reduced-motion preference
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        line1.textContent = 'Revolutionary';
+        line2.textContent = 'Designs';
+        reveals.forEach(el => el.classList.add('hero-reveal--visible'));
+        return;
+      }
+
+      await typeWriter(line1, 'Revolutionary', 55);
+      await new Promise(r => setTimeout(r, 110));
+      await typeWriter(line2, 'Designs', 75);
+      await new Promise(r => setTimeout(r, 360));
+
+      reveals.forEach((el, i) => {
+        setTimeout(() => el.classList.add('hero-reveal--visible'), i * 160);
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', runHeroAnimation);
+
+    /* ════════════════════════════════════════════
+       Scroll-reveal (fade-up on enter viewport)
+       ════════════════════════════════════════════ */
+    const revealObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          revealObserver.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.1 });
+
+    document.querySelectorAll('.section-inner').forEach(el => {
+      el.classList.add('fade-up');
+      revealObserver.observe(el);
+    });
+
+    /* ════════════════════════════════════════════
+       Projects — GitHub API
+       ════════════════════════════════════════════ */
     const LANG_COLORS = {
       Python:     '#3572A5',
       JavaScript: '#f1e05a',
@@ -111,13 +183,11 @@
       Java:       '#b07219',
     };
 
-    // Repos that get a special "Play →" button linking to the in-browser game
     const PLAYABLE = {
       BambooForest: '/game/',
     };
 
     function humanName(repoName) {
-      // "BambooForest" → "Bamboo Forest", "claude-token-saver" → "Claude Token Saver"
       return repoName
         .replace(/([a-z])([A-Z])/g, '$1 $2')
         .replace(/[-_]/g, ' ')
@@ -176,7 +246,6 @@
 
         const repos = await res.json();
 
-        // Sort: BambooForest pinned first, then by updated_at descending
         const sorted = repos
           .filter(r => !r.fork && !r.private)
           .sort((a, b) => {
