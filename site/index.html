@@ -34,40 +34,18 @@
   <section id="projects">
     <div class="section-inner">
       <h2>Projects</h2>
-      <div class="projects-grid">
-
-        <!-- Bamboo Forest -->
-        <article class="project-card">
-          <div class="project-thumb-wrap">
-            <img src="favicon.png" alt="Bamboo Forest icon" class="project-thumb">
-          </div>
-          <div class="project-body">
-            <h3>Bamboo Forest</h3>
-            <p>A platformer built in Python/Pygame and compiled to WebAssembly — playable right in your browser.</p>
-            <div class="project-links">
-              <a href="/game/" class="link-play">Play →</a>
-              <a href="https://github.com/awesomo913/BambooForest" class="link-github" target="_blank" rel="noopener">GitHub ↗</a>
-            </div>
-          </div>
-        </article>
-
-        <!-- TODO: Add more project cards using the template below:
-        <article class="project-card">
-          <div class="project-thumb-wrap">
-            <img src="path/to/thumb.png" alt="Project name" class="project-thumb">
-          </div>
-          <div class="project-body">
-            <h3>Project Name</h3>
-            <p>Short description of what it does.</p>
-            <div class="project-links">
-              <a href="URL" class="link-play">View →</a>
-              <a href="https://github.com/..." class="link-github" target="_blank" rel="noopener">GitHub ↗</a>
-            </div>
-          </div>
-        </article>
-        -->
-
+      <div class="projects-grid" id="projects-grid">
+        <!-- Cards are injected by loadProjects() below -->
+        <div class="projects-loading" id="projects-loading">
+          <span class="loading-dot"></span>
+          <span class="loading-dot"></span>
+          <span class="loading-dot"></span>
+        </div>
       </div>
+      <p class="projects-error" id="projects-error" hidden>
+        Couldn't load projects.
+        <a href="https://github.com/awesomo913" target="_blank" rel="noopener">View on GitHub ↗</a>
+      </p>
     </div>
   </section>
 
@@ -98,7 +76,7 @@
         </a>
         -->
         <!-- TODO: Add email link if desired
-        <a href="mailto:YOUR@EMAIL.com" class="contact-link">
+        <a href="mailto:your-address-here" class="contact-link">
           Email
         </a>
         -->
@@ -109,6 +87,110 @@
   <footer>
     <p>© 2026 Revolutionary Designs</p>
   </footer>
+
+  <script>
+    // Language colour map (GitHub's official colours)
+    const LANG_COLORS = {
+      Python:     '#3572A5',
+      JavaScript: '#f1e05a',
+      TypeScript: '#2b7489',
+      HTML:       '#e34c26',
+      CSS:        '#563d7c',
+      Rust:       '#dea584',
+      Go:         '#00ADD8',
+      'C++':      '#f34b7d',
+      C:          '#555555',
+      Shell:      '#89e051',
+      Ruby:       '#701516',
+      Java:       '#b07219',
+    };
+
+    // Repos that get a special "Play →" button linking to the in-browser game
+    const PLAYABLE = {
+      BambooForest: '/game/',
+    };
+
+    function humanName(repoName) {
+      // "BambooForest" → "Bamboo Forest", "claude-token-saver" → "Claude Token Saver"
+      return repoName
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+        .replace(/[-_]/g, ' ')
+        .replace(/\b\w/g, c => c.toUpperCase());
+    }
+
+    function buildCard(repo) {
+      const name    = humanName(repo.name);
+      const desc    = repo.description || 'No description.';
+      const ghUrl   = repo.html_url;
+      const lang    = repo.language;
+      const stars   = repo.stargazers_count;
+      const playUrl = PLAYABLE[repo.name];
+
+      const langBadge = lang
+        ? `<span class="lang-badge" style="--lang-color:${LANG_COLORS[lang] || '#888'}">
+             <span class="lang-dot"></span>${lang}
+           </span>`
+        : '';
+
+      const starsBadge = stars > 0
+        ? `<span class="stars-badge">★ ${stars}</span>`
+        : '';
+
+      const playLink = playUrl
+        ? `<a href="${playUrl}" class="link-play">Play →</a>`
+        : '';
+
+      return `
+        <article class="project-card">
+          <div class="project-body">
+            <h3><a href="${ghUrl}" target="_blank" rel="noopener" class="project-title-link">${name}</a></h3>
+            <p>${desc}</p>
+            <div class="project-meta">
+              ${langBadge}
+              ${starsBadge}
+            </div>
+            <div class="project-links">
+              ${playLink}
+              <a href="${ghUrl}" class="link-github" target="_blank" rel="noopener">GitHub ↗</a>
+            </div>
+          </div>
+        </article>`;
+    }
+
+    async function loadProjects() {
+      const grid    = document.getElementById('projects-grid');
+      const spinner = document.getElementById('projects-loading');
+      const errMsg  = document.getElementById('projects-error');
+
+      try {
+        const res = await fetch(
+          'https://api.github.com/users/awesomo913/repos?sort=updated&per_page=100'
+        );
+        if (!res.ok) throw new Error(`GitHub API ${res.status}`);
+
+        const repos = await res.json();
+
+        // Sort: BambooForest pinned first, then by updated_at descending
+        const sorted = repos
+          .filter(r => !r.fork && !r.private)
+          .sort((a, b) => {
+            if (a.name === 'BambooForest') return -1;
+            if (b.name === 'BambooForest') return  1;
+            return new Date(b.updated_at) - new Date(a.updated_at);
+          });
+
+        spinner.remove();
+        grid.insertAdjacentHTML('beforeend', sorted.map(buildCard).join(''));
+
+      } catch (err) {
+        console.error('Failed to load GitHub repos:', err);
+        spinner.remove();
+        errMsg.hidden = false;
+      }
+    }
+
+    loadProjects();
+  </script>
 
 </body>
 </html>
