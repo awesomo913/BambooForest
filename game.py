@@ -1045,7 +1045,12 @@ class Game:
         for sprite in self.level.all_sprites:
             if not sprite.rect.colliderect(visible):
                 continue
+            # I-frame blink for combat ONLY. Skip during level-end outro
+            # (invincible_timer is set to 999s there to block damage but we
+            # don't want the player flickering during the victory dance).
             if (sprite is self.player and self.player.invincible_timer > 0
+                    and not self._outro_active
+                    and not self.player.is_victory_dancing
                     and int(self.player.invincible_timer * 10) % 2):
                 continue
             self.screen.blit(sprite.image, sprite.rect.move(cam_x, cam_y))

@@ -7,7 +7,7 @@ import random
 from math import floor as _fl
 
 import pygame
-# Pygbag/WASM: explicit lazy submodule imports (see web/main.py for why)
+# Pygbag/WASM: lazy submodule imports (see web/main.py)
 import pygame.sprite  # noqa: F401
 import pygame.transform  # noqa: F401
 import pygame.draw  # noqa: F401
@@ -2020,8 +2020,10 @@ class HomingSpecter(pygame.sprite.Sprite):
                 self._vx = self._vy = 0
         self._px += self._vx * dt
         self._py += self._vy * dt
-        self.rect.center = (int(self._px), int(self._py))
-        self.rect.y += int(math.sin(pygame.time.get_ticks() / 180.0) * 2)
+        # Compute bob offset and apply in ONE rect.center assignment so the
+        # collision rect always matches the final drawn position.
+        bob = int(math.sin(pygame.time.get_ticks() / 180.0) * 2)
+        self.rect.center = (int(self._px), int(self._py) + bob)
         if self.flash > 0:
             img = self._base.copy()
             img.fill((255, 255, 255, 80), special_flags=pygame.BLEND_RGBA_ADD)

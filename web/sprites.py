@@ -7,8 +7,7 @@ import random
 from math import floor as _fl
 
 import pygame
-# Pygbag/WASM: explicitly import lazy submodules so pygame.sprite.Sprite
-# and pygame.transform.* etc. resolve during class definition.
+# Pygbag/WASM: lazy submodule imports (see web/main.py)
 import pygame.sprite  # noqa: F401
 import pygame.transform  # noqa: F401
 import pygame.draw  # noqa: F401
@@ -615,6 +614,10 @@ class Player(pygame.sprite.Sprite):
 
         self.has_double_jump: bool = False
         self.jumps_remaining: int = 1
+        # Coyote time: brief window after leaving ground where jumps still fire.
+        # Fixes "phantom fall" on moving platforms where the player technically
+        # separates from the surface for 1-2 frames before jump input arrives.
+        self.coyote_timer: float = 0.0
 
         self.friction_mode: str = "normal"  # "normal" or "ice"
         self.dead = False
@@ -666,6 +669,10 @@ class Player(pygame.sprite.Sprite):
                platforms: pygame.sprite.Group) -> None:
         if self.dead:
             return
+
+        # Coyote-time countdown (refreshed on every ground contact below)
+        if self.coyote_timer > 0:
+            self.coyote_timer -= dt
 
         if self.invincible_timer > 0:
             self.invincible_timer -= dt
@@ -810,6 +817,8 @@ class Player(pygame.sprite.Sprite):
                 self.is_on_ground = True
                 self.is_slamming = False  # slam ends on impact
                 self.jumps_remaining = 2 if self.has_double_jump else 1
+                # Refresh coyote time on every ground contact
+                self.coyote_timer = 0.12
             elif dy < 0:
                 # Bonked head on underside
                 self.rect.top = hit.rect.bottom
@@ -824,6 +833,17 @@ class Player(pygame.sprite.Sprite):
         self._update_animation(dt)
 
     def jump(self) -> bool:
+        """Jump the player. Honors coyote time (0.12s window after leaving
+        ground) so platform-separation jitter doesn't silently eat jumps."""
+        # If we just walked off a ledge / a moving platform just dropped
+        # away, jumps_remaining may have been decremented to 0 by an earlier
+        # mid-air double-jump even though we're technically still "groundable".
+        # Coyote time rescues us by restoring a ground-jump.
+        if self.coyote_timer > 0 and self.jumps_remaining < (
+                2 if self.has_double_jump else 1):
+            # Consume coyote to give back the ground-jump
+            self.jumps_remaining = 2 if self.has_double_jump else 1
+            self.coyote_timer = 0.0
         if self.jumps_remaining > 0:
             self.velocity_y = PLAYER_JUMP
             self.jumps_remaining -= 1

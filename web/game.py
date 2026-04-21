@@ -36,7 +36,6 @@ class Game:
     def __init__(self) -> None:
         pygame.init()
         # Web build: plain display mode -- SCALED breaks under WASM/Pyodide.
-        # Browser handles scaling via CSS.
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
         pygame.display.set_caption(TITLE)
         self.clock = pygame.time.Clock()
@@ -93,11 +92,7 @@ class Game:
         self._outro_speed: float = 240.0
 
     async def run(self) -> None:
-        """Async main loop -- required for Pygbag/WebAssembly.
-
-        The `await asyncio.sleep(0)` yields to the browser each frame so
-        it can pump its own event loop (rendering, audio, input).
-        """
+        """Async main loop -- Pygbag/WASM requirement."""
         while self.running:
             dt = self.clock.tick(FPS) / 1000.0
             dt = min(dt, 0.05)
@@ -139,12 +134,7 @@ class Game:
                         self._weapon_tutorial_timer = 0.0
 
     def _toggle_fullscreen(self) -> None:
-        """Fullscreen in browser: handled by browser itself (F11 key).
-
-        Pygame's toggle_fullscreen() can crash Pyodide -- so on web we
-        just tell the user to press browser fullscreen instead.
-        """
-        # Browser build: no-op. Users press browser F11 for real fullscreen.
+        """Browser handles F11 natively; in-game F11 is a no-op."""
         pass
 
     def _maybe_unlock_ice_magic(self) -> None:
@@ -1025,7 +1015,12 @@ class Game:
         for sprite in self.level.all_sprites:
             if not sprite.rect.colliderect(visible):
                 continue
+            # I-frame blink for combat ONLY. Skip during level-end outro
+            # (invincible_timer is set to 999s there to block damage but we
+            # don't want the player flickering during the victory dance).
             if (sprite is self.player and self.player.invincible_timer > 0
+                    and not self._outro_active
+                    and not self.player.is_victory_dancing
                     and int(self.player.invincible_timer * 10) % 2):
                 continue
             self.screen.blit(sprite.image, sprite.rect.move(cam_x, cam_y))
