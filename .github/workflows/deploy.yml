@@ -1,4 +1,4 @@
-name: Build & Deploy Game to GitHub Pages
+name: Build & Deploy Portfolio + Game to GitHub Pages
 
 on:
   push:
@@ -32,13 +32,40 @@ jobs:
         working-directory: web
         run: pygbag --build main.py
 
-      - name: Add CNAME for custom domain
-        run: echo "revolutionarydesigns.io" > web/build/web/CNAME
+      - name: Inject mobile touch-control overlay
+        run: |
+          python3 <<'PY'
+          with open("web/build/web/index.html", "r", encoding="utf-8") as f:
+              html = f.read()
+          with open("web/touch_overlay.html", "r", encoding="utf-8") as f:
+              overlay = f.read()
+          # Inject before </body> so overlay sits above the game canvas
+          if "</body>" in html:
+              html = html.replace("</body>", overlay + "\n</body>", 1)
+          else:
+              # Fallback: just append
+              html = html + "\n" + overlay
+          with open("web/build/web/index.html", "w", encoding="utf-8") as f:
+              f.write(html)
+          print("Touch overlay injected.")
+          PY
+
+      - name: Assemble deployment artifact
+        run: |
+          mkdir -p deploy/game
+          cp site/index.html site/styles.css deploy/
+          cp favicon.png deploy/
+          echo "revolutionarydesigns.io" > deploy/CNAME
+          cp web/build/web/index.html \
+             web/build/web/web.apk \
+             web/build/web/web.tar.gz \
+             web/build/web/favicon.png \
+             deploy/game/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: web/build/web
+          path: deploy
 
   deploy:
     needs: build
