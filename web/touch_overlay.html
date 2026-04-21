@@ -49,26 +49,28 @@
   #tc-attack { right: 184px; bottom: 16px;  background: rgba(200, 80, 80, 0.55); border-color: #fc9; font-size: 18px; }
   #tc-dash   { right: 104px; bottom: 16px;  background: rgba(220, 160, 80, 0.55); border-color: #fc9; font-size: 14px; }
   #tc-jump   { right: 16px;  bottom: 16px;  background: rgba(80, 150, 220, 0.55); border-color: #8fd; }
-  /* START/ENTER -- top-center, big green pill for menu + game-over screens */
+  /* START/ENTER -- sits DIRECTLY above the ATK/DASH/JUMP row on the
+     right side, spanning the width of all three action buttons so the
+     thumb never has to reach. Large + green for easy tap. */
   #tc-start {
-    top: 16px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 160px;
-    height: 60px;
-    border-radius: 30px;
-    bottom: auto;
+    right: 16px;
+    bottom: 104px;      /* 72 (btn) + 16 (bottom margin) + 16 (gap) */
+    width: 240px;       /* covers ATK (right:184) through JUMP (right:16) */
+    height: 52px;
+    border-radius: 26px;
     background: rgba(80, 200, 120, 0.75);
     border-color: #9fd;
     font-size: 22px;
-    letter-spacing: 2px;
+    letter-spacing: 3px;
   }
   #tc-start:active {
-    transform: translateX(-50%) scale(0.95);
+    transform: scale(0.96);
     background: rgba(120, 230, 150, 0.9);
   }
-  /* Widen touch-controls container so bottom-row fits 3 buttons */
+  /* Taller container so START button (bottom:104) isn't clipped */
   #touch-controls { height: 180px; }
+  /* START button needs vertical room beyond the 180px container */
+  #tc-start { z-index: 1001; }
 </style>
 <div id="touch-controls" aria-hidden="true">
   <div class="tc-btn" id="tc-start"  data-key="Enter"      data-code="13">START</div>
