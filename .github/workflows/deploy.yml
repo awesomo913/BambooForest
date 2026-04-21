@@ -32,22 +32,52 @@ jobs:
         working-directory: web
         run: pygbag --build main.py
 
-      - name: Inject mobile touch-control overlay
+      - name: Inject mobile touch overlay + cache-busting
         run: |
           python3 <<'PY'
+          import datetime, os
           with open("web/build/web/index.html", "r", encoding="utf-8") as f:
               html = f.read()
           with open("web/touch_overlay.html", "r", encoding="utf-8") as f:
               overlay = f.read()
-          # Inject before </body> so overlay sits above the game canvas
+
+          # Build stamp (UTC ISO). Visible in touch overlay + HTML comment.
+          build_id = datetime.datetime.utcnow().strftime("%Y%m%d-%H%M")
+          commit = os.environ.get("GITHUB_SHA", "local")[:7]
+
+          # --- 1. Cache-busting meta tags in <head> ---
+          # GitHub Pages serves Cache-Control: max-age=600 which can leave
+          # stale bundles on phones for 10 minutes. Force revalidation.
+          cache_meta = (
+              '<meta http-equiv="Cache-Control" '
+              'content="no-store, no-cache, must-revalidate, max-age=0">\n'
+              '<meta http-equiv="Pragma" content="no-cache">\n'
+              '<meta http-equiv="Expires" content="0">\n'
+              f'<meta name="build-id" content="{build_id}-{commit}">\n'
+          )
+          if "<head>" in html:
+              html = html.replace("<head>", "<head>\n" + cache_meta, 1)
+          elif "</title>" in html:
+              html = html.replace("</title>", "</title>\n" + cache_meta, 1)
+
+          # --- 2. Build stamp chip (tiny, bottom-left of screen) ---
+          stamp = (
+              '<div id="tc-buildstamp" style="position:fixed;left:2px;'
+              'bottom:2px;font:10px monospace;color:rgba(255,255,255,0.35);'
+              'z-index:999;pointer-events:none;user-select:none;">'
+              f'build {build_id} {commit}</div>'
+          )
+
+          # --- 3. Touch overlay before </body> ---
+          inject = overlay + "\n" + stamp
           if "</body>" in html:
-              html = html.replace("</body>", overlay + "\n</body>", 1)
+              html = html.replace("</body>", inject + "\n</body>", 1)
           else:
-              # Fallback: just append
-              html = html + "\n" + overlay
+              html = html + "\n" + inject
+
           with open("web/build/web/index.html", "w", encoding="utf-8") as f:
               f.write(html)
-          print("Touch overlay injected.")
+          print(f"Injected: build {build_id} {commit}")
           PY
 
       - name: Assemble deployment artifact
