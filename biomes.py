@@ -944,27 +944,51 @@ class DustDevil(pygame.sprite.Sprite):
 
     def __init__(self, x: int, y: int, patrol_width: float = 300.0) -> None:
         super().__init__()
-        # Enforce minimum width so small instances still move visibly
+        # Minimum patrol width so movement reads clearly even in tight spaces
         self.patrol_width = max(150.0, patrol_width)
-        # Build a bigger, more readable sandstorm sprite (44x72)
-        W, H = 44, 72
+        # Build a BIG tornado -- wide at top, narrow at ground (real dust-devil shape)
+        W, H = 64, 110
         self._frames = []
-        for frame_offset in range(4):
+        for frame_offset in range(6):
             surf = pygame.Surface((W, H), pygame.SRCALPHA)
+            # Column slabs: width starts wide at top and tapers to narrow point
             for dy in range(0, H, 3):
-                # Wider base, narrower top (tornado shape)
-                base_w = 10 + int(14 * (dy / H))
-                wobble = int(7 * math.sin(dy * 0.15 + frame_offset))
-                w = base_w + wobble
-                # Darker sand at core, lighter at edges
-                alpha = 140 if abs(wobble) < 4 else 90
-                pygame.draw.rect(surf, (*COL_SANDSTONE, alpha),
-                                 (W // 2 - w // 2, dy, w, 3))
-            # Darker swirl lines
-            for i in range(4):
-                sx = (frame_offset * 3 + i * 5) % W
-                pygame.draw.line(surf, (140, 100, 60, 160),
-                                 (sx, 10), (sx + 6, H - 8), 1)
+                frac = dy / H  # 0 at top, 1 at bottom
+                # Wide top (50% of W), narrow bottom (15%)
+                base_w = int(W * (0.5 - 0.35 * frac))
+                # Swirl wobble -- shifts with frame for rotation illusion
+                wobble = int(9 * math.sin(dy * 0.18 + frame_offset * 0.9))
+                w = max(4, base_w + abs(wobble))
+                off_x = wobble // 2
+                # Alpha gradient: more opaque in middle of the column
+                alpha = 180 - int(abs(wobble) * 6)
+                alpha = max(70, min(200, alpha))
+                # Darker sand core, lighter at edges
+                col_core = (150, 110, 65, alpha)
+                col_edge = (200, 170, 120, max(40, alpha - 60))
+                rect_x = (W - w) // 2 + off_x
+                pygame.draw.rect(surf, col_core, (rect_x, dy, w, 3))
+                # Bright edge highlights to catch the eye
+                pygame.draw.rect(surf, col_edge, (rect_x, dy, 2, 3))
+                pygame.draw.rect(surf, col_edge, (rect_x + w - 2, dy, 2, 3))
+            # Rotating debris streaks (darker, diagonal)
+            for i in range(6):
+                sx_top = (frame_offset * 4 + i * 11) % W
+                sx_bot = (sx_top + W // 2) % W  # crossover diagonal
+                pygame.draw.line(surf, (90, 60, 30, 180),
+                                 (sx_top, 4), (sx_bot, H - 6), 2)
+            # Flying sand particles scattered around
+            for _ in range(15):
+                px = random.randint(0, W - 1)
+                py_ = random.randint(0, H - 1)
+                pygame.draw.circle(surf, (220, 190, 130, 200), (px, py_), 1)
+            # Cap at top: wide dark "cloud" cap so it reads as a SANDSTORM
+            cap_w = int(W * 0.55)
+            cap_x = (W - cap_w) // 2
+            pygame.draw.ellipse(surf, (120, 90, 55, 200),
+                                (cap_x, 0, cap_w, 14))
+            pygame.draw.ellipse(surf, (160, 130, 90, 150),
+                                (cap_x + 4, 2, cap_w - 8, 10))
             self._frames.append(surf)
         self.image = self._frames[0]
         self.rect = self.image.get_rect(bottomleft=(x, y))
@@ -972,6 +996,7 @@ class DustDevil(pygame.sprite.Sprite):
         self.pos_x = float(x)
         self.time: float = random.uniform(0, 6.28)
         self.alive_flag = True
+        self._W, self._H = W, H
 
     def update(self, dt: float, platforms: pygame.sprite.Group,
                player=None) -> None:
@@ -979,9 +1004,9 @@ class DustDevil(pygame.sprite.Sprite):
         self.pos_x = self.origin_x + math.sin(self.time) * self.patrol_width * 0.5
         self.pos_x += math.sin(self.time * 2.7) * self.patrol_width * 0.3
         self.rect.x = _fl(self.pos_x)
-        self.rect.y = _fl(FLOOR_Y - 72 + math.sin(self.time * 1.5) * 10)
-        # Cycle through swirl frames for visible animation
-        frame_idx = int(self.time * 8) % len(self._frames)
+        self.rect.y = _fl(FLOOR_Y - self._H + math.sin(self.time * 1.5) * 8)
+        # Fast swirl frame cycle (~16fps) for strong rotation feel
+        frame_idx = int(self.time * 10) % len(self._frames)
         self.image = self._frames[frame_idx]
 
     def die(self) -> None:
@@ -2190,57 +2215,78 @@ class DarkWall(pygame.sprite.Sprite):
         self._crystals = crystals_group
         self._platforms = platforms_group
         self._reveal_range = reveal_range
-        # Deranged / eldritch dark wall visual
-        solid = pygame.Surface((w, h), pygame.SRCALPHA)
-        # Deep pulsing void base
-        solid.fill((15, 5, 30))
-        # Warped cracks and veins
-        for _ in range(max(2, w // 8)):
-            vx = random.randint(4, max(5, w - 4))
-            vy = random.randint(4, max(5, h - 4))
-            vlen = random.randint(10, min(40, h - 4))
-            col = random.choice([(200, 60, 255), (255, 40, 120), (120, 0, 200)])
-            pygame.draw.line(solid, col,
-                            (vx, vy),
-                            (vx + random.randint(-8, 8), vy + vlen), 2)
-        # Eye-like shapes peering through
-        for _ in range(max(1, w // 18)):
-            ex = random.randint(6, max(7, w - 6))
-            ey = random.randint(8, max(9, h - 8))
-            # Outer eye glow
-            pygame.draw.ellipse(solid, (180, 40, 200),
-                               (ex - 5, ey - 3, 10, 6))
-            # Pupil
-            pygame.draw.circle(solid, (255, 0, 80), (ex, ey), 2)
-            pygame.draw.circle(solid, (255, 255, 200), (ex + 1, ey - 1), 1)
-        # Jagged edge border (deranged look)
-        for by in range(0, h, 4):
-            jag = random.randint(0, 3)
-            col = random.choice([(200, 60, 255), (255, 80, 160)])
-            pygame.draw.line(solid, col, (jag, by), (jag, by + 3), 2)
-            pygame.draw.line(solid, col, (w - jag - 1, by), (w - jag - 1, by + 3), 2)
-        # Top/bottom jagged edge
-        for bx in range(0, w, 4):
-            jag = random.randint(0, 3)
-            col = (200, 60, 255)
-            pygame.draw.line(solid, col, (bx, jag), (bx + 3, jag), 2)
-            pygame.draw.line(solid, col, (bx, h - jag - 1), (bx + 3, h - jag - 1), 2)
-        # Scattered corruption dots
-        for _ in range(max(3, w * h // 30)):
-            sx = random.randint(1, max(2, w - 2))
-            sy = random.randint(1, max(2, h - 2))
-            solid.set_at((sx, sy), random.choice([
-                (255, 60, 200), (200, 0, 255), (255, 100, 255), (100, 0, 180)]))
-        self._solid = solid
-        # Faded version when crystal reveals
-        faded = solid.copy()
-        faded.set_alpha(35)
-        self._faded = faded
+        # --- Magical barrier: 4-frame animation with flowing runic energy ---
+        self._frames = []
+        for phase in range(4):
+            surf = pygame.Surface((w, h), pygame.SRCALPHA)
+            # Deep void base with slight violet tint
+            surf.fill((12, 4, 28, 235))
+            # Layered hex-pattern for barrier "mesh" feel
+            for hy in range(-4 + phase * 2, h + 4, 10):
+                pygame.draw.line(surf, (60, 30, 100, 180),
+                                 (0, hy), (w, hy + 4), 1)
+                pygame.draw.line(surf, (60, 30, 100, 180),
+                                 (0, hy + 6), (w, hy + 2), 1)
+            # Runic bars (thick horizontal energy threads)
+            for i, bar_y in enumerate(range(10, h - 10, max(20, h // 4))):
+                # Outer purple glow
+                pygame.draw.rect(surf, (110, 40, 180),
+                                 (3, bar_y - 3, w - 6, 8))
+                # Inner bright cyan-purple core
+                pygame.draw.rect(surf, (200, 140, 255),
+                                 (5, bar_y, w - 10, 2))
+                # Animated flowing highlight packet
+                packet_x = ((phase * 12) + i * 16) % max(12, w - 12)
+                pygame.draw.rect(surf, (255, 230, 255),
+                                 (packet_x, bar_y, 8, 2))
+            # Central runic sigils (circle + cross)
+            for rune_y in [h // 3, 2 * h // 3]:
+                cx = w // 2
+                # Outer ring (pulses with phase)
+                ring_col = (130 + phase * 20, 60 + phase * 10,
+                            200 + phase * 10)
+                pygame.draw.circle(surf, ring_col, (cx, rune_y),
+                                   min(8, w // 3), 2)
+                # Inner filled dot
+                pygame.draw.circle(surf, (200, 100, 230),
+                                   (cx, rune_y), 3)
+                pygame.draw.circle(surf, (255, 220, 255),
+                                   (cx, rune_y), 1)
+                # Cross strokes
+                pygame.draw.line(surf, (255, 200, 255),
+                                 (cx - 6, rune_y), (cx + 6, rune_y), 1)
+                pygame.draw.line(surf, (255, 200, 255),
+                                 (cx, rune_y - 6), (cx, rune_y + 6), 1)
+            # Glowing edge particles climbing up both sides
+            for py_ in range(0, h, 5):
+                offset = (phase * 3 + py_ // 5) % 5
+                pygame.draw.circle(surf, (200, 120, 255),
+                                   (2 + offset, py_), 1)
+                pygame.draw.circle(surf, (200, 120, 255),
+                                   (w - 3 - offset, py_), 1)
+            # Thick bright cap at top and bottom (so it reads as a WALL)
+            pygame.draw.rect(surf, (180, 80, 220), (0, 0, w, 3))
+            pygame.draw.rect(surf, (255, 180, 255), (0, 0, w, 1))
+            pygame.draw.rect(surf, (180, 80, 220), (0, h - 3, w, 3))
+            pygame.draw.rect(surf, (255, 180, 255), (0, h - 1, w, 1))
+            self._frames.append(surf)
+        # Faded frames (shown when nearby crystal is lit -- shows the wall
+        # dissolving, still visible as a ghost so the player sees the passage)
+        self._faded_frames = []
+        for f in self._frames:
+            ff = f.copy()
+            ff.set_alpha(55)
+            self._faded_frames.append(ff)
         self.solid = True
-        self.image = self._solid
+        self.image = self._frames[0]
+        self._frame_timer: float = 0.0
         platforms_group.add(self)
 
     def update(self, dt):
+        # Animate across 4 frames at ~6 fps
+        self._frame_timer += dt
+        frame_idx = int(self._frame_timer * 6) % 4
+
         nearby_lit = False
         for cr in self._crystals:
             if getattr(cr, 'is_lit', lambda: False)():
@@ -2253,8 +2299,11 @@ class DarkWall(pygame.sprite.Sprite):
         if should_solid and not self.solid:
             self.solid = True
             self._platforms.add(self)
-            self.image = self._solid
         elif not should_solid and self.solid:
             self.solid = False
             self._platforms.remove(self)
-            self.image = self._faded
+        # Pick frame from active (solid) or faded bank every tick
+        if self.solid:
+            self.image = self._frames[frame_idx]
+        else:
+            self.image = self._faded_frames[frame_idx]

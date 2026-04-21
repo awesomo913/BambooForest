@@ -21,14 +21,14 @@
   }
   .tc-btn {
     position: absolute;
-    width: 72px;
-    height: 72px;
+    width: 56px;
+    height: 56px;
     border-radius: 50%;
-    background: rgba(30, 40, 30, 0.55);
-    border: 3px solid rgba(180, 220, 140, 0.85);
-    color: #fff;
+    background: rgba(30, 40, 30, 0.32);     /* was 0.55 */
+    border: 2px solid rgba(180, 220, 140, 0.55);  /* was 3px + 0.85 */
+    color: rgba(255, 255, 255, 0.85);
     font-family: sans-serif;
-    font-size: 28px;
+    font-size: 22px;
     font-weight: bold;
     display: flex;
     align-items: center;
@@ -36,41 +36,40 @@
     pointer-events: auto;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+    transition: background 0.08s, transform 0.05s;
   }
   .tc-btn:active {
-    background: rgba(120, 180, 80, 0.75);
-    transform: scale(0.95);
+    background: rgba(120, 180, 80, 0.85);   /* solid feedback when pressed */
+    color: #fff;
+    transform: scale(0.92);
   }
-  /* LEFT CLUSTER (movement) -- bottom-left corner */
-  #tc-left   { left: 16px;  bottom: 16px; }
-  #tc-right  { left: 104px; bottom: 16px; }
-  /* RIGHT CLUSTER (actions) -- bottom-right with clear vertical spacing */
-  #tc-attack { right: 184px; bottom: 16px;  background: rgba(200, 80, 80, 0.55); border-color: #fc9; font-size: 18px; }
-  #tc-dash   { right: 104px; bottom: 16px;  background: rgba(220, 160, 80, 0.55); border-color: #fc9; font-size: 14px; }
-  #tc-jump   { right: 16px;  bottom: 16px;  background: rgba(80, 150, 220, 0.55); border-color: #8fd; }
-  /* START/ENTER -- sits DIRECTLY above the ATK/DASH/JUMP row on the
-     right side, spanning the width of all three action buttons so the
-     thumb never has to reach. Large + green for easy tap. */
+  /* LEFT CLUSTER (movement) -- bottom-left corner, 56px btns, 12px gap */
+  #tc-left   { left: 12px;  bottom: 12px; }
+  #tc-right  { left: 80px;  bottom: 12px; }
+  /* RIGHT CLUSTER (actions) -- bottom-right, 3 buttons, 56px + 12px gap */
+  #tc-attack { right: 148px; bottom: 12px; background: rgba(200, 80, 80, 0.32); border-color: rgba(255, 180, 140, 0.55); font-size: 15px; }
+  #tc-dash   { right: 80px;  bottom: 12px; background: rgba(220, 160, 80, 0.32); border-color: rgba(255, 180, 140, 0.55); font-size: 13px; }
+  #tc-jump   { right: 12px;  bottom: 12px; background: rgba(80, 150, 220, 0.32); border-color: rgba(140, 220, 255, 0.6); }
+  /* START -- above action row, spans the cluster width, auto-fade when idle */
   #tc-start {
-    right: 16px;
-    bottom: 104px;      /* 72 (btn) + 16 (bottom margin) + 16 (gap) */
-    width: 240px;       /* covers ATK (right:184) through JUMP (right:16) */
-    height: 52px;
-    border-radius: 26px;
-    background: rgba(80, 200, 120, 0.75);
-    border-color: #9fd;
-    font-size: 22px;
-    letter-spacing: 3px;
+    right: 12px;
+    bottom: 80px;       /* 56 (btn) + 12 (bottom) + 12 (gap) */
+    width: 192px;       /* spans ATK (right:148) through JUMP (right:12) */
+    height: 44px;
+    border-radius: 22px;
+    background: rgba(80, 200, 120, 0.45);
+    border-color: rgba(150, 240, 180, 0.65);
+    font-size: 17px;
+    letter-spacing: 2px;
+    z-index: 1001;
   }
   #tc-start:active {
-    transform: scale(0.96);
+    transform: scale(0.95);
     background: rgba(120, 230, 150, 0.9);
   }
-  /* Taller container so START button (bottom:104) isn't clipped */
-  #touch-controls { height: 180px; }
-  /* START button needs vertical room beyond the 180px container */
-  #tc-start { z-index: 1001; }
+  /* Container height reduced since buttons are smaller */
+  #touch-controls { height: 140px; }
 </style>
 <div id="touch-controls" aria-hidden="true">
   <div class="tc-btn" id="tc-start"  data-key="Enter"      data-code="13">START</div>

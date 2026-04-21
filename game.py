@@ -1079,34 +1079,51 @@ class Game:
         if self.player.is_attacking:
             self._draw_sword_arc(cam_x, cam_y)
 
-        # --- Darkness overlay (Level 7: Karst Caves) ---
+        # --- Darkness overlay (Level 7, 9, 13, 17: dark biomes) ---
+        # Single-pass: build one dark layer with transparent "holes" around
+        # the player + each lit crystal. Crystals fade smoothly during their
+        # last 1.5s of life so the transition isn't a hard pop.
         if self.level.is_dark:
-            darkness = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
-            darkness.fill((0, 0, 0))
-            # Player light circle
+            from config import CRYSTAL_LIGHT_TIME
+            dark_overlay = pygame.Surface(
+                (SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+            dark_overlay.fill((0, 0, 0, 230))
+            # Player light hole -- always full strength
             px = self.player.rect.centerx + cam_x
             py = self.player.rect.centery + cam_y
-            pygame.draw.circle(darkness, (0, 0, 0), (px, py), DARK_RADIUS)
-            # Lit crystal circles
+            pygame.draw.circle(
+                dark_overlay, (0, 0, 0, 0), (px, py), DARK_RADIUS)
+            # Crystal holes -- radius AND alpha scale with light_timer
+            # so the edge of expiring light fades in instead of popping.
+            FADE_SECONDS = 1.5
             for crystal in self.level.crystals:
-                if crystal.is_lit():
-                    cx = crystal.rect.centerx + cam_x
-                    cy = crystal.rect.centery + cam_y
-                    pygame.draw.circle(darkness, (0, 0, 0), (cx, cy), CRYSTAL_RADIUS)
-            darkness.set_colorkey((0, 0, 0))
-            # Invert: fill screen-sized black, cut holes, then overlay
-            dark_overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
-            dark_overlay.fill((0, 0, 0, 230))
-            # Cut light holes by blitting the mask
-            light_mask = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
-            light_mask.fill((0, 0, 0, 0))
-            pygame.draw.circle(light_mask, (0, 0, 0, 230), (px, py), DARK_RADIUS)
-            for crystal in self.level.crystals:
-                if crystal.is_lit():
-                    cx = crystal.rect.centerx + cam_x
-                    cy = crystal.rect.centery + cam_y
-                    pygame.draw.circle(light_mask, (0, 0, 0, 230), (cx, cy), CRYSTAL_RADIUS)
-            dark_overlay.blit(light_mask, (0, 0), special_flags=pygame.BLEND_RGBA_SUB)
+                if not crystal.is_lit():
+                    continue
+                if crystal.light_timer < FADE_SECONDS:
+                    frac = max(0.0, crystal.light_timer / FADE_SECONDS)
+                else:
+                    frac = 1.0
+                cx = crystal.rect.centerx + cam_x
+                cy = crystal.rect.centery + cam_y
+                radius = int(CRYSTAL_RADIUS * (0.5 + 0.5 * frac))
+                # Full transparency in centre, partial at edges during fade.
+                # Draw as two concentric rings for smooth falloff.
+                inner_r = int(radius * 0.7)
+                pygame.draw.circle(
+                    dark_overlay, (0, 0, 0, 0), (cx, cy), inner_r)
+                # Half-strength outer ring = partial light (soft edge)
+                if radius > inner_r:
+                    ring = pygame.Surface(
+                        (radius * 2 + 4, radius * 2 + 4), pygame.SRCALPHA)
+                    pygame.draw.circle(
+                        ring, (0, 0, 0, int(115 * frac)),
+                        (radius + 2, radius + 2), radius)
+                    pygame.draw.circle(
+                        ring, (0, 0, 0, 0),
+                        (radius + 2, radius + 2), inner_r)
+                    dark_overlay.blit(
+                        ring, (cx - radius - 2, cy - radius - 2),
+                        special_flags=pygame.BLEND_RGBA_SUB)
             self.screen.blit(dark_overlay, (0, 0))
 
         # --- Boss HP bar (above boss, world-space) ---
