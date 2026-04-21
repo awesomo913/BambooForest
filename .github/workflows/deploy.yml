@@ -53,14 +53,28 @@ jobs:
       - name: Assemble deployment artifact
         run: |
           mkdir -p deploy/game
-          cp site/index.html site/styles.css deploy/
           cp favicon.png deploy/
           echo "revolutionarydesigns.io" > deploy/CNAME
+          # Portfolio landing page (optional -- skip silently if not yet added)
+          if [ -f site/index.html ]; then
+            cp site/index.html deploy/
+          fi
+          if [ -f site/styles.css ]; then
+            cp site/styles.css deploy/
+          fi
+          # Always copy the game bundle into /game/
           cp web/build/web/index.html \
              web/build/web/web.apk \
              web/build/web/web.tar.gz \
              web/build/web/favicon.png \
              deploy/game/
+          # If no portfolio landing page committed yet, serve the game
+          # at the site root so revolutionarydesigns.io still loads it.
+          if [ ! -f deploy/index.html ]; then
+            cp web/build/web/index.html deploy/
+            cp web/build/web/web.apk deploy/
+            cp web/build/web/web.tar.gz deploy/
+          fi
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
