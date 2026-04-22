@@ -124,14 +124,31 @@ class Game:
                 if event.key in (pygame.K_SPACE, pygame.K_UP, pygame.K_w):
                     self._jump_pressed = False
             if event.type == pygame.MOUSEBUTTONDOWN:
-                if event.button == 1 and self.state == ST_MENU:
+                if event.button == 4:  # scroll wheel up
+                    if self.state == ST_MENU:
+                        self.title_screen.scroll_gallery(-40)
+                    elif self.state == ST_PAUSED:
+                        self.pause_overlay.scroll(-40)
+                elif event.button == 5:  # scroll wheel down
+                    if self.state == ST_MENU:
+                        self.title_screen.scroll_gallery(40)
+                    elif self.state == ST_PAUSED:
+                        self.pause_overlay.scroll(40)
+                elif event.button == 1 and self.state == ST_MENU:
                     # Clicking a character card opens the detail popup
                     self.title_screen.handle_click(event.pos)
+                elif event.button == 1 and self.state == ST_PAUSED:
+                    self.pause_overlay.handle_click(event.pos)
                 elif event.button == 1 and self.state == ST_PLAYING:
                     if self.player and self.player.attack():
                         self.audio.play("stomp")
                         self._weapon_used = True
                         self._weapon_tutorial_timer = 0.0
+            if event.type == pygame.MOUSEWHEEL:
+                if self.state == ST_MENU:
+                    self.title_screen.scroll_gallery(-event.y * 40)
+                elif self.state == ST_PAUSED:
+                    self.pause_overlay.scroll(-event.y * 40)
 
     def _toggle_fullscreen(self) -> None:
         """Browser handles F11 natively; in-game F11 is a no-op."""
@@ -213,6 +230,10 @@ class Game:
             elif key == pygame.K_q:
                 self.state = ST_MENU
                 self.title_screen = TitleScreen()
+            elif key in (pygame.K_UP, pygame.K_w, pygame.K_LEFT, pygame.K_a):
+                self.pause_overlay.scroll(-90)
+            elif key in (pygame.K_DOWN, pygame.K_s, pygame.K_RIGHT, pygame.K_d):
+                self.pause_overlay.scroll(90)
         elif self.state in (ST_GAME_OVER, ST_VICTORY):
             if key == pygame.K_RETURN:
                 self.state = ST_MENU

@@ -9,8 +9,8 @@ import pygame
 
 from config import (
     COL_BAMBOO, COL_BLACK, COL_GOLD, COL_HP_GREEN, COL_HP_RED, COL_HUD_BG,
-    COL_MENU_BG, COL_RED, COL_WHITE, LEVEL_NAMES, SCREEN_HEIGHT,
-    SCREEN_WIDTH,
+    COL_MENU_BG, COL_RED, COL_WHITE, LEVEL_NAMES, PLAYER_MAX_HP,
+    SCREEN_HEIGHT, SCREEN_WIDTH,
 )
 from save import get_best_score
 
@@ -140,7 +140,7 @@ class HUD:
         # HP label + bar
         draw_text(screen, "HP", 18, COL_WHITE, 30, 28)
         pygame.draw.rect(screen, COL_HP_RED, (48, 20, 150, 14), border_radius=4)
-        fill_w = max(0, int(self.displayed_hp * 1.5))
+        fill_w = max(0, min(150, int(self.displayed_hp / max(1, PLAYER_MAX_HP) * 150)))
         if fill_w > 0:
             pygame.draw.rect(screen, COL_HP_GREEN, (48, 20, fill_w, 14), border_radius=4)
         # HP text
@@ -462,10 +462,21 @@ class TitleScreen:
         # Dropdown state: gallery is HIDDEN by default to keep menu clean
         self.gallery_open: bool = False
         self._gallery_button_rect: pygame.Rect | None = None
+        # Gallery scroll state
+        self._gallery_scroll: int = 0
+        self._gallery_max_scroll: int = 0
+        self._scroll_up_rect: pygame.Rect | None = None
+        self._scroll_down_rect: pygame.Rect | None = None
 
     def update(self, dt: float) -> None:
         self.title_y += (self.title_target_y - self.title_y) * min(1.0, 4 * dt)
         self.prompt_timer += dt
+
+    def scroll_gallery(self, delta: int) -> None:
+        """Scroll the character gallery by delta pixels (positive = down)."""
+        if self.gallery_open:
+            self._gallery_scroll = max(
+                0, min(self._gallery_max_scroll, self._gallery_scroll + delta))
 
     def handle_click(self, pos: tuple[int, int]) -> bool:
         """Handle mouse click. Returns True if consumed (don't start game)."""
@@ -476,10 +487,22 @@ class TitleScreen:
         # Gallery toggle button
         if (self._gallery_button_rect is not None
                 and self._gallery_button_rect.collidepoint(pos)):
+            was_open = self.gallery_open
             self.gallery_open = not self.gallery_open
+            if not was_open:
+                self._gallery_scroll = 0  # reset scroll when opening
             return True
-        # Click a character card -> detail popup (only if gallery is open)
         if self.gallery_open:
+            # Scroll arrow buttons
+            if (self._scroll_up_rect is not None
+                    and self._scroll_up_rect.collidepoint(pos)):
+                self.scroll_gallery(-103)
+                return True
+            if (self._scroll_down_rect is not None
+                    and self._scroll_down_rect.collidepoint(pos)):
+                self.scroll_gallery(103)
+                return True
+            # Click a character card -> detail popup
             for rect, char in self._card_rects:
                 if rect.collidepoint(pos):
                     self.selected_char = char
@@ -497,6 +520,14 @@ class TitleScreen:
         if self.gallery_open and key in (pygame.K_ESCAPE, pygame.K_BACKSPACE):
             self.gallery_open = False
             return True
+        # Arrow keys scroll the gallery (especially useful on mobile touch controls)
+        if self.gallery_open:
+            if key in (pygame.K_UP, pygame.K_w, pygame.K_LEFT, pygame.K_a):
+                self.scroll_gallery(-103)
+                return True
+            if key in (pygame.K_DOWN, pygame.K_s, pygame.K_RIGHT, pygame.K_d):
+                self.scroll_gallery(103)
+                return True
         return False
 
     def _ensure_bg(self) -> pygame.Surface:
@@ -559,7 +590,6 @@ class TitleScreen:
 
         # === GALLERY (only when dropdown open) ===
         if self.gallery_open:
-            # Dim background panel behind the grid
             cols = 4
             rows = (len(_CHARACTERS) + cols - 1) // cols
             card_w = 220
@@ -567,30 +597,90 @@ class TitleScreen:
             gap_x = 10
             gap_y = 8
             total_w = cols * card_w + (cols - 1) * gap_x
-            total_h = rows * card_h + (rows - 1) * gap_y
             start_x = (SCREEN_WIDTH - total_w) // 2
             start_y = btn_y + btn_h + 14
-            # Semi-opaque panel behind
-            panel = pygame.Surface((total_w + 20, total_h + 40),
-                                    pygame.SRCALPHA)
+            # Available height: stop above "Press ENTER" prompt + small margin
+            prompt_reserve = 50
+            avail_h = SCREEN_HEIGHT - start_y - prompt_reserve
+
+            content_h = rows * card_h + (rows - 1) * gap_y
+            self._gallery_max_scroll = max(0, content_h - avail_h)
+            self._gallery_scroll = max(
+                0, min(self._gallery_scroll, self._gallery_max_scroll))
+
+            # Scroll arrow button dimensions
+            arr_w, arr_h = 32, 32
+            arr_x = start_x + total_w + 8
+
+            # Semi-opaque panel behind (sized to visible area only)
+            panel_w = total_w + arr_w + 20
+            panel = pygame.Surface((panel_w, avail_h + 20), pygame.SRCALPHA)
             panel.fill((10, 20, 10, 230))
             pygame.draw.rect(panel, (100, 150, 100),
-                             (0, 0, total_w + 20, total_h + 40),
+                             (0, 0, panel_w, avail_h + 20),
                              2, border_radius=8)
             screen.blit(panel, (start_x - 10, start_y - 10))
+
+            # Clip drawing to the gallery viewport
+            old_clip = screen.get_clip()
+            clip_rect = pygame.Rect(start_x - 10, start_y,
+                                    total_w + 20, avail_h)
+            screen.set_clip(clip_rect)
+
             for i, char in enumerate(_CHARACTERS):
                 col = i % cols
                 row = i // cols
                 cx = start_x + col * (card_w + gap_x)
-                cy = start_y + row * (card_h + gap_y)
+                cy = start_y + row * (card_h + gap_y) - self._gallery_scroll
+                # Skip cards fully outside the clipped area
+                if cy + card_h < start_y or cy > start_y + avail_h:
+                    continue
                 rect = pygame.Rect(cx, cy, card_w, card_h)
                 self._card_rects.append((rect, char))
                 hovered = rect.collidepoint(mouse_pos)
                 _draw_card(screen, char, cx, cy, card_w, card_h,
                            self.prompt_timer, i, hovered=hovered)
-            draw_text(screen, "Click a character to read their story  |  ESC to close",
-                      13, (180, 210, 180), SCREEN_WIDTH // 2,
-                      start_y + total_h + 18)
+
+            screen.set_clip(old_clip)
+
+            # --- Scroll arrows (drawn outside the clip) ---
+            can_up = self._gallery_scroll > 0
+            can_down = self._gallery_scroll < self._gallery_max_scroll
+
+            def _draw_scroll_arrow(pointing_up: bool, enabled: bool,
+                                   ax: int, ay: int) -> pygame.Rect:
+                col_active = (200, 255, 200, 230)
+                col_dim = (80, 100, 80, 100)
+                c = col_active if enabled else col_dim
+                surf = pygame.Surface((arr_w, arr_h), pygame.SRCALPHA)
+                surf.fill((20, 40, 20, 180))
+                pygame.draw.rect(surf, (80, 120, 80, 160 if enabled else 60),
+                                 (0, 0, arr_w, arr_h), 1, border_radius=6)
+                mid = arr_w // 2
+                if pointing_up:
+                    pts = [(mid, 6), (6, arr_h - 8), (arr_w - 6, arr_h - 8)]
+                else:
+                    pts = [(mid, arr_h - 6), (6, 8), (arr_w - 6, 8)]
+                pygame.draw.polygon(surf, c, pts)
+                screen.blit(surf, (ax, ay))
+                return pygame.Rect(ax, ay, arr_w, arr_h)
+
+            self._scroll_up_rect = _draw_scroll_arrow(
+                True, can_up, arr_x, start_y + 4)
+            self._scroll_down_rect = _draw_scroll_arrow(
+                False, can_down, arr_x, start_y + avail_h - arr_h - 4)
+
+            # Scroll hint text (only when scrollable)
+            if self._gallery_max_scroll > 0:
+                draw_text(screen,
+                          "▲▼ scroll  |  click card to read  |  ESC to close",
+                          12, (180, 210, 180),
+                          start_x + total_w // 2,
+                          start_y + avail_h + 16)
+            else:
+                draw_text(screen, "Click a character to read their story  |  ESC to close",
+                          13, (180, 210, 180), SCREEN_WIDTH // 2,
+                          start_y + avail_h + 18)
 
         # Pulsing "Press ENTER" prompt (position based on whether gallery is open)
         prompt_y = (SCREEN_HEIGHT - 90 if not self.gallery_open
@@ -705,6 +795,28 @@ class TitleScreen:
 class PauseOverlay:
     """Pause screen with compact enemy encyclopedia (read while waiting)."""
 
+    def __init__(self) -> None:
+        self._scroll: int = 0
+        self._max_scroll: int = 0
+        self._scroll_up_rect: pygame.Rect | None = None
+        self._scroll_down_rect: pygame.Rect | None = None
+
+    def scroll(self, delta: int) -> None:
+        """Scroll the enemy encyclopedia by delta pixels."""
+        self._scroll = max(0, min(self._max_scroll, self._scroll + delta))
+
+    def handle_click(self, pos: tuple[int, int]) -> bool:
+        """Handle a left-click. Returns True if consumed by a scroll button."""
+        if (self._scroll_up_rect is not None
+                and self._scroll_up_rect.collidepoint(pos)):
+            self.scroll(-90)
+            return True
+        if (self._scroll_down_rect is not None
+                and self._scroll_down_rect.collidepoint(pos)):
+            self.scroll(90)
+            return True
+        return False
+
     def draw(self, screen: pygame.Surface) -> None:
         overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 200))
@@ -723,11 +835,25 @@ class PauseOverlay:
         start_y = 90
         font_name = get_font(12, bold=True)
         font_desc = get_font(10)
+
+        rows = (len(_CHARACTERS) + cols - 1) // cols
+        content_h = rows * row_h
+        # Leave a small margin at the bottom so scroll arrows don't touch the edge
+        avail_h = SCREEN_HEIGHT - start_y - 10
+        self._max_scroll = max(0, content_h - avail_h)
+        self._scroll = max(0, min(self._max_scroll, self._scroll))
+
+        # Clip to the encyclopedia area
+        old_clip = screen.get_clip()
+        screen.set_clip(pygame.Rect(0, start_y, SCREEN_WIDTH, avail_h))
+
         for i, char in enumerate(_CHARACTERS):
             col = i % cols
             row = i // cols
             x = start_x + col * col_w
-            y = start_y + row * row_h
+            y = start_y + row * row_h - self._scroll
+            if y + row_h < start_y or y > start_y + avail_h:
+                continue
             # Compact card
             card = pygame.Surface((col_w - 8, row_h - 8), pygame.SRCALPHA)
             card.fill((15, 25, 15, 230))
@@ -763,6 +889,35 @@ class PauseOverlay:
             else:
                 d = font_desc.render(desc, True, (200, 200, 200))
                 screen.blit(d, (x + 56, y + 46))
+
+        screen.set_clip(old_clip)
+
+        # Scroll arrows (only shown when content overflows)
+        if self._max_scroll > 0:
+            arr_w, arr_h = 28, 28
+            arr_x = SCREEN_WIDTH - arr_w - 8
+
+            def _draw_arr(up: bool, enabled: bool, ay: int) -> pygame.Rect:
+                c = (200, 255, 200, 230) if enabled else (80, 100, 80, 100)
+                surf = pygame.Surface((arr_w, arr_h), pygame.SRCALPHA)
+                surf.fill((20, 40, 20, 180))
+                pygame.draw.rect(surf, (80, 120, 80, 140 if enabled else 60),
+                                 (0, 0, arr_w, arr_h), 1, border_radius=5)
+                mid = arr_w // 2
+                pts = ([(mid, 4), (4, arr_h - 6), (arr_w - 4, arr_h - 6)]
+                       if up else
+                       [(mid, arr_h - 4), (4, 6), (arr_w - 4, 6)])
+                pygame.draw.polygon(surf, c, pts)
+                screen.blit(surf, (arr_x, ay))
+                return pygame.Rect(arr_x, ay, arr_w, arr_h)
+
+            self._scroll_up_rect = _draw_arr(
+                True, self._scroll > 0, start_y + 4)
+            self._scroll_down_rect = _draw_arr(
+                False, self._scroll < self._max_scroll,
+                SCREEN_HEIGHT - arr_h - 14)
+            draw_text(screen, "▲▼  scroll", 10, (150, 190, 150),
+                      arr_x + arr_w // 2, SCREEN_HEIGHT - arr_h - 20)
 
 
 # ---------------------------------------------------------------------------
