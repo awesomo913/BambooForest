@@ -549,8 +549,8 @@ def _build_level_6() -> LevelDef:
     return LevelDef(
         world_width=LEVEL_WIDTHS[5], platforms=plats, biome="desert",
         enemies=[
-            EnemyDef(1000, FLOOR_Y - 50, "dust_devil", 300),
-            EnemyDef(3200, FLOOR_Y - 50, "dust_devil", 280),
+            EnemyDef(1000, FLOOR_Y, "dust_devil", 300),
+            EnemyDef(3200, FLOOR_Y, "dust_devil", 280),
             EnemyDef(550, 410, "cactus_scorpion", 120),
             EnemyDef(2100, 350, "cactus_scorpion", 100),
             EnemyDef(4300, 370, "cactus_scorpion", 120),
@@ -890,7 +890,7 @@ def _build_level_14() -> LevelDef:
         ],
         crystal_positions=[(700, FLOOR_Y), (3900, FLOOR_Y)],
         trenches=[(1250, 1400), (3700, 3850)],
-        glide_positions=[(5400, 300)],
+        glide_positions=[(700, FLOOR_Y), (5400, 300)],
         npc_defs=[(5400, FLOOR_Y, "Myco",
                    ["Land on the mushroom caps to bounce super high!",
                     "Watch out -- specters track you in the air!"],

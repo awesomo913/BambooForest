@@ -394,9 +394,11 @@ class Game:
                 dx = mp.rect.x - old_mx
                 dy = mp.rect.y - old_my
                 self.player.rect.x += dx
-                self.player.rect.bottom = mp.rect.top
+                # Embed player 1px into platform so player.update()'s
+                # spritecollide detects the overlap and correctly sets
+                # is_on_ground, refreshes jumps_remaining and coyote_timer.
+                self.player.rect.bottom = mp.rect.top + 1
                 self.player.velocity_y = 0
-                self.player.is_on_ground = True
 
         # Player
         keys = pygame.key.get_pressed()
@@ -833,13 +835,22 @@ class Game:
         if self.level.boss and self.level.boss.alive():
             if pygame.sprite.collide_rect(self.player, self.level.boss):
                 stomp_rect = self.player.get_stomp_rect()
+                # is_head_stomp requires player to be falling AND their feet
+                # to be in the upper half of the boss (not a side collision).
                 is_head_stomp = (self.player.velocity_y > 0
+                                 and self.player.rect.bottom
+                                 <= self.level.boss.rect.centery
                                  and stomp_rect.colliderect(self.level.boss.rect))
                 if is_head_stomp:
                     if self.level.boss.stunned:
-                        # Damage boss during vulnerable window
+                        # Damage boss during vulnerable window.
+                        # Grant brief i-frames so the side-hit else-branch
+                        # doesn't fire on the same or next frame while rects
+                        # still overlap after the stomp bounce.
                         self.player.velocity_y = ENEMY_STOMP_BOUNCE
                         self.player.rect.bottom = self.level.boss.rect.top
+                        self.player.invincible_timer = max(
+                            self.player.invincible_timer, 0.5)
                         killed = self.level.boss.take_hit()
                         self.audio.play("boss_hit")
                         self.shake.trigger(12, 0.3)
@@ -855,23 +866,26 @@ class Game:
                             self._maybe_unlock_ice_magic()
                     else:
                         # NON-STUNNED head-camp: boss shakes player off with
-                        # a strong sideways knockback + damage. No free ride.
-                        kb_dir = 1.0 if self.player.rect.centerx >= \
-                            self.level.boss.rect.centerx else -1.0
-                        self.player.velocity_x = 500.0 * kb_dir
-                        self.player.velocity_y = -450.0
-                        self.player.rect.bottom = self.level.boss.rect.top
-                        if self.player.take_damage(
-                                PLAYER_DAMAGE,
-                                source_x=self.level.boss.rect.centerx):
-                            self.shake.trigger(10, 0.2)
-                            self.particles.emit_damage(
-                                self.player.rect.centerx,
-                                self.player.rect.centery)
-                            self.audio.play("hit")
-                        self.hud.add_floating_text(
-                            "!!", self.level.boss.rect.centerx,
-                            self.level.boss.rect.top - 10, (255, 60, 60))
+                        # a strong sideways knockback + damage.  Only apply
+                        # the bounce when the player isn't already invincible
+                        # to prevent a rapid bounce loop on consecutive frames.
+                        if self.player.invincible_timer <= 0:
+                            kb_dir = 1.0 if self.player.rect.centerx >= \
+                                self.level.boss.rect.centerx else -1.0
+                            self.player.velocity_x = 500.0 * kb_dir
+                            self.player.velocity_y = -450.0
+                            self.player.rect.bottom = self.level.boss.rect.top
+                            if self.player.take_damage(
+                                    PLAYER_DAMAGE,
+                                    source_x=self.level.boss.rect.centerx):
+                                self.shake.trigger(10, 0.2)
+                                self.particles.emit_damage(
+                                    self.player.rect.centerx,
+                                    self.player.rect.centery)
+                                self.audio.play("hit")
+                            self.hud.add_floating_text(
+                                "!!", self.level.boss.rect.centerx,
+                                self.level.boss.rect.top - 10, (255, 60, 60))
                 else:
                     # Side/below hit -- boss damages player
                     if self.player.take_damage(PLAYER_DAMAGE):
