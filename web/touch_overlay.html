@@ -96,7 +96,7 @@
         bubbles: true, cancelable: true
       });
       document.body.dispatchEvent(evt);
-      var canvas = document.querySelector("canvas#canvas");
+      var canvas = document.querySelector("#canvas");
       if (canvas) canvas.dispatchEvent(evt);
       window.dispatchEvent(evt);
     }

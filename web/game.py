@@ -126,6 +126,9 @@ class Game:
                     # Jump cut: releasing jump while still rising reduces jump height.
                     # This gives variable jump height -- tap for a short hop,
                     # hold for a full jump arc.
+                    # Threshold -120 px/s: only cut if rising fast enough (not near apex).
+                    # Multiplier 0.55: cuts roughly 45% of remaining upward velocity,
+                    # which halves effective jump height on a quick tap.
                     if (self.state == ST_PLAYING and self.player
                             and self.player.velocity_y < -120):
                         self.player.velocity_y *= 0.55

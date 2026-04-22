@@ -416,7 +416,14 @@ def _draw_card(screen: pygame.Surface, char: dict,
     if sprite:
         bob = math.sin(timer * 2.5 + idx * 1.1) * 2
         # Scale sprite proportionally to card height
-        max_sprite = 28 if h < 80 else 36 if h < 100 else 44 if h < 110 else 54
+        if h < 80:
+            max_sprite = 28
+        elif h < 100:
+            max_sprite = 36
+        elif h < 110:
+            max_sprite = 44
+        else:
+            max_sprite = 54
         sw, sh = sprite.get_size()
         if sw > max_sprite or sh > max_sprite:
             scale = min(max_sprite / sw, max_sprite / sh)
@@ -430,13 +437,23 @@ def _draw_card(screen: pygame.Surface, char: dict,
 
     # Name (smaller on compact cards)
     name_y = y + (h - 28)
-    name_size = 11 if h < 80 else 13 if h < 110 else 16
+    if h < 80:
+        name_size = 11
+    elif h < 110:
+        name_size = 13
+    else:
+        name_size = 16
     draw_text(screen, char["name"], name_size, char["color"],
               x + w // 2, name_y, bold=True)
 
     # Role tag
     role_y = name_y + 13
-    tag_font = get_font(8 if h < 80 else 9 if h < 110 else 10)
+    if h < 80:
+        tag_font = get_font(8)
+    elif h < 110:
+        tag_font = get_font(9)
+    else:
+        tag_font = get_font(10)
     tag_surf = tag_font.render(char["role"], True, (30, 50, 30))
     tw, th = tag_surf.get_size()
     tag_bg = pygame.Surface((tw + 6, th + 3), pygame.SRCALPHA)
