@@ -156,9 +156,9 @@ config = {
     cdn : "https://pygame-web.github.io/cdn/0.9.3/",
     autorun : 0,
     PYBUILD : "3.12",
-    fb_ar   :  1.77,
-    fb_width : "1280",
-    fb_height : "720"
+    fb_ar   :  1.777,
+    fb_width : "960",
+    fb_height : "540"
 }
 
 function show_infobox() {
@@ -178,11 +178,10 @@ function show_infobox() {
 
 </script>
 
-    <title>web</title>
+    <title>Bamboo Forest</title>
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="viewport" content="height=device-height, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes"/>
 
@@ -239,8 +238,9 @@ function show_infobox() {
         body {
             font-family: arial;
             margin: 0;
-            padding: none;
-            background-color:powderblue;
+            padding: 0;
+            background-color: #000;
+            overflow: hidden;
         }
 
         .topright{
@@ -307,8 +307,8 @@ height="1px"
     </canvas>
 
     <canvas class="emscripten" id="canvas3d"
-width="1280px"
-height="720px"
+width="960px"
+height="540px"
     oncontextmenu="event.preventDefault()" tabindex=1 hidden>
     </canvas>
 

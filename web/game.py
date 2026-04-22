@@ -123,6 +123,12 @@ class Game:
             if event.type == pygame.KEYUP:
                 if event.key in (pygame.K_SPACE, pygame.K_UP, pygame.K_w):
                     self._jump_pressed = False
+                    # Jump cut: releasing jump while still rising reduces jump height.
+                    # This gives variable jump height -- tap for a short hop,
+                    # hold for a full jump arc.
+                    if (self.state == ST_PLAYING and self.player
+                            and self.player.velocity_y < -120):
+                        self.player.velocity_y *= 0.55
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1 and self.state == ST_MENU:
                     # Clicking a character card opens the detail popup

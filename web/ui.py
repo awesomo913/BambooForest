@@ -415,8 +415,8 @@ def _draw_card(screen: pygame.Surface, char: dict,
     sprite = sprites.get(char["key"])
     if sprite:
         bob = math.sin(timer * 2.5 + idx * 1.1) * 2
-        # Scale sprite to max 44px on small cards
-        max_sprite = 44 if h < 110 else 54
+        # Scale sprite proportionally to card height
+        max_sprite = 28 if h < 80 else 36 if h < 100 else 44 if h < 110 else 54
         sw, sh = sprite.get_size()
         if sw > max_sprite or sh > max_sprite:
             scale = min(max_sprite / sw, max_sprite / sh)
@@ -425,18 +425,18 @@ def _draw_card(screen: pygame.Surface, char: dict,
             sprite = pygame.transform.scale(sprite, (sw2, sh2))
             sw, sh = sw2, sh2
         sx = x + (w - sw) // 2
-        sy = y + 8 + int(bob)
+        sy = y + 5 + int(bob)
         screen.blit(sprite, (sx, sy))
 
     # Name (smaller on compact cards)
-    name_y = y + (h - 30)
-    name_size = 13 if h < 110 else 16
+    name_y = y + (h - 28)
+    name_size = 11 if h < 80 else 13 if h < 110 else 16
     draw_text(screen, char["name"], name_size, char["color"],
               x + w // 2, name_y, bold=True)
 
     # Role tag
-    role_y = name_y + 14
-    tag_font = get_font(9 if h < 110 else 10)
+    role_y = name_y + 13
+    tag_font = get_font(8 if h < 80 else 9 if h < 110 else 10)
     tag_surf = tag_font.render(char["role"], True, (30, 50, 30))
     tw, th = tag_surf.get_size()
     tag_bg = pygame.Surface((tw + 6, th + 3), pygame.SRCALPHA)
@@ -541,7 +541,7 @@ class TitleScreen:
         # === DROPDOWN BUTTON (always visible) ===
         btn_w, btn_h = 280, 44
         btn_x = (SCREEN_WIDTH - btn_w) // 2
-        btn_y = int(SCREEN_HEIGHT * 0.32)
+        btn_y = int(SCREEN_HEIGHT * 0.28)
         self._gallery_button_rect = pygame.Rect(btn_x, btn_y, btn_w, btn_h)
         btn_hovered = self._gallery_button_rect.collidepoint(mouse_pos)
         bg_color = (40, 70, 40, 250) if not btn_hovered else (60, 110, 60, 255)
@@ -559,25 +559,25 @@ class TitleScreen:
 
         # === GALLERY (only when dropdown open) ===
         if self.gallery_open:
-            # Dim background panel behind the grid
-            cols = 4
+            # 6-column × 4-row grid -- all 24 characters fit in 960×540
+            cols = 6
             rows = (len(_CHARACTERS) + cols - 1) // cols
-            card_w = 220
-            card_h = 95
-            gap_x = 10
-            gap_y = 8
+            card_w = 148
+            card_h = 72
+            gap_x = 8
+            gap_y = 6
             total_w = cols * card_w + (cols - 1) * gap_x
             total_h = rows * card_h + (rows - 1) * gap_y
             start_x = (SCREEN_WIDTH - total_w) // 2
-            start_y = btn_y + btn_h + 14
+            start_y = btn_y + btn_h + 10
             # Semi-opaque panel behind
-            panel = pygame.Surface((total_w + 20, total_h + 40),
+            panel = pygame.Surface((total_w + 20, total_h + 8),
                                     pygame.SRCALPHA)
             panel.fill((10, 20, 10, 230))
             pygame.draw.rect(panel, (100, 150, 100),
-                             (0, 0, total_w + 20, total_h + 40),
+                             (0, 0, total_w + 20, total_h + 8),
                              2, border_radius=8)
-            screen.blit(panel, (start_x - 10, start_y - 10))
+            screen.blit(panel, (start_x - 10, start_y - 4))
             for i, char in enumerate(_CHARACTERS):
                 col = i % cols
                 row = i // cols
@@ -588,18 +588,20 @@ class TitleScreen:
                 hovered = rect.collidepoint(mouse_pos)
                 _draw_card(screen, char, cx, cy, card_w, card_h,
                            self.prompt_timer, i, hovered=hovered)
-            draw_text(screen, "Click a character to read their story  |  ESC to close",
-                      13, (180, 210, 180), SCREEN_WIDTH // 2,
-                      start_y + total_h + 18)
+            hint_y = start_y + total_h + 4
+            if hint_y + 14 <= SCREEN_HEIGHT:
+                draw_text(screen,
+                          "Tap a character to read their story  |  ESC to close",
+                          11, (180, 210, 180), SCREEN_WIDTH // 2, hint_y)
 
-        # Pulsing "Press ENTER" prompt (position based on whether gallery is open)
-        prompt_y = (SCREEN_HEIGHT - 90 if not self.gallery_open
-                    else SCREEN_HEIGHT - 62)
-        alpha = int(128 + 127 * math.sin(self.prompt_timer * 3))
-        font = get_font(26 if not self.gallery_open else 20)
-        prompt = font.render("Press ENTER to Start", True, (200, 255, 200))
-        prompt.set_alpha(alpha)
-        screen.blit(prompt, prompt.get_rect(center=(SCREEN_WIDTH // 2, prompt_y)))
+        # Pulsing "Press ENTER" prompt (only when gallery is closed)
+        if not self.gallery_open:
+            prompt_y = SCREEN_HEIGHT - 90
+            alpha = int(128 + 127 * math.sin(self.prompt_timer * 3))
+            font = get_font(26)
+            prompt = font.render("Press ENTER to Start", True, (200, 255, 200))
+            prompt.set_alpha(alpha)
+            screen.blit(prompt, prompt.get_rect(center=(SCREEN_WIDTH // 2, prompt_y)))
 
         # Controls (only when gallery is closed -- else it overlaps)
         if not self.gallery_open:
@@ -714,11 +716,11 @@ class PauseOverlay:
         draw_text(screen, "ESC to Resume  |  Q to Quit", 16, (180, 180, 180),
                   SCREEN_WIDTH // 2, 62)
 
-        # Mini enemy encyclopedia -- compact grid of all characters
+        # Mini enemy encyclopedia -- 6-column × 4-row grid (all 24 characters visible)
         sprites = _get_sprite_cache()
-        col_w = 180
+        col_w = 150
         row_h = 90
-        cols = 5
+        cols = 6
         start_x = (SCREEN_WIDTH - cols * col_w) // 2
         start_y = 90
         font_name = get_font(12, bold=True)
@@ -737,16 +739,16 @@ class PauseOverlay:
             # Small sprite
             sprite = sprites.get(char["key"])
             if sprite:
-                sm = pygame.transform.scale(sprite, (40, 40))
-                screen.blit(sm, (x + 8, y + 10))
+                sm = pygame.transform.scale(sprite, (38, 38))
+                screen.blit(sm, (x + 6, y + 9))
             # Name + desc
             name = font_name.render(char["name"], True, char["color"])
-            screen.blit(name, (x + 56, y + 8))
+            screen.blit(name, (x + 52, y + 8))
             role = font_desc.render(char["role"], True, (160, 200, 160))
-            screen.blit(role, (x + 56, y + 22))
-            # Word-wrap description
+            screen.blit(role, (x + 52, y + 22))
+            # Word-wrap description (narrower column -- 16 chars per line)
             desc = char["desc"]
-            max_chars = 22
+            max_chars = 16
             if len(desc) > max_chars:
                 # Split on word
                 words = desc.split()
@@ -758,11 +760,11 @@ class PauseOverlay:
                         line2 = line2 + " " + w if line2 else w
                 d1 = font_desc.render(line1, True, (200, 200, 200))
                 d2 = font_desc.render(line2, True, (200, 200, 200))
-                screen.blit(d1, (x + 56, y + 40))
-                screen.blit(d2, (x + 56, y + 54))
+                screen.blit(d1, (x + 52, y + 40))
+                screen.blit(d2, (x + 52, y + 54))
             else:
                 d = font_desc.render(desc, True, (200, 200, 200))
-                screen.blit(d, (x + 56, y + 46))
+                screen.blit(d, (x + 52, y + 46))
 
 
 # ---------------------------------------------------------------------------

@@ -8,7 +8,7 @@
     bottom: 0;
     left: 0;
     right: 0;
-    height: 140px;
+    height: 100px;
     pointer-events: none;
     z-index: 1000;
     display: none;
@@ -21,14 +21,14 @@
   }
   .tc-btn {
     position: absolute;
-    width: 56px;
-    height: 56px;
+    width: 52px;
+    height: 52px;
     border-radius: 50%;
-    background: rgba(30, 40, 30, 0.32);     /* was 0.55 */
-    border: 2px solid rgba(180, 220, 140, 0.55);  /* was 3px + 0.85 */
+    background: rgba(30, 40, 30, 0.32);
+    border: 2px solid rgba(180, 220, 140, 0.55);
     color: rgba(255, 255, 255, 0.85);
     font-family: sans-serif;
-    font-size: 22px;
+    font-size: 20px;
     font-weight: bold;
     display: flex;
     align-items: center;
@@ -40,27 +40,27 @@
     transition: background 0.08s, transform 0.05s;
   }
   .tc-btn:active {
-    background: rgba(120, 180, 80, 0.85);   /* solid feedback when pressed */
+    background: rgba(120, 180, 80, 0.85);
     color: #fff;
     transform: scale(0.92);
   }
-  /* LEFT CLUSTER (movement) -- bottom-left corner, 56px btns, 12px gap */
-  #tc-left   { left: 12px;  bottom: 12px; }
-  #tc-right  { left: 80px;  bottom: 12px; }
-  /* RIGHT CLUSTER (actions) -- bottom-right, 3 buttons, 56px + 12px gap */
-  #tc-attack { right: 148px; bottom: 12px; background: rgba(200, 80, 80, 0.32); border-color: rgba(255, 180, 140, 0.55); font-size: 15px; }
-  #tc-dash   { right: 80px;  bottom: 12px; background: rgba(220, 160, 80, 0.32); border-color: rgba(255, 180, 140, 0.55); font-size: 13px; }
-  #tc-jump   { right: 12px;  bottom: 12px; background: rgba(80, 150, 220, 0.32); border-color: rgba(140, 220, 255, 0.6); }
-  /* START -- above action row, spans the cluster width, auto-fade when idle */
+  /* LEFT CLUSTER (movement) -- bottom-left corner, 52px btns, 10px gap */
+  #tc-left   { left: 10px;  bottom: 10px; }
+  #tc-right  { left: 72px;  bottom: 10px; }
+  /* RIGHT CLUSTER (actions) -- bottom-right, 3 buttons */
+  #tc-attack { right: 134px; bottom: 10px; background: rgba(200, 80, 80, 0.32); border-color: rgba(255, 180, 140, 0.55); font-size: 14px; }
+  #tc-dash   { right: 72px;  bottom: 10px; background: rgba(220, 160, 80, 0.32); border-color: rgba(255, 180, 140, 0.55); font-size: 12px; }
+  #tc-jump   { right: 10px;  bottom: 10px; background: rgba(80, 150, 220, 0.32); border-color: rgba(140, 220, 255, 0.6); font-size: 14px; }
+  /* START -- above action row, compact pill button */
   #tc-start {
-    right: 12px;
-    bottom: 80px;       /* 56 (btn) + 12 (bottom) + 12 (gap) */
-    width: 192px;       /* spans ATK (right:148) through JUMP (right:12) */
-    height: 44px;
-    border-radius: 22px;
+    right: 10px;
+    bottom: 70px;       /* 52 (btn) + 10 (bottom) + 8 (gap) */
+    width: 178px;       /* spans ATK through JUMP cluster */
+    height: 24px;
+    border-radius: 12px;
     background: rgba(80, 200, 120, 0.45);
     border-color: rgba(150, 240, 180, 0.65);
-    font-size: 17px;
+    font-size: 13px;
     letter-spacing: 2px;
     z-index: 1001;
   }
@@ -68,8 +68,6 @@
     transform: scale(0.95);
     background: rgba(120, 230, 150, 0.9);
   }
-  /* Container height reduced since buttons are smaller */
-  #touch-controls { height: 140px; }
 </style>
 <div id="touch-controls" aria-hidden="true">
   <div class="tc-btn" id="tc-start"  data-key="Enter"      data-code="13">START</div>
@@ -81,6 +79,7 @@
 </div>
 <script>
   (function() {
+    // ── Key dispatch helpers ──────────────────────────────────────────
     function keyCodeName(k) {
       if (k === " ") return "Space";
       if (k === "ArrowLeft") return "ArrowLeft";
@@ -97,20 +96,20 @@
         bubbles: true, cancelable: true
       });
       document.body.dispatchEvent(evt);
-      var canvas = document.querySelector("canvas");
+      var canvas = document.querySelector("canvas#canvas");
       if (canvas) canvas.dispatchEvent(evt);
       window.dispatchEvent(evt);
     }
     document.querySelectorAll("#touch-controls .tc-btn").forEach(function(btn) {
       var key = btn.dataset.key;
       var code = parseInt(btn.dataset.code, 10);
-      var press = function(e) { e.preventDefault(); dispatchKey("keydown", key, code); };
-      var release = function(e) { e.preventDefault(); dispatchKey("keyup", key, code); };
-      btn.addEventListener("touchstart", press, { passive: false });
-      btn.addEventListener("touchend", release, { passive: false });
+      var press   = function(e) { e.preventDefault(); dispatchKey("keydown", key, code); };
+      var release = function(e) { e.preventDefault(); dispatchKey("keyup",   key, code); };
+      btn.addEventListener("touchstart",  press,   { passive: false });
+      btn.addEventListener("touchend",    release, { passive: false });
       btn.addEventListener("touchcancel", release, { passive: false });
-      btn.addEventListener("mousedown", press);
-      btn.addEventListener("mouseup", release);
+      btn.addEventListener("mousedown",  press);
+      btn.addEventListener("mouseup",    release);
       btn.addEventListener("mouseleave", release);
     });
     document.addEventListener("gesturestart", function(e) { e.preventDefault(); });
@@ -119,5 +118,58 @@
         e.preventDefault();
       }
     }, { passive: false });
+
+    // ── Mobile canvas resize: shrink canvas so touch controls don't
+    //    overlap the game floor. Only runs on touch (coarse-pointer) devices.
+    // ─────────────────────────────────────────────────────────────────────
+    if (!window.matchMedia("(hover: none) and (pointer: coarse)").matches) return;
+
+    var TC_HEIGHT = 100;   // keep in sync with #touch-controls height above
+    var GAME_AR   = 960 / 540;
+
+    function applyTouchLayout() {
+      var cv = document.getElementById("canvas");
+      if (!cv) return;
+      var maxW = window.innerWidth;
+      var maxH = window.innerHeight - TC_HEIGHT;
+      var w, h;
+      if (maxW / maxH > GAME_AR) {
+        // viewport wider than game: fit to available height
+        h = maxH;
+        w = Math.floor(h * GAME_AR);
+      } else {
+        // viewport narrower: fit to width
+        w = maxW;
+        h = Math.floor(w / GAME_AR);
+      }
+      cv.style.width  = w + "px";
+      cv.style.height = h + "px";
+      cv.style.left   = Math.floor((maxW - w) / 2) + "px";
+      cv.style.top    = "0";
+      cv.style.bottom = "auto";
+      cv.style.right  = "auto";
+    }
+
+    // Patch pygbag's window_resize so our layout runs after each resize.
+    var _patchAttempts = 0;
+    function patchResize() {
+      if (typeof window.window_resize === "function") {
+        var orig = window.window_resize;
+        window.window_resize = function() { orig(); applyTouchLayout(); };
+        applyTouchLayout();
+      } else if (_patchAttempts < 40) {
+        _patchAttempts++;
+        setTimeout(patchResize, 250);
+      }
+    }
+    patchResize();
+
+    window.addEventListener("resize", applyTouchLayout);
+    window.addEventListener("orientationchange", function() {
+      setTimeout(applyTouchLayout, 150);
+    });
+    // Fallback: ensure layout is applied even if pygbag resizes late
+    setTimeout(applyTouchLayout, 800);
+    setTimeout(applyTouchLayout, 2000);
   })();
 </script>
