@@ -49,6 +49,11 @@ jobs:
           # GitHub Pages serves Cache-Control: max-age=600 which can leave
           # stale bundles on phones for 10 minutes. Force revalidation.
           cache_meta = (
+              '<meta name="viewport" content="width=device-width, initial-scale=1.0, '
+              'maximum-scale=1.0, user-scalable=no, viewport-fit=cover">\n'
+              '<meta name="apple-mobile-web-app-capable" content="yes">\n'
+              '<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">\n'
+              '<meta name="mobile-web-app-capable" content="yes">\n'
               '<meta http-equiv="Cache-Control" '
               'content="no-store, no-cache, must-revalidate, max-age=0">\n'
               '<meta http-equiv="Pragma" content="no-cache">\n'

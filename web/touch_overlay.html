@@ -1,6 +1,6 @@
 <!-- ============================================================
      MOBILE TOUCH CONTROLS -- injected into index.html after pygbag
-     builds. Only visible on touch devices via CSS media query.
+     builds. Universal phone compatibility overlay.
      ============================================================ -->
 <style>
   #touch-controls {
@@ -8,68 +8,84 @@
     bottom: 0;
     left: 0;
     right: 0;
-    height: 140px;
+    height: 160px;
+    height: calc(160px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
     pointer-events: none;
     z-index: 1000;
     display: none;
     user-select: none;
     -webkit-user-select: none;
     -webkit-touch-callout: none;
+    touch-action: none;
   }
   @media (hover: none) and (pointer: coarse) {
     #touch-controls { display: block; }
   }
+  @media (any-pointer: coarse) {
+    #touch-controls { display: block; }
+  }
   .tc-btn {
     position: absolute;
-    width: 56px;
-    height: 56px;
+    width: 60px;
+    height: 60px;
     border-radius: 50%;
-    background: rgba(30, 40, 30, 0.32);     /* was 0.55 */
-    border: 2px solid rgba(180, 220, 140, 0.55);  /* was 3px + 0.85 */
-    color: rgba(255, 255, 255, 0.85);
-    font-family: sans-serif;
+    background: rgba(30, 40, 30, 0.38);
+    border: 2px solid rgba(180, 220, 140, 0.55);
+    color: rgba(255, 255, 255, 0.9);
+    font-family: system-ui, -apple-system, sans-serif;
     font-size: 22px;
     font-weight: bold;
     display: flex;
     align-items: center;
     justify-content: center;
     pointer-events: auto;
-    touch-action: manipulation;
+    touch-action: none;
     -webkit-tap-highlight-color: transparent;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
-    transition: background 0.08s, transform 0.05s;
+    -webkit-touch-callout: none;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.4);
+    transition: background 0.06s, transform 0.04s;
+    will-change: transform, background;
+    contain: layout style paint;
   }
-  .tc-btn:active {
-    background: rgba(120, 180, 80, 0.85);   /* solid feedback when pressed */
+  .tc-btn.tc-pressed {
+    background: rgba(120, 180, 80, 0.85);
     color: #fff;
     transform: scale(0.92);
   }
-  /* LEFT CLUSTER (movement) -- bottom-left corner, 56px btns, 12px gap */
-  #tc-left   { left: 12px;  bottom: 12px; }
-  #tc-right  { left: 80px;  bottom: 12px; }
-  /* RIGHT CLUSTER (actions) -- bottom-right, 3 buttons, 56px + 12px gap */
-  #tc-attack { right: 148px; bottom: 12px; background: rgba(200, 80, 80, 0.32); border-color: rgba(255, 180, 140, 0.55); font-size: 15px; }
-  #tc-dash   { right: 80px;  bottom: 12px; background: rgba(220, 160, 80, 0.32); border-color: rgba(255, 180, 140, 0.55); font-size: 13px; }
-  #tc-jump   { right: 12px;  bottom: 12px; background: rgba(80, 150, 220, 0.32); border-color: rgba(140, 220, 255, 0.6); }
-  /* START -- above action row, spans the cluster width, auto-fade when idle */
+  #tc-left   { left: 14px;  bottom: 14px; }
+  #tc-right  { left: 86px;  bottom: 14px; }
+  #tc-attack { right: 152px; bottom: 14px; background: rgba(200, 80, 80, 0.38); border-color: rgba(255, 180, 140, 0.55); font-size: 15px; }
+  #tc-attack.tc-pressed { background: rgba(230, 100, 100, 0.85); }
+  #tc-dash   { right: 82px;  bottom: 14px; background: rgba(220, 160, 80, 0.38); border-color: rgba(255, 180, 140, 0.55); font-size: 13px; }
+  #tc-dash.tc-pressed { background: rgba(240, 180, 100, 0.85); }
+  #tc-jump   { right: 12px;  bottom: 14px; background: rgba(80, 150, 220, 0.38); border-color: rgba(140, 220, 255, 0.6); }
+  #tc-jump.tc-pressed { background: rgba(100, 170, 240, 0.85); }
   #tc-start {
     right: 12px;
-    bottom: 80px;       /* 56 (btn) + 12 (bottom) + 12 (gap) */
-    width: 192px;       /* spans ATK (right:148) through JUMP (right:12) */
-    height: 44px;
-    border-radius: 22px;
+    bottom: 86px;
+    width: 200px;
+    height: 46px;
+    border-radius: 23px;
     background: rgba(80, 200, 120, 0.45);
     border-color: rgba(150, 240, 180, 0.65);
     font-size: 17px;
     letter-spacing: 2px;
     z-index: 1001;
   }
-  #tc-start:active {
+  #tc-start.tc-pressed {
     transform: scale(0.95);
     background: rgba(120, 230, 150, 0.9);
   }
-  /* Container height reduced since buttons are smaller */
-  #touch-controls { height: 140px; }
+  @media (orientation: portrait) and (max-width: 420px) {
+    .tc-btn { width: 52px; height: 52px; font-size: 19px; }
+    #tc-left  { left: 10px; bottom: 10px; }
+    #tc-right { left: 72px; bottom: 10px; }
+    #tc-attack { right: 130px; bottom: 10px; }
+    #tc-dash   { right: 68px;  bottom: 10px; }
+    #tc-jump   { right: 8px;   bottom: 10px; }
+    #tc-start  { right: 8px; bottom: 72px; width: 174px; height: 42px; }
+  }
 </style>
 <div id="touch-controls" aria-hidden="true">
   <div class="tc-btn" id="tc-start"  data-key="Enter"      data-code="13">START</div>
@@ -81,39 +97,104 @@
 </div>
 <script>
   (function() {
-    function keyCodeName(k) {
-      if (k === " ") return "Space";
-      if (k === "ArrowLeft") return "ArrowLeft";
-      if (k === "ArrowRight") return "ArrowRight";
-      if (k === "e") return "KeyE";
-      if (k === "Shift") return "ShiftLeft";
-      if (k === "Enter") return "Enter";
-      return k;
-    }
+    var CODE_MAP = {
+      " ": "Space", "ArrowLeft": "ArrowLeft", "ArrowRight": "ArrowRight",
+      "e": "KeyE", "Shift": "ShiftLeft", "Enter": "Enter"
+    };
+    var activeKeys = {};
+
     function dispatchKey(type, key, code) {
-      var evt = new KeyboardEvent(type, {
-        key: key, code: keyCodeName(key),
+      if (type === "keydown" && activeKeys[code]) return;
+      if (type === "keydown") activeKeys[code] = true;
+      if (type === "keyup") delete activeKeys[code];
+      var opts = {
+        key: key, code: CODE_MAP[key] || key,
         keyCode: code, which: code,
         bubbles: true, cancelable: true
-      });
+      };
+      var evt = new KeyboardEvent(type, opts);
+      window.dispatchEvent(evt);
+      document.dispatchEvent(evt);
       document.body.dispatchEvent(evt);
       var canvas = document.querySelector("canvas");
       if (canvas) canvas.dispatchEvent(evt);
-      window.dispatchEvent(evt);
     }
-    document.querySelectorAll("#touch-controls .tc-btn").forEach(function(btn) {
+
+    var touchMap = {};
+
+    function findBtnFromTouch(touch) {
+      var el = document.elementFromPoint(touch.clientX, touch.clientY);
+      return el && el.closest ? el.closest(".tc-btn") : null;
+    }
+
+    var container = document.getElementById("touch-controls");
+    if (!container) return;
+
+    container.addEventListener("touchstart", function(e) {
+      e.preventDefault();
+      for (var i = 0; i < e.changedTouches.length; i++) {
+        var t = e.changedTouches[i];
+        var btn = findBtnFromTouch(t);
+        if (btn) {
+          touchMap[t.identifier] = btn;
+          btn.classList.add("tc-pressed");
+          dispatchKey("keydown", btn.dataset.key, parseInt(btn.dataset.code, 10));
+        }
+      }
+    }, { passive: false });
+
+    container.addEventListener("touchmove", function(e) {
+      e.preventDefault();
+      for (var i = 0; i < e.changedTouches.length; i++) {
+        var t = e.changedTouches[i];
+        var prevBtn = touchMap[t.identifier];
+        var currBtn = findBtnFromTouch(t);
+        if (prevBtn && prevBtn !== currBtn) {
+          prevBtn.classList.remove("tc-pressed");
+          dispatchKey("keyup", prevBtn.dataset.key, parseInt(prevBtn.dataset.code, 10));
+        }
+        if (currBtn && currBtn !== prevBtn) {
+          touchMap[t.identifier] = currBtn;
+          currBtn.classList.add("tc-pressed");
+          dispatchKey("keydown", currBtn.dataset.key, parseInt(currBtn.dataset.code, 10));
+        } else if (!currBtn) {
+          delete touchMap[t.identifier];
+        }
+      }
+    }, { passive: false });
+
+    function handleTouchEnd(e) {
+      e.preventDefault();
+      for (var i = 0; i < e.changedTouches.length; i++) {
+        var t = e.changedTouches[i];
+        var btn = touchMap[t.identifier];
+        if (btn) {
+          btn.classList.remove("tc-pressed");
+          dispatchKey("keyup", btn.dataset.key, parseInt(btn.dataset.code, 10));
+          delete touchMap[t.identifier];
+        }
+      }
+    }
+    container.addEventListener("touchend", handleTouchEnd, { passive: false });
+    container.addEventListener("touchcancel", handleTouchEnd, { passive: false });
+
+    container.querySelectorAll(".tc-btn").forEach(function(btn) {
       var key = btn.dataset.key;
       var code = parseInt(btn.dataset.code, 10);
-      var press = function(e) { e.preventDefault(); dispatchKey("keydown", key, code); };
-      var release = function(e) { e.preventDefault(); dispatchKey("keyup", key, code); };
-      btn.addEventListener("touchstart", press, { passive: false });
-      btn.addEventListener("touchend", release, { passive: false });
-      btn.addEventListener("touchcancel", release, { passive: false });
-      btn.addEventListener("mousedown", press);
-      btn.addEventListener("mouseup", release);
-      btn.addEventListener("mouseleave", release);
+      btn.addEventListener("mousedown", function(e) { e.preventDefault(); btn.classList.add("tc-pressed"); dispatchKey("keydown", key, code); });
+      btn.addEventListener("mouseup", function(e) { e.preventDefault(); btn.classList.remove("tc-pressed"); dispatchKey("keyup", key, code); });
+      btn.addEventListener("mouseleave", function(e) { btn.classList.remove("tc-pressed"); dispatchKey("keyup", key, code); });
     });
-    document.addEventListener("gesturestart", function(e) { e.preventDefault(); });
+
+    document.addEventListener("gesturestart", function(e) { e.preventDefault(); }, { passive: false });
+    document.addEventListener("gesturechange", function(e) { e.preventDefault(); }, { passive: false });
+
+    document.addEventListener("contextmenu", function(e) {
+      if (e.target && e.target.closest && e.target.closest("#touch-controls")) {
+        e.preventDefault();
+      }
+    });
+
     document.addEventListener("touchmove", function(e) {
       if (e.target && e.target.closest && e.target.closest("#touch-controls")) {
         e.preventDefault();
