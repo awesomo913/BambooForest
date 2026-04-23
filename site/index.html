@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Revolutionary Designs — games, tools, and experiments.">
+  <meta name="description" content="Revolutionary Designs — games, tools, and experiments by awesomo913.">
   <title>Revolutionary Designs</title>
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="stylesheet" href="styles.css">
@@ -20,6 +20,25 @@
     </ul>
   </nav>
 
+  <!-- ═══ APP PROMO BANNER ═══ -->
+  <section id="app-promo">
+    <div class="promo-glow"></div>
+    <div class="promo-inner">
+      <div class="promo-badge-row">
+        <span class="promo-badge">Coming Soon</span>
+        <span class="promo-badge promo-badge--android">Android</span>
+      </div>
+      <h2 class="promo-title">Typing Speed Test</h2>
+      <p class="promo-desc">Precision WPM tracking. Clean interface. Fully offline. Launching on Google Play.</p>
+      <div class="promo-features">
+        <span class="promo-feature">Offline-First</span>
+        <span class="promo-feature">Distraction-Free</span>
+        <span class="promo-feature">Precision Metrics</span>
+      </div>
+      <span class="promo-cta">Google Play — Coming Soon</span>
+    </div>
+  </section>
+
   <!-- ═══ HERO ═══ -->
   <section id="hero">
     <div class="hero-inner">
@@ -28,7 +47,22 @@
         <span id="hero-line2"></span><span class="cursor-blink" id="hero-cursor">|</span>
       </h1>
       <p class="tagline hero-reveal">Games, tools, and experiments.</p>
-      <a href="/game/" class="btn-primary hero-reveal">Play Bamboo Forest →</a>
+    </div>
+  </section>
+
+  <!-- ═══ BAMBOO FOREST SHOWCASE ═══ -->
+  <section id="bamboo-showcase">
+    <div class="section-inner">
+      <div class="bamboo-box">
+        <div class="bamboo-video-bg">
+          <div class="bamboo-canvas-fallback" id="bamboo-fallback"></div>
+        </div>
+        <div class="bamboo-overlay">
+          <h2 class="bamboo-title">Bamboo Forest</h2>
+          <p class="bamboo-sub">The Legend of Pain-da</p>
+          <a href="/game/" class="btn-play">Play Now</a>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -37,24 +71,6 @@
     <div class="section-inner">
       <h2>Projects</h2>
       <div class="projects-grid" id="projects-grid">
-
-        <!-- ── Typing Speed Test — Coming Soon ── -->
-        <article class="project-card project-card--featured">
-          <div class="project-body">
-            <div class="badge-row">
-              <span class="badge-coming-soon">Coming Soon</span>
-              <span class="badge-android">Android</span>
-            </div>
-            <h3>Typing Speed Test</h3>
-            <p>Precision WPM tracking with a clean, distraction-free interface. Fully offline-capable. Launching on Google Play.</p>
-            <div class="project-meta"></div>
-            <div class="project-links">
-              <span class="link-coming-soon">Google Play — Coming Soon</span>
-            </div>
-          </div>
-        </article>
-
-        <!-- Dynamic GitHub repo cards injected below -->
         <div class="projects-loading" id="projects-loading">
           <span class="loading-dot"></span>
           <span class="loading-dot"></span>
@@ -95,175 +111,199 @@
           </svg>
           eBay Store
         </a>
+        <a href="https://www.facebook.com/groups/thecactuscult" class="contact-link" target="_blank" rel="noopener">
+          <svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+          </svg>
+          The Cactus Cult
+        </a>
+        <a href="https://www.facebook.com/groups/cactusconcessionstand" class="contact-link" target="_blank" rel="noopener">
+          <svg class="icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+          </svg>
+          Cactus Concession Stand
+        </a>
       </div>
     </div>
   </section>
 
   <footer>
-    <p>© 2026 Revolutionary Designs</p>
+    <p>&copy; 2026 Revolutionary Designs</p>
   </footer>
 
   <script>
-    /* ════════════════════════════════════════════
-       Hero typewriter animation
-       ════════════════════════════════════════════ */
+    /* ═══ Hero typewriter ═══ */
     function typeWriter(el, text, speed) {
       return new Promise(resolve => {
         let i = 0;
         el.textContent = '';
         (function next() {
-          if (i < text.length) {
-            el.textContent += text[i++];
-            setTimeout(next, speed);
-          } else {
-            resolve();
-          }
+          if (i < text.length) { el.textContent += text[i++]; setTimeout(next, speed); }
+          else resolve();
         })();
       });
     }
 
     async function runHeroAnimation() {
-      const line1   = document.getElementById('hero-line1');
-      const line2   = document.getElementById('hero-line2');
+      const line1 = document.getElementById('hero-line1');
+      const line2 = document.getElementById('hero-line2');
       const reveals = document.querySelectorAll('.hero-reveal');
       if (!line1 || !line2) return;
-
-      // Respect reduced-motion preference
       if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
         line1.textContent = 'Revolutionary';
         line2.textContent = 'Designs';
         reveals.forEach(el => el.classList.add('hero-reveal--visible'));
         return;
       }
-
       await typeWriter(line1, 'Revolutionary', 55);
       await new Promise(r => setTimeout(r, 110));
       await typeWriter(line2, 'Designs', 75);
       await new Promise(r => setTimeout(r, 360));
-
-      reveals.forEach((el, i) => {
-        setTimeout(() => el.classList.add('hero-reveal--visible'), i * 160);
-      });
+      reveals.forEach((el, i) => setTimeout(() => el.classList.add('hero-reveal--visible'), i * 160));
     }
 
     document.addEventListener('DOMContentLoaded', runHeroAnimation);
 
-    /* ════════════════════════════════════════════
-       Scroll-reveal (fade-up on enter viewport)
-       ════════════════════════════════════════════ */
+    /* ═══ Scroll-reveal ═══ */
     const revealObserver = new IntersectionObserver((entries) => {
       entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('visible');
-          revealObserver.unobserve(entry.target);
-        }
+        if (entry.isIntersecting) { entry.target.classList.add('visible'); revealObserver.unobserve(entry.target); }
       });
     }, { threshold: 0.1 });
-
-    document.querySelectorAll('.section-inner').forEach(el => {
+    document.querySelectorAll('.section-inner, .bamboo-box, .promo-inner').forEach(el => {
       el.classList.add('fade-up');
       revealObserver.observe(el);
     });
 
-    /* ════════════════════════════════════════════
-       Projects — GitHub API
-       ════════════════════════════════════════════ */
+    /* ═══ Bamboo Forest animated background ═══ */
+    (function initBambooCanvas() {
+      var fb = document.getElementById('bamboo-fallback');
+      if (!fb) return;
+      var cvs = document.createElement('canvas');
+      cvs.width = 640; cvs.height = 360;
+      cvs.style.cssText = 'width:100%;height:100%;display:block;';
+      fb.appendChild(cvs);
+      var ctx = cvs.getContext('2d');
+      var bamboos = [];
+      for (var i = 0; i < 18; i++) {
+        bamboos.push({ x: Math.random() * 640, h: 120 + Math.random() * 200, w: 8 + Math.random() * 6, speed: 0.15 + Math.random() * 0.25, leaves: Math.floor(2 + Math.random() * 4) });
+      }
+      var panda = { x: 180, y: 240, vx: 1.2, frame: 0 };
+      var particles = [];
+      for (var p = 0; p < 12; p++) particles.push({ x: Math.random() * 640, y: Math.random() * 200, s: 1 + Math.random() * 2, a: 0.1 + Math.random() * 0.3, speed: 0.2 + Math.random() * 0.4 });
+
+      function draw() {
+        ctx.fillStyle = '#1a3a1a';
+        ctx.fillRect(0, 0, 640, 360);
+        ctx.fillStyle = '#0f2a0f';
+        ctx.fillRect(0, 280, 640, 80);
+        for (var i = 0; i < bamboos.length; i++) {
+          var b = bamboos[i];
+          b.x -= b.speed;
+          if (b.x < -20) b.x = 660;
+          ctx.fillStyle = '#2d6b2d';
+          ctx.fillRect(b.x, 280 - b.h, b.w, b.h + 40);
+          for (var j = 0; j < b.leaves; j++) {
+            var ly = 280 - b.h + j * (b.h / b.leaves) + 20;
+            ctx.fillStyle = '#4a9e4a';
+            ctx.beginPath();
+            ctx.ellipse(b.x + b.w / 2 + (j % 2 === 0 ? 12 : -12), ly, 14, 5, (j % 2 === 0 ? 0.3 : -0.3), 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        for (var p = 0; p < particles.length; p++) {
+          var pt = particles[p];
+          pt.x -= pt.speed;
+          pt.y += Math.sin(Date.now() * 0.001 + p) * 0.2;
+          if (pt.x < -10) { pt.x = 650; pt.y = Math.random() * 200; }
+          ctx.fillStyle = 'rgba(200, 230, 180, ' + pt.a + ')';
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, pt.s, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        panda.x += panda.vx;
+        panda.frame += 0.08;
+        if (panda.x > 660) panda.x = -40;
+        var py = 248 + Math.sin(panda.frame * 3) * 3;
+        ctx.fillStyle = '#f5f5f5';
+        ctx.beginPath(); ctx.arc(panda.x, py, 14, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#222';
+        ctx.beginPath(); ctx.arc(panda.x - 5, py - 5, 3, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(panda.x + 5, py - 5, 3, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#333';
+        ctx.beginPath(); ctx.arc(panda.x - 10, py + 8, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(panda.x + 10, py + 8, 5, 0, Math.PI * 2); ctx.fill();
+        requestAnimationFrame(draw);
+      }
+      draw();
+    })();
+
+    /* ═══ Projects — GitHub API ═══ */
     const LANG_COLORS = {
-      Python:     '#3572A5',
-      JavaScript: '#f1e05a',
-      TypeScript: '#2b7489',
-      HTML:       '#e34c26',
-      CSS:        '#563d7c',
-      Rust:       '#dea584',
-      Go:         '#00ADD8',
-      'C++':      '#f34b7d',
-      C:          '#555555',
-      Shell:      '#89e051',
-      Ruby:       '#701516',
-      Java:       '#b07219',
+      Python: '#3572A5', JavaScript: '#f1e05a', TypeScript: '#2b7489',
+      HTML: '#e34c26', CSS: '#563d7c', Rust: '#dea584', Go: '#00ADD8',
+      'C++': '#f34b7d', C: '#555555', Shell: '#89e051', Ruby: '#701516', Java: '#b07219',
     };
 
-    const PLAYABLE = {
-      BambooForest: '/game/',
+    const REPO_ICONS = {
+      BambooForest: '🎮', VideoTranscriber: '🎬', VideoTrimmer: '✂️',
+      ScreenAgent: '🖥️', PromptArchitect: '📐', ClaudeTokenSaver: '💰',
+      FreeCoder: '🤖', GeminiAnalyzer: '🔬', 'cc-mastery-pwa': '📚',
+      'ai-intel-hub': '📡',
     };
+
+    const SKIP_REPOS = ['BambooForest', 'awesomo913.github.io'];
 
     function humanName(repoName) {
-      return repoName
-        .replace(/([a-z])([A-Z])/g, '$1 $2')
-        .replace(/[-_]/g, ' ')
-        .replace(/\b\w/g, c => c.toUpperCase());
+      return repoName.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
     }
 
     function buildCard(repo) {
-      const name    = humanName(repo.name);
-      const desc    = repo.description || 'No description.';
-      const ghUrl   = repo.html_url;
-      const lang    = repo.language;
-      const stars   = repo.stargazers_count;
-      const playUrl = PLAYABLE[repo.name];
+      const name = humanName(repo.name);
+      const desc = repo.description || 'No description.';
+      const ghUrl = repo.html_url;
+      const lang = repo.language;
+      const stars = repo.stargazers_count;
+      const icon = REPO_ICONS[repo.name] || '📦';
 
       const langBadge = lang
-        ? `<span class="lang-badge" style="--lang-color:${LANG_COLORS[lang] || '#888'}">
-             <span class="lang-dot"></span>${lang}
-           </span>`
+        ? `<span class="lang-badge" style="--lang-color:${LANG_COLORS[lang] || '#888'}"><span class="lang-dot"></span>${lang}</span>`
         : '';
-
-      const starsBadge = stars > 0
-        ? `<span class="stars-badge">★ ${stars}</span>`
-        : '';
-
-      const playLink = playUrl
-        ? `<a href="${playUrl}" class="link-play">Play →</a>`
-        : '';
+      const starsBadge = stars > 0 ? `<span class="stars-badge">★ ${stars}</span>` : '';
 
       return `
         <article class="project-card">
           <div class="project-body">
+            <div class="project-icon">${icon}</div>
             <h3><a href="${ghUrl}" target="_blank" rel="noopener" class="project-title-link">${name}</a></h3>
             <p>${desc}</p>
-            <div class="project-meta">
-              ${langBadge}
-              ${starsBadge}
-            </div>
+            <div class="project-meta">${langBadge}${starsBadge}</div>
             <div class="project-links">
-              ${playLink}
-              <a href="${ghUrl}" class="link-github" target="_blank" rel="noopener">GitHub ↗</a>
+              <a href="${ghUrl}" class="link-github" target="_blank" rel="noopener">View on GitHub ↗</a>
             </div>
           </div>
         </article>`;
     }
 
     async function loadProjects() {
-      const grid    = document.getElementById('projects-grid');
+      const grid = document.getElementById('projects-grid');
       const spinner = document.getElementById('projects-loading');
-      const errMsg  = document.getElementById('projects-error');
-
+      const errMsg = document.getElementById('projects-error');
       try {
-        const res = await fetch(
-          'https://api.github.com/users/awesomo913/repos?sort=updated&per_page=100'
-        );
+        const res = await fetch('https://api.github.com/users/awesomo913/repos?sort=updated&per_page=100');
         if (!res.ok) throw new Error(`GitHub API ${res.status}`);
-
         const repos = await res.json();
-
         const sorted = repos
-          .filter(r => !r.fork && !r.private)
-          .sort((a, b) => {
-            if (a.name === 'BambooForest') return -1;
-            if (b.name === 'BambooForest') return  1;
-            return new Date(b.updated_at) - new Date(a.updated_at);
-          });
-
+          .filter(r => !r.fork && !r.private && !SKIP_REPOS.includes(r.name))
+          .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
         spinner.remove();
         grid.insertAdjacentHTML('beforeend', sorted.map(buildCard).join(''));
-
       } catch (err) {
         console.error('Failed to load GitHub repos:', err);
         spinner.remove();
         errMsg.hidden = false;
       }
     }
-
     loadProjects();
   </script>
 
