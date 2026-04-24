@@ -1,16 +1,11 @@
 <!-- ============================================================
-     MOBILE TOUCH CONTROLS -- injected into index.html after pygbag
-     builds. Universal phone compatibility overlay.
+     MOBILE TOUCH CONTROLS v3 — Virtual joystick + A/B buttons
+     Injected into game index.html by the deploy workflow.
      ============================================================ -->
 <style>
   #touch-controls {
     position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 160px;
-    height: calc(160px + env(safe-area-inset-bottom, 0px));
-    padding-bottom: env(safe-area-inset-bottom, 0px);
+    inset: 0;
     pointer-events: none;
     z-index: 1000;
     display: none;
@@ -25,78 +20,247 @@
   @media (any-pointer: coarse) {
     #touch-controls { display: block; }
   }
-  .tc-btn {
+
+  /* ── Joystick (left thumb) ── */
+  .joy-zone {
     position: absolute;
-    width: 60px;
-    height: 60px;
+    left: 12px;
+    bottom: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    width: 140px;
+    height: 140px;
     border-radius: 50%;
-    background: rgba(30, 40, 30, 0.38);
-    border: 2px solid rgba(180, 220, 140, 0.55);
-    color: rgba(255, 255, 255, 0.9);
-    font-family: system-ui, -apple-system, sans-serif;
-    font-size: 22px;
-    font-weight: bold;
+    background: rgba(255, 255, 255, 0.06);
+    border: 2px solid rgba(255, 255, 255, 0.12);
+    pointer-events: auto;
+    touch-action: none;
+  }
+  .joy-knob {
+    position: absolute;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 40% 38%, rgba(180, 220, 140, 0.7), rgba(80, 160, 60, 0.5));
+    border: 2px solid rgba(180, 220, 140, 0.6);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5), inset 0 1px 2px rgba(255, 255, 255, 0.2);
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    transition: none;
+    will-change: transform;
+  }
+  .joy-zone:not(.joy-active) .joy-knob {
+    transition: transform 0.15s ease-out;
+  }
+  .joy-dir {
+    position: absolute;
+    width: 100%; height: 100%;
+    pointer-events: none;
+  }
+  .joy-dir::before, .joy-dir::after {
+    content: '';
+    position: absolute;
+    width: 0; height: 0;
+    border: 6px solid transparent;
+    opacity: 0.25;
+  }
+  .joy-dir::before {
+    top: 8px; left: 50%; transform: translateX(-50%);
+    border-bottom-color: rgba(255, 255, 255, 0.5);
+    display: none;
+  }
+  .joy-dir::after {
+    bottom: 8px; left: 50%; transform: translateX(-50%);
+    border-top-color: rgba(255, 255, 255, 0.5);
+    display: none;
+  }
+
+  /* ── A/B Buttons (right thumb) ── */
+  .btn-cluster {
+    position: absolute;
+    right: 12px;
+    bottom: 16px;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    width: 160px;
+    height: 140px;
+    pointer-events: none;
+  }
+  .ab-btn {
+    position: absolute;
+    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
+    font-family: system-ui, -apple-system, sans-serif;
+    font-weight: 800;
     pointer-events: auto;
     touch-action: none;
     -webkit-tap-highlight-color: transparent;
     -webkit-touch-callout: none;
-    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.4);
-    transition: background 0.06s, transform 0.04s;
-    will-change: transform, background;
+    will-change: transform;
     contain: layout style paint;
   }
-  .tc-btn.tc-pressed {
-    background: rgba(120, 180, 80, 0.85);
+  .ab-btn.ab-pressed {
+    transform: scale(0.88);
+  }
+
+  /* B = Jump (big, bottom-right — primary action) */
+  .ab-b {
+    width: 72px;
+    height: 72px;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(circle at 40% 35%, rgba(100, 180, 255, 0.65), rgba(40, 100, 200, 0.45));
+    border: 2.5px solid rgba(140, 200, 255, 0.6);
+    box-shadow: 0 3px 14px rgba(40, 100, 200, 0.35), inset 0 1px 3px rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.95);
+    font-size: 20px;
+    letter-spacing: 1px;
+  }
+  .ab-b.ab-pressed {
+    background: radial-gradient(circle at 40% 35%, rgba(140, 210, 255, 0.9), rgba(80, 150, 240, 0.8));
+    box-shadow: 0 0 20px rgba(100, 180, 255, 0.5);
+  }
+  .ab-b-label {
+    position: absolute;
+    bottom: -18px;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    color: rgba(140, 200, 255, 0.5);
+    text-transform: uppercase;
+  }
+
+  /* A = Attack (medium, upper-left of B) */
+  .ab-a {
+    width: 60px;
+    height: 60px;
+    right: 90px;
+    bottom: 50px;
+    background: radial-gradient(circle at 40% 35%, rgba(255, 120, 120, 0.65), rgba(200, 50, 50, 0.45));
+    border: 2.5px solid rgba(255, 160, 140, 0.55);
+    box-shadow: 0 3px 14px rgba(200, 50, 50, 0.3), inset 0 1px 3px rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.95);
+    font-size: 18px;
+    letter-spacing: 1px;
+  }
+  .ab-a.ab-pressed {
+    background: radial-gradient(circle at 40% 35%, rgba(255, 160, 160, 0.9), rgba(230, 90, 90, 0.8));
+    box-shadow: 0 0 20px rgba(255, 120, 120, 0.5);
+  }
+  .ab-a-label {
+    position: absolute;
+    bottom: -18px;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    color: rgba(255, 160, 140, 0.5);
+    text-transform: uppercase;
+  }
+
+  /* Dash = small trigger above cluster */
+  .ab-dash {
+    width: 52px;
+    height: 36px;
+    right: 34px;
+    top: 0;
+    border-radius: 18px;
+    background: rgba(255, 200, 80, 0.3);
+    border: 2px solid rgba(255, 210, 120, 0.35);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 11px;
+    letter-spacing: 1.5px;
+  }
+  .ab-dash.ab-pressed {
+    background: rgba(255, 210, 100, 0.75);
     color: #fff;
-    transform: scale(0.92);
   }
-  #tc-left   { left: 14px;  bottom: 14px; }
-  #tc-right  { left: 86px;  bottom: 14px; }
-  #tc-attack { right: 152px; bottom: 14px; background: rgba(200, 80, 80, 0.38); border-color: rgba(255, 180, 140, 0.55); font-size: 15px; }
-  #tc-attack.tc-pressed { background: rgba(230, 100, 100, 0.85); }
-  #tc-dash   { right: 82px;  bottom: 14px; background: rgba(220, 160, 80, 0.38); border-color: rgba(255, 180, 140, 0.55); font-size: 13px; }
-  #tc-dash.tc-pressed { background: rgba(240, 180, 100, 0.85); }
-  #tc-jump   { right: 12px;  bottom: 14px; background: rgba(80, 150, 220, 0.38); border-color: rgba(140, 220, 255, 0.6); }
-  #tc-jump.tc-pressed { background: rgba(100, 170, 240, 0.85); }
-  #tc-start {
-    right: 12px;
-    bottom: 86px;
-    width: 200px;
-    height: 46px;
-    border-radius: 23px;
-    background: rgba(80, 200, 120, 0.45);
-    border-color: rgba(150, 240, 180, 0.65);
-    font-size: 17px;
-    letter-spacing: 2px;
-    z-index: 1001;
+
+  /* ── START (top-right, small pill) ── */
+  .tc-start {
+    position: absolute;
+    top: 12px;
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 6px 24px;
+    border-radius: 14px;
+    background: rgba(80, 200, 120, 0.3);
+    border: 1.5px solid rgba(150, 240, 180, 0.4);
+    color: rgba(255, 255, 255, 0.7);
+    font-family: system-ui, sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 2.5px;
+    pointer-events: auto;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
   }
-  #tc-start.tc-pressed {
-    transform: scale(0.95);
-    background: rgba(120, 230, 150, 0.9);
+  .tc-start.ab-pressed {
+    background: rgba(120, 230, 150, 0.8);
+    color: #fff;
+    transform: translateX(-50%) scale(0.95);
   }
+
+  /* ── Fullscreen prompt ── */
+  .fs-prompt {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    padding: 14px 28px;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.8);
+    font-family: system-ui, sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    pointer-events: auto;
+    z-index: 1002;
+    text-align: center;
+    animation: fsPulse 2s ease-in-out infinite;
+    cursor: pointer;
+  }
+  .fs-prompt.fs-hidden { display: none; }
+  @keyframes fsPulse { 0%, 100% { opacity: 0.8; } 50% { opacity: 1; } }
+
+  /* ── Responsive: portrait small phone ── */
   @media (orientation: portrait) and (max-width: 420px) {
-    .tc-btn { width: 52px; height: 52px; font-size: 19px; }
-    #tc-left  { left: 10px; bottom: 10px; }
-    #tc-right { left: 72px; bottom: 10px; }
-    #tc-attack { right: 130px; bottom: 10px; }
-    #tc-dash   { right: 68px;  bottom: 10px; }
-    #tc-jump   { right: 8px;   bottom: 10px; }
-    #tc-start  { right: 8px; bottom: 72px; width: 174px; height: 42px; }
+    .joy-zone { width: 120px; height: 120px; }
+    .joy-knob { width: 48px; height: 48px; }
+    .btn-cluster { width: 140px; height: 120px; }
+    .ab-b { width: 62px; height: 62px; font-size: 17px; }
+    .ab-a { width: 52px; height: 52px; font-size: 15px; right: 78px; bottom: 42px; }
+    .ab-dash { right: 24px; width: 46px; height: 32px; font-size: 10px; }
   }
 </style>
+
 <div id="touch-controls" aria-hidden="true">
-  <div class="tc-btn" id="tc-start"  data-key="Enter"      data-code="13">START</div>
-  <div class="tc-btn" id="tc-left"   data-key="ArrowLeft"  data-code="37">&#9664;</div>
-  <div class="tc-btn" id="tc-right"  data-key="ArrowRight" data-code="39">&#9654;</div>
-  <div class="tc-btn" id="tc-jump"   data-key=" "          data-code="32">JUMP</div>
-  <div class="tc-btn" id="tc-attack" data-key="e"          data-code="69">ATK</div>
-  <div class="tc-btn" id="tc-dash"   data-key="Shift"      data-code="16">DASH</div>
+  <!-- Fullscreen prompt -->
+  <div class="fs-prompt" id="fs-prompt">Tap to go fullscreen</div>
+
+  <!-- START -->
+  <div class="tc-start" id="tc-start" data-key="Enter" data-code="13">START</div>
+
+  <!-- Joystick -->
+  <div class="joy-zone" id="joy-zone">
+    <div class="joy-dir"></div>
+    <div class="joy-knob" id="joy-knob"></div>
+  </div>
+
+  <!-- A/B Button Cluster -->
+  <div class="btn-cluster">
+    <div class="ab-btn ab-dash" id="ab-dash" data-key="Shift" data-code="16">DASH</div>
+    <div class="ab-btn ab-a" id="ab-a" data-key="e" data-code="69">A<span class="ab-a-label">ATK</span></div>
+    <div class="ab-btn ab-b" id="ab-b" data-key=" " data-code="32">B<span class="ab-b-label">JUMP</span></div>
+  </div>
 </div>
+
 <script>
   (function() {
+    /* ── Key dispatch (unchanged — proven reliable) ── */
     var CODE_MAP = {
       " ": "Space", "ArrowLeft": "ArrowLeft", "ArrowRight": "ArrowRight",
       "e": "KeyE", "Shift": "ShiftLeft", "Enter": "Enter"
@@ -120,85 +284,215 @@
       if (canvas) canvas.dispatchEvent(evt);
     }
 
-    var touchMap = {};
+    /* ── Fullscreen API ── */
+    function goFullscreen() {
+      var el = document.documentElement;
+      var rfs = el.requestFullscreen || el.webkitRequestFullscreen ||
+                el.mozRequestFullScreen || el.msRequestFullscreen;
+      if (rfs) {
+        try { rfs.call(el); } catch(e) {}
+      }
+      try {
+        if (screen.orientation && screen.orientation.lock) {
+          screen.orientation.lock("landscape").catch(function(){});
+        }
+      } catch(e) {}
+    }
 
-    function findBtnFromTouch(touch) {
+    function isFullscreen() {
+      return !!(document.fullscreenElement || document.webkitFullscreenElement ||
+                document.mozFullScreenElement || document.msFullscreenElement);
+    }
+
+    var fsPrompt = document.getElementById("fs-prompt");
+    if (fsPrompt) {
+      fsPrompt.addEventListener("click", function() {
+        goFullscreen();
+        fsPrompt.classList.add("fs-hidden");
+      });
+      fsPrompt.addEventListener("touchend", function(e) {
+        e.preventDefault();
+        goFullscreen();
+        fsPrompt.classList.add("fs-hidden");
+      }, { passive: false });
+    }
+
+    /* Auto-fullscreen on landscape rotation */
+    function onOrientationChange() {
+      var isLandscape = window.innerWidth > window.innerHeight;
+      var isMobile = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+      if (isLandscape && isMobile && !isFullscreen()) {
+        goFullscreen();
+        if (fsPrompt) fsPrompt.classList.add("fs-hidden");
+      }
+    }
+    window.addEventListener("orientationchange", function() {
+      setTimeout(onOrientationChange, 300);
+    });
+    window.addEventListener("resize", function() {
+      clearTimeout(window._fsResizeTimer);
+      window._fsResizeTimer = setTimeout(onOrientationChange, 400);
+    });
+    /* Hide prompt once fullscreen is active */
+    document.addEventListener("fullscreenchange", function() {
+      if (isFullscreen() && fsPrompt) fsPrompt.classList.add("fs-hidden");
+    });
+    document.addEventListener("webkitfullscreenchange", function() {
+      if (isFullscreen() && fsPrompt) fsPrompt.classList.add("fs-hidden");
+    });
+
+    /* ── Virtual Joystick ── */
+    var joyZone = document.getElementById("joy-zone");
+    var joyKnob = document.getElementById("joy-knob");
+    var joyTouchId = null;
+    var joyDir = 0; // -1 left, 0 neutral, 1 right
+
+    function updateJoystick(touchX, touchY) {
+      var rect = joyZone.getBoundingClientRect();
+      var cx = rect.left + rect.width / 2;
+      var cy = rect.top + rect.height / 2;
+      var dx = touchX - cx;
+      var dy = touchY - cy;
+      var radius = rect.width / 2;
+      var maxKnob = radius - 28;
+      var dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist > maxKnob) {
+        dx = (dx / dist) * maxKnob;
+        dy = (dy / dist) * maxKnob;
+      }
+
+      joyKnob.style.transform = "translate(calc(-50% + " + dx + "px), calc(-50% + " + dy + "px))";
+
+      var deadzone = radius * 0.22;
+      var newDir = 0;
+      if (dx < -deadzone) newDir = -1;
+      else if (dx > deadzone) newDir = 1;
+
+      if (newDir !== joyDir) {
+        if (joyDir === -1) dispatchKey("keyup", "ArrowLeft", 37);
+        if (joyDir === 1)  dispatchKey("keyup", "ArrowRight", 39);
+        if (newDir === -1)  dispatchKey("keydown", "ArrowLeft", 37);
+        if (newDir === 1)   dispatchKey("keydown", "ArrowRight", 39);
+        joyDir = newDir;
+      }
+    }
+
+    function resetJoystick() {
+      joyKnob.style.transform = "translate(-50%, -50%)";
+      if (joyDir === -1) dispatchKey("keyup", "ArrowLeft", 37);
+      if (joyDir === 1)  dispatchKey("keyup", "ArrowRight", 39);
+      joyDir = 0;
+      joyTouchId = null;
+      joyZone.classList.remove("joy-active");
+    }
+
+    if (joyZone) {
+      joyZone.addEventListener("touchstart", function(e) {
+        e.preventDefault();
+        if (joyTouchId !== null) return;
+        var t = e.changedTouches[0];
+        joyTouchId = t.identifier;
+        joyZone.classList.add("joy-active");
+        updateJoystick(t.clientX, t.clientY);
+      }, { passive: false });
+
+      joyZone.addEventListener("touchmove", function(e) {
+        e.preventDefault();
+        for (var i = 0; i < e.changedTouches.length; i++) {
+          if (e.changedTouches[i].identifier === joyTouchId) {
+            updateJoystick(e.changedTouches[i].clientX, e.changedTouches[i].clientY);
+            break;
+          }
+        }
+      }, { passive: false });
+
+      joyZone.addEventListener("touchend", function(e) {
+        for (var i = 0; i < e.changedTouches.length; i++) {
+          if (e.changedTouches[i].identifier === joyTouchId) {
+            resetJoystick();
+            break;
+          }
+        }
+      }, { passive: false });
+
+      joyZone.addEventListener("touchcancel", function() {
+        resetJoystick();
+      }, { passive: false });
+    }
+
+    /* ── A/B Buttons + START + DASH ── */
+    var btnTouchMap = {};
+
+    function findBtn(touch) {
       var el = document.elementFromPoint(touch.clientX, touch.clientY);
-      return el && el.closest ? el.closest(".tc-btn") : null;
+      return el && el.closest ? el.closest(".ab-btn, .tc-start") : null;
     }
 
     var container = document.getElementById("touch-controls");
     if (!container) return;
 
     container.addEventListener("touchstart", function(e) {
+      if (e.target.closest && e.target.closest(".joy-zone")) return;
+      if (e.target.closest && e.target.closest(".fs-prompt")) return;
       e.preventDefault();
       for (var i = 0; i < e.changedTouches.length; i++) {
         var t = e.changedTouches[i];
-        var btn = findBtnFromTouch(t);
-        if (btn) {
-          touchMap[t.identifier] = btn;
-          btn.classList.add("tc-pressed");
+        var btn = findBtn(t);
+        if (btn && btn.dataset.key) {
+          btnTouchMap[t.identifier] = btn;
+          btn.classList.add("ab-pressed");
           dispatchKey("keydown", btn.dataset.key, parseInt(btn.dataset.code, 10));
         }
       }
     }, { passive: false });
 
     container.addEventListener("touchmove", function(e) {
+      if (e.target.closest && e.target.closest(".joy-zone")) return;
       e.preventDefault();
       for (var i = 0; i < e.changedTouches.length; i++) {
         var t = e.changedTouches[i];
-        var prevBtn = touchMap[t.identifier];
-        var currBtn = findBtnFromTouch(t);
-        if (prevBtn && prevBtn !== currBtn) {
-          prevBtn.classList.remove("tc-pressed");
-          dispatchKey("keyup", prevBtn.dataset.key, parseInt(prevBtn.dataset.code, 10));
+        var prev = btnTouchMap[t.identifier];
+        var curr = findBtn(t);
+        if (prev && prev !== curr) {
+          prev.classList.remove("ab-pressed");
+          dispatchKey("keyup", prev.dataset.key, parseInt(prev.dataset.code, 10));
         }
-        if (currBtn && currBtn !== prevBtn) {
-          touchMap[t.identifier] = currBtn;
-          currBtn.classList.add("tc-pressed");
-          dispatchKey("keydown", currBtn.dataset.key, parseInt(currBtn.dataset.code, 10));
-        } else if (!currBtn) {
-          delete touchMap[t.identifier];
+        if (curr && curr !== prev && curr.dataset.key) {
+          btnTouchMap[t.identifier] = curr;
+          curr.classList.add("ab-pressed");
+          dispatchKey("keydown", curr.dataset.key, parseInt(curr.dataset.code, 10));
+        } else if (!curr) {
+          delete btnTouchMap[t.identifier];
         }
       }
     }, { passive: false });
 
-    function handleTouchEnd(e) {
-      e.preventDefault();
+    function handleBtnEnd(e) {
       for (var i = 0; i < e.changedTouches.length; i++) {
         var t = e.changedTouches[i];
-        var btn = touchMap[t.identifier];
+        var btn = btnTouchMap[t.identifier];
         if (btn) {
-          btn.classList.remove("tc-pressed");
+          btn.classList.remove("ab-pressed");
           dispatchKey("keyup", btn.dataset.key, parseInt(btn.dataset.code, 10));
-          delete touchMap[t.identifier];
+          delete btnTouchMap[t.identifier];
         }
       }
     }
-    container.addEventListener("touchend", handleTouchEnd, { passive: false });
-    container.addEventListener("touchcancel", handleTouchEnd, { passive: false });
+    container.addEventListener("touchend", handleBtnEnd, { passive: false });
+    container.addEventListener("touchcancel", handleBtnEnd, { passive: false });
 
-    container.querySelectorAll(".tc-btn").forEach(function(btn) {
-      var key = btn.dataset.key;
-      var code = parseInt(btn.dataset.code, 10);
-      btn.addEventListener("mousedown", function(e) { e.preventDefault(); btn.classList.add("tc-pressed"); dispatchKey("keydown", key, code); });
-      btn.addEventListener("mouseup", function(e) { e.preventDefault(); btn.classList.remove("tc-pressed"); dispatchKey("keyup", key, code); });
-      btn.addEventListener("mouseleave", function(e) { btn.classList.remove("tc-pressed"); dispatchKey("keyup", key, code); });
-    });
-
+    /* ── Prevent unwanted gestures ── */
     document.addEventListener("gesturestart", function(e) { e.preventDefault(); }, { passive: false });
     document.addEventListener("gesturechange", function(e) { e.preventDefault(); }, { passive: false });
-
     document.addEventListener("contextmenu", function(e) {
-      if (e.target && e.target.closest && e.target.closest("#touch-controls")) {
-        e.preventDefault();
-      }
+      if (e.target && e.target.closest && e.target.closest("#touch-controls")) e.preventDefault();
     });
-
     document.addEventListener("touchmove", function(e) {
-      if (e.target && e.target.closest && e.target.closest("#touch-controls")) {
-        e.preventDefault();
-      }
+      if (e.target && e.target.closest && e.target.closest("#touch-controls")) e.preventDefault();
     }, { passive: false });
+
+    /* Kick off initial check after a small delay */
+    setTimeout(onOrientationChange, 1500);
   })();
 </script>
