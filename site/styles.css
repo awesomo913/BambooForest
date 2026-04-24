@@ -137,7 +137,7 @@ ul { list-style: none; }
 .bamboo-box {
   max-width: var(--max-w); margin: 0 auto;
   position: relative; border-radius: 16px; overflow: hidden;
-  aspect-ratio: 16 / 7; min-height: 280px;
+  aspect-ratio: 16 / 9; min-height: 280px;
   border: 1px solid rgba(74, 222, 128, 0.2);
 }
 .bamboo-video-bg { position: absolute; inset: 0; }
