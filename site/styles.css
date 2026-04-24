@@ -45,7 +45,7 @@ ul { list-style: none; }
   text-align: center;
   overflow: hidden;
   background: linear-gradient(180deg, #0a1a0a 0%, var(--bg) 100%);
-  border-bottom: 1px solid rgba(74, 222, 128, 0.15);
+  border-top: 1px solid rgba(74, 222, 128, 0.15);
 }
 .promo-glow {
   position: absolute; inset: 0; pointer-events: none;
@@ -92,6 +92,7 @@ ul { list-style: none; }
   min-height: 50vh; display: flex; align-items: center; justify-content: center;
   padding: 4rem 1.5rem; text-align: center;
   position: relative; overflow: hidden;
+  border-top: none;
 }
 #hero::before {
   content: ''; position: absolute; inset: 0;
