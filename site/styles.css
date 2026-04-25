@@ -226,7 +226,47 @@ section h2 { font-size: 1.75rem; font-weight: 600; margin-bottom: 2.5rem; letter
 .icon { width: 18px; height: 18px; flex-shrink: 0; }
 
 /* ── Footer ── */
-footer { border-top: 1px solid var(--border); padding: 2rem 1.5rem; text-align: center; color: var(--muted); font-size: 0.8rem; }
+footer {
+  border-top: 1px solid var(--border);
+  padding: 2.5rem 1.5rem 2rem;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.dad-fleet { max-width: 520px; margin: 0 auto 1.75rem; }
+.dad-fleet-btn {
+  display: flex; align-items: center; gap: 1rem; width: 100%;
+  padding: 1rem 1.25rem; border-radius: 14px; text-align: left; text-decoration: none;
+  color: var(--text);
+  background: linear-gradient(135deg, rgba(74, 222, 128, 0.12) 0%, rgba(20, 20, 20, 0.95) 50%);
+  border: 1px solid rgba(234, 179, 8, 0.45);
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.3), 0 8px 28px rgba(0,0,0,0.35);
+  transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+.dad-fleet-btn:hover {
+  border-color: rgba(250, 204, 21, 0.75);
+  box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.2), 0 10px 32px rgba(234, 179, 8, 0.12);
+  transform: translateY(-2px);
+}
+.dad-fleet-emoji {
+  font-size: 2.75rem; line-height: 1; flex-shrink: 0;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+  animation: dadThumbPulse 2.2s ease-in-out infinite;
+}
+@keyframes dadThumbPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+.dad-fleet-copy { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
+.dad-fleet-title {
+  font-size: 1.05rem; font-weight: 700; color: #fde68a; letter-spacing: 0.02em;
+}
+.dad-fleet-sub { font-size: 0.78rem; color: var(--muted); line-height: 1.35; }
+.footer-copy { margin: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .dad-fleet-emoji { animation: none; }
+  .dad-fleet-btn:hover { transform: none; }
+}
 
 /* ── Reduced motion ── */
 @media (prefers-reduced-motion: reduce) {
