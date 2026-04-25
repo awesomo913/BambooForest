@@ -85,34 +85,30 @@ jobs:
           print(f"Injected: build {build_id} {commit}")
           PY
 
-      - name: Point Fleet Atlas thumb at production app (optional)
+      - name: Inject Fleet Atlas iframe URL (embed)
         env:
           FLEET_ATLAS_APP_URL: ${{ secrets.FLEET_ATLAS_APP_URL }}
         run: |
           python3 <<'PY'
-          import os, re, sys
-          path, url = "site/index.html", (os.environ.get("FLEET_ATLAS_APP_URL") or "").strip()
-          if not url or not os.path.isfile(path):
-              print("skip: set repo secret FLEET_ATLAS_APP_URL to your deployed Fleet Atlas https URL (e.g. Vercel) for a working app link")
-              sys.exit(0)
-          if not (url.startswith("https://") or url.startswith("http://")):
-              print("skip: FLEET_ATLAS_APP_URL must be an http(s) URL", file=sys.stderr)
+          import json, os, sys
+          path = "site/index.html"
+          url = (os.environ.get("FLEET_ATLAS_APP_URL") or "").strip()
+          if url and not (url.startswith("https://") or url.startswith("http://")):
+              print("error: FLEET_ATLAS_APP_URL must start with http:// or https://", file=sys.stderr)
+              sys.exit(1)
+          if not os.path.isfile(path):
+              print("skip: no site/index.html")
               sys.exit(0)
           with open(path, "r", encoding="utf-8") as f:
               h = f.read()
-          def repl(m):
-              return m.group(1) + url + m.group(3)
-          h2, n = re.subn(
-              r'(<a\b[^>]*\bid="dad-fleet-link"[^>]*\bhref=")([^"]*)(")',
-              repl,
-              h, count=1, flags=re.IGNORECASE
-          )
-          if not n:
-              print("warning: #dad-fleet-link href not found", file=sys.stderr)
-              sys.exit(0)
+          marker = 'window.__FLEET_ATLAS_APP_URL__ = "SET_VIA_ACTIONS_SECRET";'
+          if marker not in h:
+              print("error: fleet embed marker missing in site/index.html", file=sys.stderr)
+              sys.exit(1)
+          h = h.replace(marker, "window.__FLEET_ATLAS_APP_URL__ = " + json.dumps(url) + ";", 1)
           with open(path, "w", encoding="utf-8") as f:
-              f.write(h2)
-          print("injected FLEET_ATLAS_APP_URL into #dad-fleet-link")
+              f.write(h)
+          print("injected FLEET_ATLAS_APP_URL for iframe (" + ("set" if url else "empty — thumb disabled until set") + ")")
           PY
 
       - name: Assemble deployment artifact

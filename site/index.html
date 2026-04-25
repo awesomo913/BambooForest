@@ -141,11 +141,69 @@
     </div>
   </section>
 
-  <!-- Thumbs-up: set GitHub secret FLEET_ATLAS_APP_URL (full https:// of deployed Fleet Atlas) on BambooForest for CI to swap href to the live app. -->
+  <!-- Fleet Atlas runs here via iframe. CI injects the deployed app URL (GitHub secret FLEET_ATLAS_APP_URL). -->
   <footer>
-    <a id="dad-fleet-link" class="dad-fleet-thumb" href="https://github.com/awesomo913/fleet-route-command" target="_blank" rel="noopener" aria-label="Open Fleet Atlas">👍</a>
+    <button type="button" id="dad-fleet-open" class="dad-fleet-thumb" title="Open Fleet Atlas" aria-label="Open Fleet Atlas" aria-controls="fleet-atlas-overlay" aria-expanded="false">👍</button>
     <p class="footer-copy">&copy; 2026 Revolutionary Designs</p>
   </footer>
+  <script>window.__FLEET_ATLAS_APP_URL__ = "SET_VIA_ACTIONS_SECRET";</script>
+  <div id="fleet-atlas-overlay" class="fleet-atlas-overlay" hidden aria-hidden="true">
+    <div class="fleet-atlas-backdrop" id="fleet-atlas-backdrop" tabindex="-1"></div>
+    <div class="fleet-atlas-shell" role="dialog" aria-modal="true" aria-label="Fleet Atlas">
+      <div class="fleet-atlas-chrome">
+        <button type="button" class="fleet-atlas-close" id="fleet-atlas-close" aria-label="Close Fleet Atlas">✕</button>
+      </div>
+      <iframe
+        id="fleet-atlas-frame"
+        class="fleet-atlas-iframe"
+        title="Fleet Atlas"
+        loading="eager"
+        allow="geolocation; clipboard-read; clipboard-write; fullscreen"
+        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-modals"
+      ></iframe>
+    </div>
+  </div>
+  <script>
+    (function () {
+      var raw = (typeof window !== 'undefined' && window.__FLEET_ATLAS_APP_URL__) || '';
+      if (raw === 'SET_VIA_ACTIONS_SECRET') raw = '';
+      var url = raw;
+      var openBtn = document.getElementById('dad-fleet-open');
+      var overlay = document.getElementById('fleet-atlas-overlay');
+      var frame = document.getElementById('fleet-atlas-frame');
+      var closeBtn = document.getElementById('fleet-atlas-close');
+      var backdrop = document.getElementById('fleet-atlas-backdrop');
+      if (!openBtn || !overlay || !frame) return;
+      if (!url || !/^https?:\/\//.test(url)) {
+        openBtn.disabled = true;
+        openBtn.title = 'Set GitHub secret FLEET_ATLAS_APP_URL on this repo to your deployed Fleet Atlas URL';
+        return;
+      }
+      function openFleet() {
+        frame.removeAttribute('src');
+        frame.src = url;
+        overlay.hidden = false;
+        overlay.setAttribute('aria-hidden', 'false');
+        openBtn.setAttribute('aria-expanded', 'true');
+        document.body.style.overflow = 'hidden';
+        if (closeBtn) closeBtn.focus();
+      }
+      function closeFleet() {
+        frame.src = 'about:blank';
+        overlay.hidden = true;
+        overlay.setAttribute('aria-hidden', 'true');
+        openBtn.setAttribute('aria-expanded', 'false');
+        document.body.style.overflow = '';
+        openBtn.focus();
+      }
+      openBtn.addEventListener('click', function () { openFleet(); });
+      if (closeBtn) closeBtn.addEventListener('click', function () { closeFleet(); });
+      if (backdrop) backdrop.addEventListener('click', function () { closeFleet(); });
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !overlay.hidden) { closeFleet(); e.preventDefault(); }
+      });
+    })();
+  </script>
 
   <script>
     /* ═══ Hero typewriter ═══ */
