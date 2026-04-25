@@ -142,18 +142,28 @@
   </section>
 
   <footer>
-    <!-- Set href to your live Fleet Atlas URL when deployed; GitHub is fine until then. -->
-    <div class="dad-fleet">
-      <a id="dad-fleet-link" class="dad-fleet-btn" href="https://github.com/awesomo913/fleet-route-command" target="_blank" rel="noopener" title="Fleet Atlas for Dad — open the app">
+    <p class="dad-fleet-label" id="dad-fleet-heading">Dad&rsquo;s app</p>
+    <div class="dad-fleet" role="group" aria-labelledby="dad-fleet-heading">
+      <!-- Default opens repo; one-line script below switches to your live app URL. -->
+      <a id="dad-fleet-link" class="dad-fleet-btn" href="https://github.com/awesomo913/fleet-route-command" target="_blank" rel="noopener" aria-label="Open Fleet Atlas for Dad, route planning and map, opens in a new tab" title="Fleet Atlas — tap the thumbs up">
         <span class="dad-fleet-emoji" aria-hidden="true">👍</span>
         <span class="dad-fleet-copy">
-          <span class="dad-fleet-title">Dad: tap the thumbs up</span>
-          <span class="dad-fleet-sub">Fleet Atlas — multi-stop routes &amp; tri-state map (KY / IN / OH)</span>
+          <span class="dad-fleet-title">Tap here, Dad &mdash; Fleet Atlas</span>
+          <span class="dad-fleet-sub">Multi-stop routes &amp; tri-state map &middot; Kentucky, Indiana, Ohio</span>
         </span>
       </a>
     </div>
     <p class="footer-copy">&copy; 2026 Revolutionary Designs</p>
   </footer>
+  <script>
+    (function () {
+      var FLEET_ATLAS_APP_URL = '';
+      var a = document.getElementById('dad-fleet-link');
+      if (a && typeof FLEET_ATLAS_APP_URL === 'string' && FLEET_ATLAS_APP_URL.indexOf('http') === 0) {
+        a.href = FLEET_ATLAS_APP_URL;
+      }
+    })();
+  </script>
 
   <script>
     /* ═══ Hero typewriter ═══ */
@@ -700,7 +710,8 @@
       'animal-art-studio': '🎨', 'awesomosprompter': '💬',
     };
 
-    const SKIP_REPOS = ['BambooForest', 'awesomo913.github.io'];
+    /* Dad's app — only linked in footer (thumbs up), not as a portfolio card */
+    const SKIP_REPOS = ['BambooForest', 'awesomo913.github.io', 'fleet-route-command'];
 
     function humanName(repoName) {
       return repoName.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
