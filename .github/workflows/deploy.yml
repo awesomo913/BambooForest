@@ -85,6 +85,36 @@ jobs:
           print(f"Injected: build {build_id} {commit}")
           PY
 
+      - name: Point Fleet Atlas thumb at production app (optional)
+        env:
+          FLEET_ATLAS_APP_URL: ${{ secrets.FLEET_ATLAS_APP_URL }}
+        run: |
+          python3 <<'PY'
+          import os, re, sys
+          path, url = "site/index.html", (os.environ.get("FLEET_ATLAS_APP_URL") or "").strip()
+          if not url or not os.path.isfile(path):
+              print("skip: set repo secret FLEET_ATLAS_APP_URL to your deployed Fleet Atlas https URL (e.g. Vercel) for a working app link")
+              sys.exit(0)
+          if not (url.startswith("https://") or url.startswith("http://")):
+              print("skip: FLEET_ATLAS_APP_URL must be an http(s) URL", file=sys.stderr)
+              sys.exit(0)
+          with open(path, "r", encoding="utf-8") as f:
+              h = f.read()
+          def repl(m):
+              return m.group(1) + url + m.group(3)
+          h2, n = re.subn(
+              r'(<a\b[^>]*\bid="dad-fleet-link"[^>]*\bhref=")([^"]*)(")',
+              repl,
+              h, count=1, flags=re.IGNORECASE
+          )
+          if not n:
+              print("warning: #dad-fleet-link href not found", file=sys.stderr)
+              sys.exit(0)
+          with open(path, "w", encoding="utf-8") as f:
+              f.write(h2)
+          print("injected FLEET_ATLAS_APP_URL into #dad-fleet-link")
+          PY
+
       - name: Assemble deployment artifact
         run: |
           mkdir -p deploy/game

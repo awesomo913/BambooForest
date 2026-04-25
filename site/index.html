@@ -141,29 +141,11 @@
     </div>
   </section>
 
+  <!-- Thumbs-up: set GitHub secret FLEET_ATLAS_APP_URL (full https:// of deployed Fleet Atlas) on BambooForest for CI to swap href to the live app. -->
   <footer>
-    <p class="dad-fleet-label" id="dad-fleet-heading">Dad&rsquo;s app</p>
-    <div class="dad-fleet" role="group" aria-labelledby="dad-fleet-heading">
-      <!-- Default opens repo; one-line script below switches to your live app URL. -->
-      <a id="dad-fleet-link" class="dad-fleet-btn" href="https://github.com/awesomo913/fleet-route-command" target="_blank" rel="noopener" aria-label="Open Fleet Atlas for Dad, route planning and map, opens in a new tab" title="Fleet Atlas — tap the thumbs up">
-        <span class="dad-fleet-emoji" aria-hidden="true">👍</span>
-        <span class="dad-fleet-copy">
-          <span class="dad-fleet-title">Tap here, Dad &mdash; Fleet Atlas</span>
-          <span class="dad-fleet-sub">Multi-stop routes &amp; tri-state map &middot; Kentucky, Indiana, Ohio</span>
-        </span>
-      </a>
-    </div>
+    <a id="dad-fleet-link" class="dad-fleet-thumb" href="https://github.com/awesomo913/fleet-route-command" target="_blank" rel="noopener" aria-label="Open Fleet Atlas">👍</a>
     <p class="footer-copy">&copy; 2026 Revolutionary Designs</p>
   </footer>
-  <script>
-    (function () {
-      var FLEET_ATLAS_APP_URL = '';
-      var a = document.getElementById('dad-fleet-link');
-      if (a && typeof FLEET_ATLAS_APP_URL === 'string' && FLEET_ATLAS_APP_URL.indexOf('http') === 0) {
-        a.href = FLEET_ATLAS_APP_URL;
-      }
-    })();
-  </script>
 
   <script>
     /* ═══ Hero typewriter ═══ */
