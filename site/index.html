@@ -14,7 +14,8 @@
   <nav id="nav">
     <span class="nav-brand">Revolutionary Designs</span>
     <ul class="nav-links">
-      <li><a href="#bamboo-showcase">Game</a></li>
+      <li><a href="#bamboo-game">Game</a></li>
+      <li><a href="#fleet-embed">Fleet</a></li>
       <li><a href="#projects">Projects</a></li>
       <li><a href="#about">About</a></li>
       <li><a href="#contact">Contact</a></li>
@@ -33,7 +34,7 @@
   </section>
 
   <!-- ═══ BAMBOO FOREST SHOWCASE ═══ -->
-  <section id="bamboo-showcase">
+  <section id="bamboo-game">
     <div class="section-inner">
       <div class="bamboo-box">
         <div class="bamboo-video-bg">
@@ -42,7 +43,7 @@
         <div class="bamboo-overlay">
           <h2 class="bamboo-title">Bamboo Forest</h2>
           <p class="bamboo-sub">The Legend of Pain-da</p>
-          <a href="/game/" class="btn-play">Play Now</a>
+          <a href="game/index.html" class="btn-play" rel="noopener">Play Now</a>
         </div>
       </div>
     </div>
@@ -141,46 +142,86 @@
     </div>
   </section>
 
-  <!-- Fleet Atlas runs here via iframe. CI injects the deployed app URL (GitHub secret FLEET_ATLAS_APP_URL). -->
-  <footer>
-    <button type="button" id="dad-fleet-open" class="dad-fleet-thumb" title="Open Fleet Atlas" aria-label="Open Fleet Atlas" aria-controls="fleet-atlas-overlay" aria-expanded="false">👍</button>
+  <!-- Fleet Atlas: default production URL below; CI can override. Optional secret FLEET_ATLAS_APP_URL. -->
+  <footer id="fleet-embed">
+    <div class="footer-fleet-row">
+      <button type="button" id="dad-fleet-open" class="dad-fleet-thumb" title="Open the fleet map (live)" aria-label="Open the fleet map" aria-controls="fleet-atlas-overlay" aria-expanded="false">👍</button>
+      <a id="fleet-open-tab" class="fleet-open-tab" href="https://fleet-route-command.vercel.app/" rel="noopener noreferrer" target="_blank">Open in full tab</a>
+    </div>
+    <p class="fleet-embed-dad">Tap 👍 to use the map here, or &ldquo;Open in full tab&rdquo; if the embed is slow.</p>
+    <p id="fleet-missing-hint" class="fleet-missing-hint" hidden>Couldn’t load the fleet app URL. Try &ldquo;Open in full tab&rdquo; or refresh the page.</p>
     <p class="footer-copy">&copy; 2026 Revolutionary Designs</p>
   </footer>
-  <script>window.__FLEET_ATLAS_APP_URL__ = "SET_VIA_ACTIONS_SECRET";</script>
+  <script>window.__FLEET_ATLAS_APP_URL__ = "https://fleet-route-command.vercel.app";</script>
   <div id="fleet-atlas-overlay" class="fleet-atlas-overlay" hidden aria-hidden="true">
     <div class="fleet-atlas-backdrop" id="fleet-atlas-backdrop" tabindex="-1"></div>
     <div class="fleet-atlas-shell" role="dialog" aria-modal="true" aria-label="Fleet Atlas">
       <div class="fleet-atlas-chrome">
         <button type="button" class="fleet-atlas-close" id="fleet-atlas-close" aria-label="Close Fleet Atlas">✕</button>
       </div>
+      <p id="fleet-atlas-loading-hint" class="fleet-atlas-loading-hint" aria-live="polite">Loading Fleet Atlas…</p>
       <iframe
         id="fleet-atlas-frame"
         class="fleet-atlas-iframe"
         title="Fleet Atlas"
         loading="eager"
-        allow="geolocation; clipboard-read; clipboard-write; fullscreen"
-        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-modals"
+        allow="fullscreen; geolocation; clipboard-read; clipboard-write; autoplay; picture-in-picture"
+        referrerpolicy="no-referrer-when-downgrade"
       ></iframe>
     </div>
   </div>
   <script>
     (function () {
+      var DEFAULT_FLEET = 'https://fleet-route-command.vercel.app';
       var raw = (typeof window !== 'undefined' && window.__FLEET_ATLAS_APP_URL__) || '';
-      if (raw === 'SET_VIA_ACTIONS_SECRET') raw = '';
+      raw = String(raw).trim();
+      if (raw === 'SET_VIA_ACTIONS_SECRET' || raw === '') raw = DEFAULT_FLEET;
       var url = raw;
+      if (/^https?:\/\//.test(url) && !/[?#]/.test(url) && url.slice(-1) !== '/') url = url + '/';
       var openBtn = document.getElementById('dad-fleet-open');
       var overlay = document.getElementById('fleet-atlas-overlay');
       var frame = document.getElementById('fleet-atlas-frame');
       var closeBtn = document.getElementById('fleet-atlas-close');
       var backdrop = document.getElementById('fleet-atlas-backdrop');
+      var tabLink = document.getElementById('fleet-open-tab');
+      var missHint = document.getElementById('fleet-missing-hint');
       if (!openBtn || !overlay || !frame) return;
       if (!url || !/^https?:\/\//.test(url)) {
         openBtn.disabled = true;
-        openBtn.title = 'Set GitHub secret FLEET_ATLAS_APP_URL on this repo to your deployed Fleet Atlas URL';
+        openBtn.title = 'Fleet map URL missing';
+        if (missHint) missHint.hidden = false;
         return;
       }
+      if (tabLink) {
+        tabLink.href = url;
+        tabLink.target = '_blank';
+        tabLink.rel = 'noopener noreferrer';
+        tabLink.removeAttribute('hidden');
+        tabLink.removeAttribute('tabindex');
+      }
+      if (missHint) missHint.hidden = true;
+      var loadWatch = null;
       function openFleet() {
         frame.removeAttribute('src');
+        if (loadWatch) { clearTimeout(loadWatch); loadWatch = null; }
+        if (missHint) missHint.hidden = true;
+        overlay.classList.add('fleet-atlas-loading');
+        function clearLoading() {
+          if (loadWatch) { clearTimeout(loadWatch); loadWatch = null; }
+          overlay.classList.remove('fleet-atlas-loading');
+        }
+        frame.addEventListener('load', function onFrameLoad() {
+          frame.removeEventListener('load', onFrameLoad);
+          if (!overlay.hidden) clearLoading();
+        });
+        loadWatch = setTimeout(function () {
+          loadWatch = null;
+          overlay.classList.remove('fleet-atlas-loading');
+          if (missHint) {
+            missHint.hidden = false;
+            missHint.textContent = 'Fleet Atlas is taking a while. Try “Open in full tab,” check your connection, or relax strict tracking/blocking for this site.';
+          }
+        }, 25000);
         frame.src = url;
         overlay.hidden = false;
         overlay.setAttribute('aria-hidden', 'false');
@@ -189,6 +230,8 @@
         if (closeBtn) closeBtn.focus();
       }
       function closeFleet() {
+        if (loadWatch) { clearTimeout(loadWatch); loadWatch = null; }
+        overlay.classList.remove('fleet-atlas-loading');
         frame.src = 'about:blank';
         overlay.hidden = true;
         overlay.setAttribute('aria-hidden', 'true');

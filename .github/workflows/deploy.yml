@@ -85,15 +85,20 @@ jobs:
           print(f"Injected: build {build_id} {commit}")
           PY
 
+      # FLEET_ATLAS_APP_URL (repo secret) overrides; if unset, production Fleet Atlas
+      # (Vercel) is used so the footer thumb works without any GitHub configuration.
       - name: Inject Fleet Atlas iframe URL (embed)
         env:
           FLEET_ATLAS_APP_URL: ${{ secrets.FLEET_ATLAS_APP_URL }}
         run: |
           python3 <<'PY'
-          import json, os, sys
+          import json, os, re, sys
           path = "site/index.html"
+          DEFAULT = "https://fleet-route-command.vercel.app"
           url = (os.environ.get("FLEET_ATLAS_APP_URL") or "").strip()
-          if url and not (url.startswith("https://") or url.startswith("http://")):
+          if not url:
+              url = DEFAULT
+          if not (url.startswith("https://") or url.startswith("http://")):
               print("error: FLEET_ATLAS_APP_URL must start with http:// or https://", file=sys.stderr)
               sys.exit(1)
           if not os.path.isfile(path):
@@ -101,14 +106,18 @@ jobs:
               sys.exit(0)
           with open(path, "r", encoding="utf-8") as f:
               h = f.read()
-          marker = 'window.__FLEET_ATLAS_APP_URL__ = "SET_VIA_ACTIONS_SECRET";'
-          if marker not in h:
-              print("error: fleet embed marker missing in site/index.html", file=sys.stderr)
+          pat = re.compile(
+              r"window\.__FLEET_ATLAS_APP_URL__\s*=\s*\"[^\"]*\"\s*;",
+              re.M,
+          )
+          if not pat.search(h):
+              print("error: fleet URL assignment missing in site/index.html", file=sys.stderr)
               sys.exit(1)
-          h = h.replace(marker, "window.__FLEET_ATLAS_APP_URL__ = " + json.dumps(url) + ";", 1)
+          h = pat.sub("window.__FLEET_ATLAS_APP_URL__ = " + json.dumps(url) + ";", h, count=1)
           with open(path, "w", encoding="utf-8") as f:
               f.write(h)
-          print("injected FLEET_ATLAS_APP_URL for iframe (" + ("set" if url else "empty — thumb disabled until set") + ")")
+          src = "secret" if (os.environ.get("FLEET_ATLAS_APP_URL") or "").strip() else "default " + DEFAULT
+          print("injected FLEET_ATLAS_APP_URL for iframe (" + src + ")")
           PY
 
       - name: Assemble deployment artifact
