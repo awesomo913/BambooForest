@@ -638,7 +638,10 @@ def _build_level_8() -> LevelDef:
 
 
 def _build_level_9() -> LevelDef:
-    """Abyssal Trench -- underwater feel. Uses cave biome dark + crystals."""
+    """Abyssal Trench -- dark cave + alternating pressure currents.
+    Currents (reusing WindZone) push the player left/right, forcing
+    adaptation on every section -- the unique mechanic that was missing.
+    """
     plats = [
         PlatformDef(400, 420, 200),
         PlatformDef(900, 380, 220),
@@ -667,9 +670,20 @@ def _build_level_9() -> LevelDef:
         crystal_positions=[(600, FLOOR_Y), (1700, FLOOR_Y), (2800, FLOOR_Y),
                           (3900, FLOOR_Y), (5000, FLOOR_Y)],
         trenches=[(1720, 1860), (3400, 3520)],
-        npc_defs=[(5200, FLOOR_Y, "Luminesce",
-                   ["The abyss remembers the light.",
-                    "Strike crystals to see your path."],
+        # Abyssal pressure currents: alternating L/R pushes throughout the trench.
+        # Each zone spans floor-to-ceiling (y=200, h=300) so they affect
+        # both ground and air movement, creating constant positional pressure.
+        wind_zones=[
+            (500,  200, 280, 300,  1.0),   # current pushes right
+            (1200, 200, 280, 300, -1.0),   # current pushes left
+            (2200, 200, 280, 300,  1.0),   # right
+            (3100, 200, 280, 300, -1.0),   # left
+            (4000, 200, 280, 300,  1.0),   # right
+            (4900, 200, 280, 300, -1.0),   # left
+        ],
+        npc_defs=[(300, FLOOR_Y, "Luminesce",
+                   ["The abyss currents shift without warning.",
+                    "Strike crystals -- they light the path ahead."],
                    (100, 200, 240))],
     )
 
@@ -1046,9 +1060,9 @@ def _build_level_17() -> LevelDef:
             (1300, 340, 40, 120),
             (3400, 340, 40, 120),
         ],
-        npc_defs=[(5200, FLOOR_Y, "Rift",
-                   ["The void hungers. Stay moving.",
-                    "Strike crystals to melt the walls ahead!"],
+        npc_defs=[(300, FLOOR_Y, "Rift",
+                   ["Ahead lie rifts in the void -- step in to be transported.",
+                    "Portals come in pairs. Use them wisely -- or avoid them."],
                    (0, 180, 220))],
     )
 

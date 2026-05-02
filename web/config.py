@@ -82,11 +82,11 @@ GOLEM_COOLDOWN: float = 2.0
 WIND_PUSH: float = 200.0
 THERMAL_FORCE: float = -500.0
 DUST_DEVIL_SPEED: float = 150.0
-SCORPION_FIRE_RATE: float = 2.0
+SCORPION_FIRE_RATE: float = 1.2
 SCORPION_PROJ_SPEED: float = 250.0
 
 # --- Level 7: Karst Caves (Darkness) ---
-DARK_RADIUS: int = 120
+DARK_RADIUS: int = 140
 CRYSTAL_RADIUS: int = 250
 CRYSTAL_LIGHT_TIME: float = 8.0
 SPIDER_DROP_RANGE: float = 100.0
@@ -101,8 +101,8 @@ BRINE_DMG_RADIUS: float = 40.0
 PHANTOM_SPEED: float = 100.0
 
 # --- Power-up Durations ---
-GLIDE_DURATION_SEC: float = 10.0
-DASH_DURATION_SEC: float = 30.0
+GLIDE_DURATION_SEC: float = 8.0
+DASH_DURATION_SEC: float = 8.0
 
 # --- Level 14: Fungal Hollows ---
 MUSHROOM_BOUNCE: float = -1100.0

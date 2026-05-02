@@ -1142,7 +1142,7 @@ class FalseGlowworm(pygame.sprite.Sprite):
             self.state_timer -= dt
             if self.state_timer <= 0:
                 self.state = "cooldown"
-                self.state_timer = 3.0
+                self.state_timer = 1.5  # was 3.0 -- shorter cooldown = more threat
         elif self.state == "cooldown":
             self.image = self._img_lure
             self.state_timer -= dt
@@ -2159,11 +2159,11 @@ class VoidEater(pygame.sprite.Sprite):
         if self.open_timer <= 0:
             if self.state == "closed":
                 self.state = "open"
-                self.open_timer = 1.0
+                self.open_timer = 2.0          # was 1.0 -- stays dangerous longer
                 self.image = self._open
             else:
                 self.state = "closed"
-                self.open_timer = random.uniform(2.0, 3.5)
+                self.open_timer = random.uniform(1.2, 2.5)  # was (2.0, 3.5) -- shorter breather
                 self.image = self._base
         self.rect.x = int(self.base_x)
         self.rect.y = int(self.base_y + math.sin(self._pulse) * 8)

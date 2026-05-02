@@ -604,6 +604,25 @@ class Game:
                 self.audio.play("crystal")
                 break  # one teleport per frame
 
+        # --- PhaseWraith portal teleport (Level 17) ---
+        # Wraiths that walk into an active portal teleport to the partner exit.
+        # Uses the existing teleport_to() / teleport_cooldown machinery that was
+        # wired in the enemy class but never triggered from the game loop.
+        for enemy in self.level.enemies:
+            if (enemy.__class__.__name__ == "PhaseWraith"
+                    and getattr(enemy, "alive_flag", True)
+                    and getattr(enemy, "teleport_cooldown", 1.0) <= 0):
+                for portal in self.level.portals:
+                    if (portal.active and portal.partner is not None
+                            and pygame.sprite.collide_rect(enemy, portal)):
+                        target = portal.partner
+                        enemy.teleport_to(target.rect.centerx, target.rect.bottom)
+                        portal.teleport()
+                        target.teleport()
+                        self.particles.emit_sparkle(
+                            portal.rect.centerx, portal.rect.centery, 6)
+                        break
+
         # --- Gravity zones (Level 18) ---
         # Determine which zone the player is in (if any)
         active_multiplier = 1.0
