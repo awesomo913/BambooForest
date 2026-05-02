@@ -794,6 +794,13 @@ class Player(pygame.sprite.Sprite):
             self.velocity_y = min(self.velocity_y + effective_gravity * 0.15 * dt, 120.0)
         elif self.is_wall_sliding and self.velocity_y >= 0:
             self.velocity_y = min(self.velocity_y + effective_gravity * 0.3 * dt, 150.0)
+        elif (not self.is_on_ground and abs(self.velocity_y) < 80
+              and g_mult > 0 and not self.is_slamming):
+            # Apex hang: at the top of a jump arc (|vy| < 80 px/s) apply
+            # 40% gravity so the player lingers briefly at peak height.
+            # 80 px/s ≈ 5 frames of reduced gravity before full gravity resumes;
+            # 0.40 was tuned to feel floaty without making the jump feel slow.
+            self.velocity_y += effective_gravity * 0.40 * dt
         else:
             self.velocity_y += effective_gravity * dt
         # Clamp to terminal velocity (both directions for reverse gravity)

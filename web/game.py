@@ -123,15 +123,40 @@ class Game:
             if event.type == pygame.KEYUP:
                 if event.key in (pygame.K_SPACE, pygame.K_UP, pygame.K_w):
                     self._jump_pressed = False
+                    # Jump cut: releasing jump while still rising reduces jump height.
+                    # Tap for a short hop; hold for a full arc.
+                    # Threshold -120 px/s: only cut if rising fast enough (not near apex).
+                    # Multiplier 0.55: cuts ~45% of upward velocity, halving effective
+                    # height on a quick tap.
+                    if (self.state == ST_PLAYING and self.player
+                            and self.player.velocity_y < -120):
+                        self.player.velocity_y *= 0.55
             if event.type == pygame.MOUSEBUTTONDOWN:
-                if event.button == 1 and self.state == ST_MENU:
+                if event.button == 4:  # scroll wheel up
+                    if self.state == ST_MENU:
+                        self.title_screen.scroll_gallery(-40)
+                    elif self.state == ST_PAUSED:
+                        self.pause_overlay.scroll(-40)
+                elif event.button == 5:  # scroll wheel down
+                    if self.state == ST_MENU:
+                        self.title_screen.scroll_gallery(40)
+                    elif self.state == ST_PAUSED:
+                        self.pause_overlay.scroll(40)
+                elif event.button == 1 and self.state == ST_MENU:
                     # Clicking a character card opens the detail popup
                     self.title_screen.handle_click(event.pos)
+                elif event.button == 1 and self.state == ST_PAUSED:
+                    self.pause_overlay.handle_click(event.pos)
                 elif event.button == 1 and self.state == ST_PLAYING:
                     if self.player and self.player.attack():
                         self.audio.play("stomp")
                         self._weapon_used = True
                         self._weapon_tutorial_timer = 0.0
+            if event.type == pygame.MOUSEWHEEL:
+                if self.state == ST_MENU:
+                    self.title_screen.scroll_gallery(-event.y * 40)
+                elif self.state == ST_PAUSED:
+                    self.pause_overlay.scroll(-event.y * 40)
 
     def _toggle_fullscreen(self) -> None:
         """Browser handles F11 natively; in-game F11 is a no-op."""
@@ -213,6 +238,10 @@ class Game:
             elif key == pygame.K_q:
                 self.state = ST_MENU
                 self.title_screen = TitleScreen()
+            elif key in (pygame.K_UP, pygame.K_w, pygame.K_LEFT, pygame.K_a):
+                self.pause_overlay.scroll(-90)
+            elif key in (pygame.K_DOWN, pygame.K_s, pygame.K_RIGHT, pygame.K_d):
+                self.pause_overlay.scroll(90)
         elif self.state in (ST_GAME_OVER, ST_VICTORY):
             if key == pygame.K_RETURN:
                 self.state = ST_MENU
@@ -394,9 +423,11 @@ class Game:
                 dx = mp.rect.x - old_mx
                 dy = mp.rect.y - old_my
                 self.player.rect.x += dx
-                self.player.rect.bottom = mp.rect.top
+                # Embed player 1px into platform so player.update()'s
+                # spritecollide detects the overlap and correctly sets
+                # is_on_ground, refreshes jumps_remaining and coyote_timer.
+                self.player.rect.bottom = mp.rect.top + 1
                 self.player.velocity_y = 0
-                self.player.is_on_ground = True
 
         # Player
         keys = pygame.key.get_pressed()
@@ -833,13 +864,22 @@ class Game:
         if self.level.boss and self.level.boss.alive():
             if pygame.sprite.collide_rect(self.player, self.level.boss):
                 stomp_rect = self.player.get_stomp_rect()
+                # is_head_stomp requires player to be falling AND their feet
+                # to be in the upper half of the boss (not a side collision).
                 is_head_stomp = (self.player.velocity_y > 0
+                                 and self.player.rect.bottom
+                                 <= self.level.boss.rect.centery
                                  and stomp_rect.colliderect(self.level.boss.rect))
                 if is_head_stomp:
                     if self.level.boss.stunned:
-                        # Damage boss during vulnerable window
+                        # Damage boss during vulnerable window.
+                        # Grant brief i-frames so the side-hit else-branch
+                        # doesn't fire on the same or next frame while rects
+                        # still overlap after the stomp bounce.
                         self.player.velocity_y = ENEMY_STOMP_BOUNCE
                         self.player.rect.bottom = self.level.boss.rect.top
+                        self.player.invincible_timer = max(
+                            self.player.invincible_timer, 0.5)
                         killed = self.level.boss.take_hit()
                         self.audio.play("boss_hit")
                         self.shake.trigger(12, 0.3)
@@ -855,23 +895,26 @@ class Game:
                             self._maybe_unlock_ice_magic()
                     else:
                         # NON-STUNNED head-camp: boss shakes player off with
-                        # a strong sideways knockback + damage. No free ride.
-                        kb_dir = 1.0 if self.player.rect.centerx >= \
-                            self.level.boss.rect.centerx else -1.0
-                        self.player.velocity_x = 500.0 * kb_dir
-                        self.player.velocity_y = -450.0
-                        self.player.rect.bottom = self.level.boss.rect.top
-                        if self.player.take_damage(
-                                PLAYER_DAMAGE,
-                                source_x=self.level.boss.rect.centerx):
-                            self.shake.trigger(10, 0.2)
-                            self.particles.emit_damage(
-                                self.player.rect.centerx,
-                                self.player.rect.centery)
-                            self.audio.play("hit")
-                        self.hud.add_floating_text(
-                            "!!", self.level.boss.rect.centerx,
-                            self.level.boss.rect.top - 10, (255, 60, 60))
+                        # a strong sideways knockback + damage. Only apply
+                        # when player isn't already invincible to prevent a
+                        # rapid bounce loop on consecutive frames.
+                        if self.player.invincible_timer <= 0:
+                            kb_dir = 1.0 if self.player.rect.centerx >= \
+                                self.level.boss.rect.centerx else -1.0
+                            self.player.velocity_x = 500.0 * kb_dir
+                            self.player.velocity_y = -450.0
+                            self.player.rect.bottom = self.level.boss.rect.top
+                            if self.player.take_damage(
+                                    PLAYER_DAMAGE,
+                                    source_x=self.level.boss.rect.centerx):
+                                self.shake.trigger(10, 0.2)
+                                self.particles.emit_damage(
+                                    self.player.rect.centerx,
+                                    self.player.rect.centery)
+                                self.audio.play("hit")
+                            self.hud.add_floating_text(
+                                "!!", self.level.boss.rect.centerx,
+                                self.level.boss.rect.top - 10, (255, 60, 60))
                 else:
                     # Side/below hit -- boss damages player
                     if self.player.take_damage(PLAYER_DAMAGE):

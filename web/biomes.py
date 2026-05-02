@@ -973,6 +973,7 @@ class DustDevil(pygame.sprite.Sprite):
         self.image = self._frames[0]
         self.rect = self.image.get_rect(bottomleft=(x, y))
         self.origin_x = float(x)
+        self.origin_y = float(y)  # store so update() respects non-floor placements
         self.pos_x = float(x)
         self.time: float = random.uniform(0, 6.28)
         self.alive_flag = True
@@ -983,7 +984,9 @@ class DustDevil(pygame.sprite.Sprite):
         self.pos_x = self.origin_x + math.sin(self.time) * self.patrol_width * 0.5
         self.pos_x += math.sin(self.time * 2.7) * self.patrol_width * 0.3
         self.rect.x = _fl(self.pos_x)
-        self.rect.y = _fl(FLOOR_Y - 72 + math.sin(self.time * 1.5) * 10)
+        # Use origin_y so DustDevils placed on platforms stay at their
+        # intended height instead of snapping to the global floor.
+        self.rect.y = _fl(self.origin_y - 72 + math.sin(self.time * 1.5) * 10)
         # Cycle through swirl frames for visible animation
         frame_idx = int(self.time * 8) % len(self._frames)
         self.image = self._frames[frame_idx]
