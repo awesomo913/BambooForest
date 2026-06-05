@@ -189,7 +189,9 @@ section h2 { font-size: 1.75rem; font-weight: 600; margin-bottom: 2.5rem; letter
   overflow: hidden; display: flex; flex-direction: column;
   transition: border-color 0.2s, transform 0.15s, box-shadow 0.2s;
 }
-.project-card:hover { border-color: #444; transform: translateY(-4px); box-shadow: 0 8px 30px rgba(0,0,0,0.3); }
+.project-card:hover { border-color: #555; transform: translateY(-6px) scale(1.015); box-shadow: 0 16px 40px rgba(0,0,0,0.4); }
+.project-card:hover .project-icon { transform: scale(1.15) rotate(3deg); transition: transform 0.2s cubic-bezier(0.23, 1, 0.32, 1); }
+.project-card .project-icon { transition: transform 0.2s ease; }
 .project-body { padding: 1.25rem 1.5rem 1.5rem; display: flex; flex-direction: column; gap: 0.5rem; flex: 1; }
 .project-icon { font-size: 1.6rem; line-height: 1; }
 .project-body h3 { font-size: 1.05rem; font-weight: 600; }

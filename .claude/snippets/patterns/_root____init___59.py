@@ -1,0 +1,8 @@
+# From: sprites.py:1511
+
+    def __init__(self, x: int, y: int) -> None:
+        super().__init__()
+        self.base_image = generate_heal_surface()
+        self.image = self.base_image
+        self.rect = self.image.get_rect(bottomleft=(x, y))
+        self.pulse_timer: float = random.uniform(0, 6.28)

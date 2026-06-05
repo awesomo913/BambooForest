@@ -1,0 +1,299 @@
+# Snippet Library
+
+## Utilities
+
+- [`_sine_samples`](utilities/_sine_samples.py) (from `audio.py:12`) -- Generate signed-16-bit sine wave samples.
+- [`_square_samples`](utilities/_square_samples.py) (from `audio.py:21`) -- Generate square wave samples.
+- [`_noise_samples`](utilities/_noise_samples.py) (from `audio.py:32`) -- Generate white noise samples.
+- [`_sweep_samples`](utilities/_sweep_samples.py) (from `audio.py:39`) -- Generate pitch sweep (linear frequency interpolation).
+- [`_apply_envelope`](utilities/_apply_envelope.py) (from `audio.py:53`) -- Apply attack/decay amplitude envelope in-place.
+- [`_concat`](utilities/_concat.py) (from `audio.py:70`) -- Concatenate multiple sample buffers.
+- [`_to_sound`](utilities/_to_sound.py) (from `audio.py:78`) -- Convert sample buffer to pygame Sound.
+- [`play`](utilities/play.py) (from `audio.py:197`) -- Play a sound with 30% volume cap + rate limiting.
+- [`toggle`](utilities/toggle.py) (from `audio.py:217`) -- Toggle sound on/off.
+- [`_build`](utilities/_build.py) (from `backgrounds.py:36`) -- Subclasses override to paint the biome.
+- [`_wrap_polygon`](utilities/_wrap_polygon.py) (from `backgrounds.py:40`) -- Draw polygon with horizontal wrap at tile edges.
+- [`load_sprite`](utilities/load_sprite.py) (from `bamboo_forest.py:10`) -- Loads an image if it exists, otherwise returns a colored block.
+- [`generate_volcanic_tile`](utilities/generate_volcanic_tile.py) (from `biomes.py:39`) -- Dark volcanic basalt with orange lava crack highlights.
+- [`generate_basalt_tile`](utilities/generate_basalt_tile.py) (from `biomes.py:69`) -- Hexagonal basalt columns -- dark gray with top lip.
+- [`generate_sandstone_tile`](utilities/generate_sandstone_tile.py) (from `biomes.py:92`) -- Layered tan sandstone with erosion marks.
+- [`generate_limestone_tile`](utilities/generate_limestone_tile.py) (from `biomes.py:124`) -- Pale gray-tan limestone cave floor with fossil marks.
+- [`generate_salt_tile`](utilities/generate_salt_tile.py) (from `biomes.py:151`) -- Pale blue-white salt crystal surface, reflective.
+- [`generate_mushroom_tile`](utilities/generate_mushroom_tile.py) (from `biomes.py:175`) -- Bioluminescent fungal soil -- dark purple with glowing spores.
+- [`generate_tidal_tile`](utilities/generate_tidal_tile.py) (from `biomes.py:201`) -- Barnacled coastal stone with teal water stains.
+- [`generate_gravity_tile`](utilities/generate_gravity_tile.py) (from `biomes.py:226`) -- Arcane metal with glowing circuit veins.
+- [`generate_corrupted_tile`](utilities/generate_corrupted_tile.py) (from `biomes.py:253`) -- Sickly forest ground -- dark green with purple corruption veins.
+- [`generate_lair_tile`](utilities/generate_lair_tile.py) (from `biomes.py:285`) -- Corrupted boss-lair ground -- crimson shadow with dark veins.
+- [`generate_forge_tile`](utilities/generate_forge_tile.py) (from `biomes.py:317`) -- Industrial iron forge -- rivets, soot, ember glow.
+- [`generate_void_tile`](utilities/generate_void_tile.py) (from `biomes.py:346`) -- Ethereal void -- deep purple with swirling stars.
+- [`_build_sky`](utilities/_build_sky.py) (from `engine.py:239`) -- Static sky gradient + clouds -- never scrolls so no tiling needed.
+- [`_wrap_polygon`](utilities/_root___wrap_polygon.py) (from `engine.py:267`) -- Draw a polygon that wraps seamlessly at x=0 and x=self.w.
+- [`_toggle_fullscreen`](utilities/_toggle_fullscreen.py) (from `game.py:147`) -- Toggle fullscreen using pygame.display.toggle_fullscreen().
+- [`_maybe_unlock_ice_magic`](utilities/_maybe_unlock_ice_magic.py) (from `game.py:170`) -- Grant ice magic on first boss defeat. Persists across levels.
+- [`_draw_weapon_hint`](utilities/_draw_weapon_hint.py) (from `game.py:1296`) -- Persistent banner teaching the player how to attack.
+- [`_draw_glide_hint`](utilities/_draw_glide_hint.py) (from `game.py:1317`) -- Persistent banner teaching the player how to glide.
+- [`_draw_ice_hint`](utilities/_draw_ice_hint.py) (from `game.py:1339`) -- Persistent banner teaching the player how to cast ice.
+- [`_draw_npc_textbox`](utilities/_draw_npc_textbox.py) (from `game.py:1366`) -- Full-width text box at bottom of screen for NPC dialog.
+- [`_scatter_bamboos`](utilities/_scatter_bamboos.py) (from `levels.py:91`) -- Generate bamboo positions attached to STATIC platforms only.
+- [`_build_level_4`](utilities/_build_level_4.py) (from `levels.py:473`) -- The Caldera -- volcanic geysers and toxic slimes.
+- [`_build_level_5`](utilities/_build_level_5.py) (from `levels.py:504`) -- Basalt Columns -- crumbling platforms and armored crabs.
+- [`_build_level_6`](utilities/_build_level_6.py) (from `levels.py:538`) -- The Arid Rift -- wind and scorpion projectiles.
+- [`_build_level_7`](utilities/_build_level_7.py) (from `levels.py:574`) -- Karst Caves -- darkness with crystal lights.
+- [`_build_level_8`](utilities/_build_level_8.py) (from `levels.py:610`) -- Salt Flats -- ice physics and phantom enemies.
+- [`_build_level_9`](utilities/_build_level_9.py) (from `levels.py:639`) -- Abyssal Trench -- underwater feel. Uses cave biome dark + crystals.
+- [`_build_level_10`](utilities/_build_level_10.py) (from `levels.py:676`) -- Orogeny Peak -- vertical scaling. Many stacked platforms.
+- [`_build_level_11`](utilities/_build_level_11.py) (from `levels.py:717`) -- Hypersaline Rift -- wide gaps needing dash/glide.
+- [`_build_level_12`](utilities/_build_level_12.py) (from `levels.py:753`) -- Tabletop Canopy -- dense small platforms (jungle vine feel).
+- [`_build_level_13`](utilities/_build_level_13.py) (from `levels.py:802`) -- Crystal Geode -- final level. Dark, crystals, boss + many flying.
+- [`_build_level_14`](utilities/_build_level_14.py) (from `levels.py:848`) -- Fungal Hollows -- bouncy mushroom springs + spore puffers.
+- [`_build_level_15`](utilities/_build_level_15.py) (from `levels.py:900`) -- The Crucible -- rising lava, constant upward pressure.
+- [`_build_level_16`](utilities/_build_level_16.py) (from `levels.py:949`) -- Tidal Locks -- timed gates cycle every 3 seconds.
+- [`_verify_jump_arc`](utilities/_verify_jump_arc.py) (from `levels.py:1131`) -- Check that every platform is reachable within the player's jump arc.
+- [`load_high_scores`](utilities/load_high_scores.py) (from `save.py:9`) -- Load high scores from disk. Returns sorted list of {score, level}.
+- [`save_high_score`](utilities/save_high_score.py) (from `save.py:20`) -- Add score if it qualifies for top 5. Returns True if it made the list.
+- [`get_best_score`](utilities/get_best_score.py) (from `save.py:37`) -- Return the highest saved score, or 0.
+- [`generate_bamboo_surface`](utilities/generate_bamboo_surface.py) (from `sprites.py:109`) -- 20x55 bamboo stalk with joints and leaves.
+- [`generate_heal_surface`](utilities/generate_heal_surface.py) (from `sprites.py:123`) -- 25x25 heart shape.
+- [`generate_platform_tile`](utilities/generate_platform_tile.py) (from `sprites.py:133`) -- Asian-themed platform: polished wood grain + bamboo cross-sections.
+- [`generate_grass_tuft`](utilities/generate_grass_tuft.py) (from `sprites.py:355`) -- Small decorative grass blades.
+- [`_generate_mushroom_frames`](utilities/_generate_mushroom_frames.py) (from `sprites.py:368`) -- Two-frame mushroom patrol enemy -- cleaner design.
+- [`_generate_chaser_frames`](utilities/_generate_chaser_frames.py) (from `sprites.py:395`) -- Two-frame shadow panther chaser -- sleek dark cat with glowing eyes.
+- [`_generate_flying_frames`](utilities/_generate_flying_frames.py) (from `sprites.py:434`) -- Two-frame bat with spikes -- cleaner wing shape.
+- [`_generate_slime_frames`](utilities/_generate_slime_frames.py) (from `sprites.py:555`) -- Two-frame bouncing slime enemy -- green jelly blob.
+- [`_generate_checkpoint_surface`](utilities/_generate_checkpoint_surface.py) (from `sprites.py:1861`) -- A wooden signpost with a flag -- gray when inactive, green when hit.
+- [`jump`](utilities/jump.py) (from `sprites.py:830`) -- Jump the player. Honors coyote time (0.12s window after leaving
+- [`take_damage`](utilities/take_damage.py) (from `sprites.py:850`) -- Apply damage + i-frames + positional knockback.
+- [`attack`](utilities/attack.py) (from `sprites.py:896`) -- Swing the bamboo staff. Returns True if attack started.
+- [`dash`](utilities/dash.py) (from `sprites.py:906`) -- SHIFT-key dash. Requires DashBoots pickup (timed item).
+- [`slam`](utilities/slam.py) (from `sprites.py:926`) -- Ground-slam: high downward velocity while airborne.
+- [`set_gliding`](utilities/set_gliding.py) (from `sprites.py:935`) -- Toggle glide -- consumes glide_time_remaining.
+- [`has_glide`](utilities/has_glide.py) (from `sprites.py:948`) -- Legacy accessor -- returns True if player currently has glide time.
+- [`has_glide`](utilities/_root__has_glide.py) (from `sprites.py:953`) -- Legacy setter -- grants 10s of glide or clears timer.
+- [`throw_bamboo`](utilities/throw_bamboo.py) (from `sprites.py:962`) -- Throw a bamboo shuriken. Returns True if thrown.
+- [`cast_ice_spell`](utilities/cast_ice_spell.py) (from `sprites.py:973`) -- Cast an ice projectile. Requires full mana and unlock.
+- [`reset_state`](utilities/reset_state.py) (from `sprites.py:992`) -- Called on level load / respawn to clear any transient locks.
+- [`get_attack_rect`](utilities/get_attack_rect.py) (from `sprites.py:1014`) -- Stab hitbox: fast out, hold, quick retract.
+- [`_make_shard`](utilities/_make_shard.py) (from `sprites.py:1245`) -- Glowing cyan-white diamond-shaped ice shard.
+- [`activate`](utilities/activate.py) (from `sprites.py:1901`) -- Activate this checkpoint. Returns True if newly activated.
+- [`_draw_bamboo_icon`](utilities/_draw_bamboo_icon.py) (from `ui.py:59`) -- Small 10x16 bamboo with optional checkmark.
+- [`handle_click`](utilities/handle_click.py) (from `ui.py:470`) -- Handle mouse click. Returns True if consumed (don't start game).
+- [`handle_key`](utilities/handle_key.py) (from `ui.py:489`) -- Returns True if the key was consumed (don't start game).
+- [`_ensure_bg`](utilities/_ensure_bg.py) (from `ui.py:502`) -- Pre-render the static background.
+- [`_draw_wrapped`](utilities/_draw_wrapped.py) (from `ui.py:678`) -- Draw text with word wrapping + paragraph support.
+- [`main`](utilities/main.py) (from `web/game.py:1482`) -- Async entry point for Pygbag/WASM.
+- [`run`](utilities/run.py) (from `web/game.py:94`) -- Async main loop -- Pygbag/WASM requirement.
+- [`_toggle_fullscreen`](utilities/web___toggle_fullscreen.py) (from `web/game.py:136`) -- Browser handles F11 natively; in-game F11 is a no-op.
+- [`_draw_glide_leaf`](utilities/_draw_glide_leaf.py) (from `web/game.py:1162`) -- Draw a large bamboo leaf parasol above the panda while gliding.
+- [`_draw_dash_trail`](utilities/_draw_dash_trail.py) (from `web/game.py:1193`) -- Draw speed afterimages behind the panda while dashing.
+- [`_draw_glide_hint`](utilities/web___draw_glide_hint.py) (from `web/game.py:1335`) -- Persistent banner teaching the player how to glide.
+- [`_build_level_4`](utilities/web___build_level_4.py) (from `web/levels.py:477`) -- The Caldera -- volcanic geysers and toxic slimes.
+- [`_build_level_5`](utilities/web___build_level_5.py) (from `web/levels.py:510`) -- Basalt Columns -- crumbling platforms and armored crabs.
+- [`_build_level_6`](utilities/web___build_level_6.py) (from `web/levels.py:545`) -- The Arid Rift -- wind and scorpion projectiles.
+- [`_build_level_7`](utilities/web___build_level_7.py) (from `web/levels.py:583`) -- Karst Caves -- darkness with crystal lights.
+- [`_build_level_8`](utilities/web___build_level_8.py) (from `web/levels.py:621`) -- Salt Flats -- ice physics and phantom enemies.
+- [`_build_level_9`](utilities/web___build_level_9.py) (from `web/levels.py:652`) -- Abyssal Trench -- underwater feel. Uses cave biome dark + crystals.
+- [`_build_level_10`](utilities/web___build_level_10.py) (from `web/levels.py:691`) -- Orogeny Peak -- vertical scaling. Many stacked platforms.
+- [`_build_level_11`](utilities/web___build_level_11.py) (from `web/levels.py:734`) -- Hypersaline Rift -- wide gaps needing dash/glide.
+- [`_build_level_15`](utilities/web___build_level_15.py) (from `web/levels.py:920`) -- The Crucible -- rising lava, constant upward pressure.
+
+## Classes
+
+- [`AudioManager`](classes/AudioManager.py) (from `audio.py:102`) -- Generates and caches all game sounds at init.
+- [`_BaseBackground`](classes/_BaseBackground.py) (from `backgrounds.py:18`) -- Base class: produces a seamless-tileable surface.
+- [`VolcanicBackground`](classes/VolcanicBackground.py) (from `backgrounds.py:231`) -- Red-orange sky, dark volcanic peaks, lava glow, ash particles.
+- [`BasaltBackground`](classes/BasaltBackground.py) (from `backgrounds.py:300`) -- Misty gray sky, hexagonal column silhouettes, sea spray.
+- [`DesertBackground`](classes/DesertBackground.py) (from `backgrounds.py:356`) -- Warm orange sky, sand dunes, distant mesas, heat haze.
+- [`CaveBackground`](classes/CaveBackground.py) (from `backgrounds.py:415`) -- Dark cave with stalactites + stalagmites + glowworm specks.
+- [`SaltFlatsBackground`](classes/SaltFlatsBackground.py) (from `backgrounds.py:457`) -- Pale sky, snowy Andes silhouettes, mirror-flat salt surface.
+- [`MushroomBackground`](classes/MushroomBackground.py) (from `backgrounds.py:504`) -- Bioluminescent underground mushroom forest.
+- [`TidalBackground`](classes/TidalBackground.py) (from `backgrounds.py:556`) -- Stormy coastal ruin with rocks, lighthouse, and waves.
+- [`GravityBackground`](classes/GravityBackground.py) (from `backgrounds.py:612`) -- Arcane void with floating structures and pulsing veins.
+- [`CorruptedForestBackground`](classes/CorruptedForestBackground.py) (from `backgrounds.py:682`) -- Sickly forest with purple-tinted vegetation -- corruption creeping in.
+- [`MutantLairBackground`](classes/MutantLairBackground.py) (from `backgrounds.py:742`) -- Dark red-purple lair. Throbbing corruption, boss epicenter.
+- [`ForgeBackground`](classes/ForgeBackground.py) (from `backgrounds.py:798`) -- Industrial iron workshop. Ember glow, chains, hanging gears.
+- [`VoidBackground`](classes/VoidBackground.py) (from `backgrounds.py:861`) -- Ethereal purple void. Floating stone islands, drifting souls.
+- [`BiomeBackground`](classes/BiomeBackground.py) (from `backgrounds.py:933`) -- Factory that returns the correct background for each biome.
+- [`Panda`](classes/Panda.py) (from `bamboo_app.py:6`)
+- [`Bamboo`](classes/Bamboo.py) (from `bamboo_app.py:22`)
+- [`MutantPanda`](classes/MutantPanda.py) (from `bamboo_app.py:29`)
+- [`Panda`](classes/_root__Panda.py) (from `bamboo_forest.py:22`)
+- [`Platform`](classes/Platform.py) (from `module_auto.py:93`)
+- [`Bamboo`](classes/_root__Bamboo.py) (from `bamboo_forest.py:79`)
+- [`HealingItem`](classes/HealingItem.py) (from `bamboo_forest.py:85`)
+- [`MutantPanda`](classes/_root__MutantPanda.py) (from `bamboo_forest.py:91`)
+- [`Camera`](classes/Camera.py) (from `bamboo_forest.py:118`)
+- [`BiomePlatform`](classes/BiomePlatform.py) (from `biomes.py:387`) -- Platform with biome-specific tile art.
+- [`BiomeMovingPlatform`](classes/BiomeMovingPlatform.py) (from `biomes.py:402`) -- Moving platform with biome-specific tile art.
+- [`Geyser`](classes/Geyser.py) (from `biomes.py:454`) -- Level 4. Periodically erupts, launching player upward.
+- [`ToxicTrail`](classes/ToxicTrail.py) (from `biomes.py:515`) -- Level 4. Damage zone left by SulfurSlime.
+- [`CrumblingPlatform`](classes/CrumblingPlatform.py) (from `biomes.py:540`) -- Level 5. Crumbles after player stands on it, then respawns.
+- [`WindZone`](classes/WindZone.py) (from `biomes.py:595`) -- Level 6. Pushes player sideways.
+- [`ThermalUpdraft`](classes/ThermalUpdraft.py) (from `biomes.py:616`) -- Level 6. Vertical column giving upward boost.
+- [`Crystal`](classes/Crystal.py) (from `biomes.py:629`) -- Level 7. Strike to expand visibility in dark levels.
+- [`IcePlatform`](classes/IcePlatform.py) (from `biomes.py:663`) -- Level 8. Platform with ice physics flag.
+- [`ScorpionProjectile`](classes/ScorpionProjectile.py) (from `biomes.py:679`) -- Level 6. 45-degree thorn from CactusScorpion.
+- [`SulfurSlime`](classes/SulfurSlime.py) (from `biomes.py:707`) -- Level 4. Slow patrol, leaves toxic trail.
+- [`AshBat`](classes/AshBat.py) (from `biomes.py:763`) -- Level 4. Swoops when player is mid-air.
+- [`KelpCrab`](classes/KelpCrab.py) (from `biomes.py:821`) -- Level 5. Armored patrol, stomp-only kill.
+- [`BasaltGolem`](classes/BasaltGolem.py) (from `biomes.py:869`) -- Level 5. Disguised pillar that lunges when close.
+- [`DustDevil`](classes/DustDevil.py) (from `biomes.py:939`) -- Level 6. Invincible erratic sandstorm, must dodge. Minimum 150px patrol
+- [`CactusScorpion`](classes/CactusScorpion.py) (from `biomes.py:1019`) -- Level 6. Fires 45-degree projectiles.
+- [`StalactiteSpider`](classes/StalactiteSpider.py) (from `biomes.py:1078`) -- Level 7. Drops from ceiling when player passes below.
+- [`FalseGlowworm`](classes/FalseGlowworm.py) (from `biomes.py:1129`) -- Level 7. Looks like light source, snaps shut as trap.
+- [`BrineShard`](classes/BrineShard.py) (from `biomes.py:1174`) -- Level 8. Static crystal that grows when player stands still nearby.
+- [`ReflectionPhantom`](classes/ReflectionPhantom.py) (from `biomes.py:1214`) -- Level 8. Patrol enemy only visible in reflection.
+- [`NPC`](classes/NPC.py) (from `biomes.py:1262`) -- Non-combat character that shows dialog when player approaches.
+- [`MushroomSpring`](classes/MushroomSpring.py) (from `biomes.py:1291`) -- Always-active bounce pad. Player landing on it gets launched upward.
+- [`PoisonSpore`](classes/PoisonSpore.py) (from `biomes.py:1338`) -- Slow-drifting spore cloud that damages on contact.
+- [`SporePuffer`](classes/SporePuffer.py) (from `biomes.py:1367`) -- Stationary fungus that releases drifting poison spores.
+- [`RisingLava`](classes/RisingLava.py) (from `biomes.py:1432`) -- Lethal lava floor that rises steadily from below.
+- [`MagmaLeaper`](classes/MagmaLeaper.py) (from `biomes.py:1497`) -- Fiery creature that leaps out of the lava in arcs.
+- [`TimedGate`](classes/TimedGate.py) (from `biomes.py:1572`) -- Platform that cycles between solid and intangible.
+- [`TidalCrab`](classes/TidalCrab.py) (from `biomes.py:1650`) -- Patrols on gates. Falls when its gate vanishes, relocates on landing.
+- [`TeleportPortal`](classes/TeleportPortal.py) (from `biomes.py:1737`) -- Linked portal. Entering transports player to partner's position.
+- [`PhaseWraith`](classes/PhaseWraith.py) (from `biomes.py:1795`) -- Patrols and teleports through nearby active portals.
+- [`GravityZone`](classes/GravityZone.py) (from `biomes.py:1871`) -- Rectangular zone that alters player gravity while inside.
+- [`GravityDrone`](classes/GravityDrone.py) (from `biomes.py:1936`) -- Hovering mech sphere that pulls the player toward itself.
+- [`HomingSpecter`](classes/HomingSpecter.py) (from `biomes.py:1988`) -- Ghostly flier that always tracks the player. Stompable.
+- [`ForgeHammer`](classes/ForgeHammer.py) (from `biomes.py:2067`) -- Ceiling-mounted iron hammer. Periodically slams to floor.
+- [`VoidEater`](classes/VoidEater.py) (from `biomes.py:2133`)
+- [`DarkWall`](classes/DarkWall.py) (from `biomes.py:2208`) -- Wall that only disappears when a crystal within range is lit.
+- [`Camera`](classes/_root__Camera.py) (from `engine.py:20`) -- Smooth-follow camera. Logic state is float, render state is int.
+- [`ScreenShake`](classes/ScreenShake.py) (from `engine.py:63`)
+- [`Particle`](classes/Particle.py) (from `engine.py:85`)
+- [`ParticleSystem`](classes/ParticleSystem.py) (from `engine.py:104`)
+- [`PlatformDef`](classes/PlatformDef.py) (from `levels.py:29`)
+- [`EnemyDef`](classes/EnemyDef.py) (from `levels.py:40`)
+- [`LevelDef`](classes/LevelDef.py) (from `levels.py:49`)
+- [`Camera`](classes/_root__Camera_2.py) (from `module_auto.py:22`)
+- [`Panda`](classes/_root__Panda_2.py) (from `module_auto.py:43`)
+- [`Bamboo`](classes/_root__Bamboo_2.py) (from `module_auto.py:100`)
+- [`HealingItem`](classes/_root__HealingItem.py) (from `module_auto.py:108`)
+- [`Platform`](classes/_root__Platform.py) (from `sprites.py:1101`)
+- [`MovingPlatform`](classes/MovingPlatform.py) (from `sprites.py:1108`)
+- [`Bamboo`](classes/_root__Bamboo_3.py) (from `sprites.py:1146`) -- Collectible bamboo with pulsing golden glow aura (affordance).
+- [`BambooShuriken`](classes/BambooShuriken.py) (from `sprites.py:1183`) -- Thrown bamboo shuriken projectile. Travels horizontally, rotating.
+- [`IceProjectile`](classes/IceProjectile.py) (from `sprites.py:1224`) -- Ice spell projectile. Travels in a straight line, pierces enemies,
+- [`DashBoots`](classes/DashBoots.py) (from `sprites.py:1287`) -- Pickup that grants 30 seconds of dash ability.
+- [`GlideFeather`](classes/GlideFeather.py) (from `sprites.py:1349`) -- Pickup that grants Pain-da the glide ability (hold JUMP while falling).
+- [`BambooStaff`](classes/BambooStaff.py) (from `sprites.py:1411`) -- Pickup that grants Pain-da a bamboo weapon (swing with E/X/LMB).
+- [`HealingItem`](classes/_root__HealingItem_2.py) (from `sprites.py:1510`)
+- [`PatrolEnemy`](classes/PatrolEnemy.py) (from `sprites.py:1528`) -- Mushroom that walks back and forth. Stompable.
+- [`ChaserEnemy`](classes/ChaserEnemy.py) (from `sprites.py:1571`) -- Dark wolf that chases the player.
+- [`SlimeEnemy`](classes/SlimeEnemy.py) (from `sprites.py:1616`) -- Bouncing slime blob. Stompable.
+- [`FlyingEnemy`](classes/FlyingEnemy.py) (from `sprites.py:1670`) -- Flying bat. NOT stompable.
+- [`Boss`](classes/Boss.py) (from `sprites.py:1710`) -- Mutant panda boss with clear state-machine telegraph.
+- [`GrassTuft`](classes/GrassTuft.py) (from `sprites.py:1845`)
+- [`SafeZone`](classes/SafeZone.py) (from `sprites.py:1852`) -- Forest clearing that acts as the level goal (replaces the old flag).
+- [`Checkpoint`](classes/Checkpoint.py) (from `sprites.py:1888`) -- Checkpoint signpost. Saves player progress when touched.
+- [`FloatingText`](classes/FloatingText.py) (from `ui.py:76`)
+- [`HUD`](classes/HUD.py) (from `ui.py:105`)
+- [`PauseOverlay`](classes/PauseOverlay.py) (from `ui.py:705`) -- Pause screen with compact enemy encyclopedia (read while waiting).
+- [`GameOverScreen`](classes/GameOverScreen.py) (from `ui.py:772`)
+- [`VictoryScreen`](classes/VictoryScreen.py) (from `ui.py:796`)
+- [`LevelTransition`](classes/LevelTransition.py) (from `ui.py:832`)
+- [`DeathAnimation`](classes/DeathAnimation.py) (from `ui.py:866`)
+- [`AudioManager`](classes/web__AudioManager.py) (from `web/audio.py:109`) -- Generates and caches all game sounds at init.
+- [`DustDevil`](classes/web__DustDevil.py) (from `web/biomes.py:943`) -- Level 6. Invincible erratic sandstorm, must dodge. Minimum 150px patrol
+- [`DarkWall`](classes/web__DarkWall.py) (from `web/biomes.py:2187`) -- Wall that only disappears when a crystal within range is lit.
+- [`DashBoots`](classes/web__DashBoots.py) (from `web/sprites.py:1303`) -- Pickup that grants 30 seconds of dash ability.
+- [`GlideFeather`](classes/web__GlideFeather.py) (from `web/sprites.py:1365`) -- Pickup that grants Pain-da the glide ability (hold JUMP while falling).
+
+## Patterns
+
+- [`__init__`](patterns/__init__.py) (from `backgrounds.py:25`)
+- [`_wrap_rect`](patterns/_wrap_rect.py) (from `backgrounds.py:47`)
+- [`_build`](patterns/_build.py) (from `backgrounds.py:303`)
+- [`_build`](patterns/_root___build.py) (from `backgrounds.py:359`)
+- [`_build`](patterns/_root___build_2.py) (from `backgrounds.py:418`)
+- [`_build`](patterns/_root___build_3.py) (from `backgrounds.py:460`)
+- [`_build`](patterns/_root___build_4.py) (from `backgrounds.py:507`)
+- [`_build`](patterns/_root___build_5.py) (from `backgrounds.py:559`)
+- [`_build`](patterns/_root___build_6.py) (from `backgrounds.py:745`)
+- [`_build`](patterns/_root___build_7.py) (from `backgrounds.py:864`)
+- [`__init__`](patterns/_root____init__.py) (from `backgrounds.py:936`)
+- [`__init__`](patterns/_root____init___2.py) (from `bamboo_app.py:7`)
+- [`__init__`](patterns/_root____init___3.py) (from `bamboo_app.py:23`)
+- [`__init__`](patterns/_root____init___4.py) (from `bamboo_app.py:30`)
+- [`build_level`](patterns/build_level.py) (from `module_auto.py:116`)
+- [`__init__`](patterns/_root____init___5.py) (from `bamboo_forest.py:23`)
+- [`__init__`](patterns/_root____init___6.py) (from `module_auto.py:94`)
+- [`__init__`](patterns/_root____init___7.py) (from `bamboo_forest.py:80`)
+- [`__init__`](patterns/_root____init___8.py) (from `bamboo_forest.py:86`)
+- [`__init__`](patterns/_root____init___9.py) (from `bamboo_forest.py:92`)
+- [`__init__`](patterns/_root____init___10.py) (from `module_auto.py:23`)
+- [`__init__`](patterns/_root____init___11.py) (from `biomes.py:390`)
+- [`__init__`](patterns/_root____init___12.py) (from `biomes.py:405`)
+- [`__init__`](patterns/_root____init___13.py) (from `biomes.py:457`)
+- [`__init__`](patterns/_root____init___14.py) (from `biomes.py:518`)
+- [`__init__`](patterns/_root____init___15.py) (from `biomes.py:543`)
+- [`__init__`](patterns/_root____init___16.py) (from `biomes.py:598`)
+- [`__init__`](patterns/_root____init___17.py) (from `biomes.py:619`)
+- [`__init__`](patterns/_root____init___18.py) (from `biomes.py:632`)
+- [`__init__`](patterns/_root____init___19.py) (from `biomes.py:668`)
+- [`__init__`](patterns/_root____init___20.py) (from `biomes.py:682`)
+- [`__init__`](patterns/_root____init___21.py) (from `biomes.py:711`)
+- [`__init__`](patterns/_root____init___22.py) (from `biomes.py:767`)
+- [`__init__`](patterns/_root____init___23.py) (from `biomes.py:825`)
+- [`__init__`](patterns/_root____init___24.py) (from `biomes.py:873`)
+- [`__init__`](patterns/_root____init___25.py) (from `biomes.py:1023`)
+- [`__init__`](patterns/_root____init___26.py) (from `biomes.py:1082`)
+- [`__init__`](patterns/_root____init___27.py) (from `biomes.py:1133`)
+- [`__init__`](patterns/_root____init___28.py) (from `biomes.py:1178`)
+- [`__init__`](patterns/_root____init___29.py) (from `biomes.py:1218`)
+- [`__init__`](patterns/_root____init___30.py) (from `biomes.py:1265`)
+- [`__init__`](patterns/_root____init___31.py) (from `biomes.py:1294`)
+- [`__init__`](patterns/_root____init___32.py) (from `biomes.py:1341`)
+- [`__init__`](patterns/_root____init___33.py) (from `biomes.py:1372`)
+- [`__init__`](patterns/_root____init___34.py) (from `biomes.py:1438`)
+- [`__init__`](patterns/_root____init___35.py) (from `biomes.py:1502`)
+- [`__init__`](patterns/_root____init___36.py) (from `biomes.py:1582`)
+- [`__init__`](patterns/_root____init___37.py) (from `biomes.py:1655`)
+- [`__init__`](patterns/_root____init___38.py) (from `biomes.py:1740`)
+- [`__init__`](patterns/_root____init___39.py) (from `biomes.py:1800`)
+- [`__init__`](patterns/_root____init___40.py) (from `biomes.py:1877`)
+- [`__init__`](patterns/_root____init___41.py) (from `biomes.py:1941`)
+- [`__init__`](patterns/_root____init___42.py) (from `biomes.py:1997`)
+- [`__init__`](patterns/_root____init___43.py) (from `biomes.py:2072`)
+- [`__init__`](patterns/_root____init___44.py) (from `biomes.py:2136`)
+- [`__init__`](patterns/_root____init___45.py) (from `engine.py:30`)
+- [`__init__`](patterns/_root____init___46.py) (from `engine.py:64`)
+- [`__init__`](patterns/_root____init___47.py) (from `engine.py:89`)
+- [`__init__`](patterns/_root____init___48.py) (from `engine.py:221`)
+- [`_load_level`](patterns/_load_level.py) (from `game.py:263`)
+- [`_build_level_1`](patterns/_build_level_1.py) (from `levels.py:392`)
+- [`_build_level_2`](patterns/_build_level_2.py) (from `levels.py:411`)
+- [`_build_level_3`](patterns/_build_level_3.py) (from `levels.py:439`)
+- [`build_level_state`](patterns/build_level_state.py) (from `levels.py:1162`)
+- [`load_image`](patterns/load_image.py) (from `module_auto.py:15`)
+- [`__init__`](patterns/_root____init___49.py) (from `module_auto.py:44`)
+- [`__init__`](patterns/_root____init___50.py) (from `module_auto.py:101`)
+- [`__init__`](patterns/_root____init___51.py) (from `module_auto.py:109`)
+- [`__init__`](patterns/_root____init___52.py) (from `sprites.py:1102`)
+- [`__init__`](patterns/_root____init___53.py) (from `sprites.py:1109`)
+- [`__init__`](patterns/_root____init___54.py) (from `sprites.py:1149`)
+- [`__init__`](patterns/_root____init___55.py) (from `sprites.py:1186`)
+- [`__init__`](patterns/_root____init___56.py) (from `sprites.py:1229`)
+- [`__init__`](patterns/_root____init___57.py) (from `sprites.py:1293`)
+- [`__init__`](patterns/_root____init___58.py) (from `sprites.py:1356`)
+- [`__init__`](patterns/_root____init___59.py) (from `sprites.py:1511`)
+- [`__init__`](patterns/_root____init___60.py) (from `sprites.py:1532`)
+- [`__init__`](patterns/_root____init___61.py) (from `sprites.py:1575`)
+- [`__init__`](patterns/_root____init___62.py) (from `sprites.py:1620`)
+- [`__init__`](patterns/_root____init___63.py) (from `sprites.py:1674`)
+- [`__init__`](patterns/_root____init___64.py) (from `sprites.py:1725`)
+- [`__init__`](patterns/_root____init___65.py) (from `sprites.py:1846`)
+- [`__init__`](patterns/_root____init___66.py) (from `sprites.py:1854`)
+- [`__init__`](patterns/_root____init___67.py) (from `sprites.py:1891`)
+- [`__init__`](patterns/_root____init___68.py) (from `ui.py:77`)
+- [`__init__`](patterns/_root____init___69.py) (from `ui.py:106`)
+- [`__init__`](patterns/_root____init___70.py) (from `ui.py:454`)
+- [`__init__`](patterns/_root____init___71.py) (from `ui.py:833`)
+- [`__init__`](patterns/_root____init___72.py) (from `ui.py:867`)
+- [`__init__`](patterns/web____init__.py) (from `web/audio.py:112`)
+- [`__init__`](patterns/web____init___2.py) (from `web/biomes.py:949`)
+- [`_build_level_1`](patterns/web___build_level_1.py) (from `web/levels.py:393`)
+- [`_build_level_2`](patterns/web___build_level_2.py) (from `web/levels.py:413`)
+- [`_build_level_3`](patterns/web___build_level_3.py) (from `web/levels.py:442`)
+- [`__init__`](patterns/web____init___3.py) (from `web/sprites.py:1309`)
+- [`__init__`](patterns/web____init___4.py) (from `web/sprites.py:1372`)

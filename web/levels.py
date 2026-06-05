@@ -405,7 +405,8 @@ def _build_level_1() -> LevelDef:
         heal_positions=[(950, 380), (2500, 400)],
         goal_x=2800, checkpoint_positions=[1500],
         weapon_positions=[(700, FLOOR_Y)],
-        dash_positions=[(400, FLOOR_Y)],  # L1 intro dash item
+        glide_positions=[(1500, FLOOR_Y)],
+        dash_positions=[(400, FLOOR_Y)],
     )
 
 
@@ -428,6 +429,7 @@ def _build_level_2() -> LevelDef:
         heal_positions=[(1450, 410), (3490, 390)],
         goal_x=4200, checkpoint_positions=[1700, 3200],
         weapon_positions=[(2000, FLOOR_Y)],
+        glide_positions=[(1000, FLOOR_Y)],
         dash_positions=[(600, FLOOR_Y)],
         trenches=[(1220, 1390), (2600, 2720)],
         npc_defs=[(3900, FLOOR_Y, "Sage",
@@ -459,6 +461,7 @@ def _build_level_3() -> LevelDef:
         heal_positions=[(1450, 410), (3080, 370), (4900, FLOOR_Y)],
         goal_x=5850, checkpoint_positions=[1800, 3500, 4900],
         weapon_positions=[(2500, FLOOR_Y)],
+        glide_positions=[(1500, FLOOR_Y), (4200, FLOOR_Y)],
         dash_positions=[(700, FLOOR_Y), (3500, FLOOR_Y)],
         trenches=[(1330, 1470), (2920, 3050), (4380, 4520)],
         has_boss=True, boss_pos=(5500, FLOOR_Y),
@@ -491,6 +494,8 @@ def _build_level_4() -> LevelDef:
         heal_positions=[(1020, 360), (3420, 360), (4650, 380)],
         goal_x=5200, checkpoint_positions=[2000, 3800],
         weapon_positions=[(2200, FLOOR_Y)],
+        glide_positions=[(1200, FLOOR_Y)],
+        dash_positions=[(3000, FLOOR_Y)],
         geyser_positions=[
             (700, FLOOR_Y), (1350, FLOOR_Y), (1950, FLOOR_Y),
             (2600, FLOOR_Y), (3200, FLOOR_Y),
@@ -523,6 +528,7 @@ def _build_level_5() -> LevelDef:
         heal_positions=[(980, 380), (2680, 400)],
         goal_x=4700, checkpoint_positions=[1800, 3300],
         weapon_positions=[(2000, FLOOR_Y)],
+        glide_positions=[(1400, FLOOR_Y)],
         dash_positions=[(500, FLOOR_Y)],
         crumbling_defs=[
             PlatformDef(700, 400, 120), PlatformDef(1250, 350, 100),
@@ -558,6 +564,8 @@ def _build_level_6() -> LevelDef:
         bamboo_positions=_scatter_bamboos(plats, LEVEL_WIDTHS[5], FLOOR_Y, 18),
         heal_positions=[(1520, 410), (3730, 400), (5370, 390)],
         goal_x=6200, checkpoint_positions=[2200, 4200],
+        glide_positions=[(900, FLOOR_Y), (3800, FLOOR_Y)],
+        dash_positions=[(1800, FLOOR_Y)],
         wind_zones=[
             (800, 200, 200, 300, 1.0),
             (2300, 200, 200, 300, -1.0),
@@ -596,6 +604,8 @@ def _build_level_7() -> LevelDef:
         bamboo_positions=_scatter_bamboos(plats, LEVEL_WIDTHS[6], FLOOR_Y, 16),
         heal_positions=[(1420, 410), (2970, 370), (4080, 380)],
         goal_x=5200, checkpoint_positions=[1500, 2800, 4100],
+        glide_positions=[(1600, FLOOR_Y)],
+        dash_positions=[(3500, FLOOR_Y)],
         crystal_positions=[
             (300, FLOOR_Y), (750, FLOOR_Y), (1250, FLOOR_Y),
             (1800, FLOOR_Y), (2500, FLOOR_Y), (3200, FLOOR_Y), (3900, FLOOR_Y),
@@ -630,6 +640,8 @@ def _build_level_8() -> LevelDef:
         bamboo_positions=_scatter_bamboos(ice, LEVEL_WIDTHS[7], FLOOR_Y, 18),
         heal_positions=[(970, 380), (3320, 370), (5120, 410)],
         goal_x=6700, checkpoint_positions=[2400, 4500, 6000],
+        glide_positions=[(2000, FLOOR_Y), (4800, FLOOR_Y)],
+        dash_positions=[(3200, FLOOR_Y)],
         npc_defs=[(6200, FLOOR_Y, "Mirage",
                    ["Nothing is what it seems here...",
                     "Watch for phantoms in the reflection."],
@@ -667,6 +679,8 @@ def _build_level_9() -> LevelDef:
         heal_positions=[(940, 380), (3020, 400), (4730, 400)],
         goal_x=5600, checkpoint_positions=[1700, 3400],
         weapon_positions=[(1200, FLOOR_Y)],
+        glide_positions=[(2500, FLOOR_Y)],
+        dash_positions=[(4200, FLOOR_Y)],
         crystal_positions=[(600, FLOOR_Y), (1700, FLOOR_Y), (2800, FLOOR_Y),
                           (3900, FLOOR_Y), (5000, FLOOR_Y)],
         trenches=[(1720, 1860), (3400, 3520)],
@@ -721,6 +735,8 @@ def _build_level_10() -> LevelDef:
         heal_positions=[(1470, 380), (3420, 380), (4820, 360)],
         goal_x=5300, checkpoint_positions=[1500, 3200, 4500],
         weapon_positions=[(1000, FLOOR_Y)],
+        glide_positions=[(2200, FLOOR_Y)],
+        dash_positions=[(3800, FLOOR_Y)],
         trenches=[(680, 760), (1840, 1950), (3380, 3490)],
         npc_defs=[(5100, FLOOR_Y, "Kora",
                    ["The mountain tests your endurance.",
@@ -757,6 +773,8 @@ def _build_level_11() -> LevelDef:
         heal_positions=[(950, 380), (3350, 390), (5130, 380)],
         goal_x=5900, checkpoint_positions=[2100, 3900],
         weapon_positions=[(600, FLOOR_Y)],
+        glide_positions=[(1600, FLOOR_Y), (3600, FLOOR_Y)],
+        dash_positions=[(2800, FLOOR_Y)],
         trenches=[(1200, 1440), (2400, 2600), (4200, 4400)],
         npc_defs=[(5600, FLOOR_Y, "Saltbeard",
                    ["The salt ocean looks calm...",
@@ -893,6 +911,8 @@ def _build_level_14() -> LevelDef:
         heal_positions=[(950, 380), (3120, 280), (5230, 400)],
         goal_x=5800, checkpoint_positions=[2000, 4200],
         weapon_positions=[(1200, FLOOR_Y)],
+        glide_positions=[(2600, FLOOR_Y), (5400, 300)],
+        dash_positions=[(4000, FLOOR_Y)],
         mushroom_positions=[
             (2800, FLOOR_Y), (3350, FLOOR_Y), (3850, FLOOR_Y),
             (4400, FLOOR_Y), (5000, FLOOR_Y),
@@ -953,7 +973,8 @@ def _build_level_15() -> LevelDef:
         rising_lava=True,
         lava_pause_ys=[460, 410, 360, 310],
         geyser_positions=[(800, FLOOR_Y), (2800, 400), (4300, 360)],
-        dash_positions=[(400, 420)],
+        glide_positions=[(1500, 380), (4500, 290)],
+        dash_positions=[(400, 420), (3200, 360)],
         npc_defs=[(6200, 310, "Vulcan",
                    ["The forge hammers crush what lava doesn't burn.",
                     "Dodge the slamming anvils and keep climbing!"],
@@ -987,6 +1008,8 @@ def _build_level_16() -> LevelDef:
         heal_positions=[(970, 380), (4220, 380), (5230, 380)],
         goal_x=5800, checkpoint_positions=[2000, 4000],
         weapon_positions=[(1000, FLOOR_Y)],
+        glide_positions=[(2200, FLOOR_Y)],
+        dash_positions=[(4400, FLOOR_Y)],
         # Alternating A/B gates bridging two big trenches
         # First section: 3 gates bridging a gap 1100-1920
         timed_gate_defs=[
@@ -1044,6 +1067,8 @@ def _build_level_17() -> LevelDef:
         heal_positions=[(950, 380), (3550, 410), (5130, 410)],
         goal_x=5400, checkpoint_positions=[2000, 4000],
         weapon_positions=[(700, FLOOR_Y)],
+        glide_positions=[(1800, FLOOR_Y), (3800, FLOOR_Y)],
+        dash_positions=[(2600, FLOOR_Y)],
         crystal_positions=[
             (300, FLOOR_Y), (1700, FLOOR_Y), (3200, FLOOR_Y),
             (4400, FLOOR_Y), (5000, FLOOR_Y),
@@ -1111,6 +1136,8 @@ def _build_level_18() -> LevelDef:
         heal_positions=[(940, 380), (3220, 370), (5220, 400), (6400, FLOOR_Y)],
         goal_x=7300, checkpoint_positions=[2000, 4000, 5500, 6700],
         weapon_positions=[(500, FLOOR_Y), (5300, FLOOR_Y)],
+        glide_positions=[(2400, FLOOR_Y), (5000, FLOOR_Y)],
+        dash_positions=[(1600, FLOOR_Y), (4200, FLOOR_Y)],
         crystal_positions=[(300, FLOOR_Y), (2400, 450), (5000, 450), (6600, FLOOR_Y)],
         # Gravity zones: (x, y, w, h, type)
         gravity_zone_defs=[

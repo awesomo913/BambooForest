@@ -108,6 +108,20 @@ def generate_panda_frames() -> dict[str, list[pygame.Surface]]:
                 leg_l=(9, 38, 8, 6), leg_r=(19, 38, 8, 6))
     frames["fall"] = [s]
 
+    # Glide: arms fully spread, legs tucked, body slightly arched upward
+    s = pygame.Surface((w, h), pygame.SRCALPHA)
+    _draw_panda(s, body_dy=-1,
+                arm_l=(-4, 14, 10, 8), arm_r=(30, 14, 10, 8),
+                leg_l=(10, 34, 8, 7), leg_r=(18, 34, 8, 7))
+    frames["glide"] = [s]
+
+    # Dash: body leaned forward, arms behind like a sprinter
+    s = pygame.Surface((w, h), pygame.SRCALPHA)
+    _draw_panda(s, body_dy=-1,
+                arm_l=(4, 24, 6, 14), arm_r=(26, 24, 6, 14),
+                leg_l=(8, 33, 9, 11), leg_r=(20, 33, 9, 11))
+    frames["dash"] = [s]
+
     return frames
 
 
@@ -730,9 +744,9 @@ class Player(pygame.sprite.Sprite):
                 self.velocity_x = PLAYER_SPEED
                 self.facing_right = True
 
-        # Glide: hold SPACE while airborne + falling
+        # Glide: hold SPACE while airborne + falling (low threshold for responsiveness)
         jump_held = (keys[pygame.K_SPACE] or keys[pygame.K_UP] or keys[pygame.K_w])
-        self.set_gliding(jump_held and not self.is_on_ground and self.velocity_y > 80)
+        self.set_gliding(jump_held and not self.is_on_ground and self.velocity_y > 10)
 
         # Weapon timer (limited duration) -- decrement if armed
         if self.has_bamboo_weapon and self.weapon_time_remaining > 0:
@@ -1072,11 +1086,11 @@ class Player(pygame.sprite.Sprite):
             return
 
         if self.is_dashing:
-            self.anim_state = "run"
+            self.anim_state = "dash"
         elif self.is_slamming:
             self.anim_state = "fall"
         elif self.is_gliding:
-            self.anim_state = "fall"
+            self.anim_state = "glide"
         elif not self.is_on_ground:
             self.anim_state = "jump" if self.velocity_y < 0 else "fall"
         elif abs(self.velocity_x) > 10:
@@ -1088,7 +1102,7 @@ class Player(pygame.sprite.Sprite):
             self.anim_frame = 0
             self.anim_timer = 0.0
 
-        speed = 0.08 if (self.anim_state == "run" and self.is_dashing) else (
+        speed = 0.06 if self.anim_state == "dash" else (
             0.1 if self.anim_state == "run" else 0.5)
         self.anim_timer += dt
         if self.anim_timer >= speed:
@@ -1097,10 +1111,7 @@ class Player(pygame.sprite.Sprite):
 
         lst = self.frames[self.anim_state]
         frame = lst[self.anim_frame % len(lst)]
-        # Glide: arms spread wider (use fall with slight rotation for 'hover')
-        if self.is_gliding:
-            frame = pygame.transform.rotate(frame, -3 if self.facing_right else 3)
-        # Attack pose: subtle forward lean for stab (less than before)
+        # Attack pose: subtle forward lean for stab
         if self.is_attacking:
             atk_t = 1.0 - (self.attack_timer / 0.25)
             lean = -6 if atk_t < 0.5 else 3
@@ -1299,41 +1310,41 @@ class IceProjectile(pygame.sprite.Sprite):
 class DashBoots(pygame.sprite.Sprite):
     """Pickup that grants 30 seconds of dash ability.
 
-    Rendered as stylized winged boots with orange speed trails.
+    Rendered as a coiled bamboo spring scroll -- stored wind energy.
     """
 
     def __init__(self, x: int, y: int) -> None:
         super().__init__()
         W, H = 42, 42
         base = pygame.Surface((W, H), pygame.SRCALPHA)
-        # Boot sole (dark brown)
-        pygame.draw.rect(base, (90, 50, 30), (6, H - 10, W - 12, 6))
-        pygame.draw.rect(base, (60, 30, 15), (6, H - 4, W - 12, 2))
-        # Boot body (orange-red leather)
-        pygame.draw.polygon(base, (200, 80, 50), [
-            (8, H - 10), (W - 8, H - 10),
-            (W - 6, 20), (W - 14, 10),
-            (10, 14), (6, 22),
-        ])
-        # Highlight
-        pygame.draw.line(base, (255, 140, 90),
-                         (10, 22), (W - 14, 14), 2)
-        # Laces (dark X pattern)
-        for i in range(3):
-            y = 22 + i * 5
-            pygame.draw.line(base, (40, 20, 10),
-                             (12, y), (W - 12, y + 2), 1)
-        # Wing detail (small feathers on the side)
-        wing_col = (255, 180, 100)
-        wing_pts = [(W - 4, 18), (W + 2, 10), (W + 2, 16),
-                    (W + 4, 14), (W, 22)]
-        pygame.draw.polygon(base, wing_col, wing_pts)
-        pygame.draw.polygon(base, (255, 220, 140), wing_pts, 1)
-        # Speed streak behind
-        for i, a in [(0, 180), (3, 130), (6, 80)]:
-            streak = pygame.Surface((10, 3), pygame.SRCALPHA)
-            streak.fill((255, 200, 120, a))
-            base.blit(streak, (i, H // 2))
+        cx, cy = W // 2, H // 2
+        # Bamboo scroll tube (horizontal cylinder)
+        pygame.draw.rect(base, (110, 170, 70), (6, cy - 8, W - 12, 16),
+                         border_radius=6)
+        pygame.draw.rect(base, (140, 200, 90), (8, cy - 6, W - 16, 12),
+                         border_radius=4)
+        # Bamboo joints on the scroll tube
+        for jx in (12, W // 2, W - 12):
+            pygame.draw.line(base, (70, 130, 45), (jx, cy - 8), (jx, cy + 8), 2)
+        # End caps (darker knots)
+        pygame.draw.circle(base, (80, 130, 50), (8, cy), 6)
+        pygame.draw.circle(base, (100, 155, 65), (8, cy), 4)
+        pygame.draw.circle(base, (80, 130, 50), (W - 8, cy), 6)
+        pygame.draw.circle(base, (100, 155, 65), (W - 8, cy), 4)
+        # Wind swirl lines (green energy)
+        for i, (sx, sy) in enumerate([(cx - 6, 6), (cx + 4, 8), (cx - 2, 4)]):
+            arc_r = 8 + i * 3
+            pygame.draw.arc(base, (130, 220, 100),
+                           (sx - arc_r, sy, arc_r * 2, arc_r), 0.5, 2.5, 2)
+        # Wind swirl below
+        for i, (sx, sy) in enumerate([(cx + 6, H - 12), (cx - 4, H - 14)]):
+            arc_r = 6 + i * 3
+            pygame.draw.arc(base, (130, 220, 100),
+                           (sx - arc_r, sy, arc_r * 2, arc_r), 3.5, 5.5, 2)
+        # Small leaf accent
+        pygame.draw.polygon(base, (85, 170, 55),
+                            [(cx + 8, cy - 10), (cx + 16, cy - 16),
+                             (cx + 14, cy - 8)])
 
         self._base = base
         self.image = self._base.copy()
@@ -1350,7 +1361,7 @@ class DashBoots(pygame.sprite.Sprite):
         cx, cy = (W + 16) // 2, (H + 16) // 2
         for r, a_f in ((24, 0.3), (18, 0.55), (12, 0.9)):
             halo = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
-            pygame.draw.circle(halo, (255, 160, 80, int(alpha * a_f)),
+            pygame.draw.circle(halo, (120, 210, 100, int(alpha * a_f)),
                               (r, r), r)
             img.blit(halo, (cx - r, cy - r),
                     special_flags=pygame.BLEND_RGBA_ADD)
@@ -1361,39 +1372,45 @@ class DashBoots(pygame.sprite.Sprite):
 class GlideFeather(pygame.sprite.Sprite):
     """Pickup that grants Pain-da the glide ability (hold JUMP while falling).
 
-    Rendered as a glowing cyan-white feather with sparkle halo.
-    Floats gently and pulses to attract attention.
+    Rendered as a large bamboo leaf -- thematic parasol for a panda.
+    Floats gently and pulses with a green glow.
     """
 
     def __init__(self, x: int, y: int) -> None:
         super().__init__()
-        W, H = 40, 44
+        W, H = 44, 44
         base = pygame.Surface((W, H), pygame.SRCALPHA)
-        # Feather quill (central spine)
-        spine_col = (180, 230, 255)
-        pygame.draw.line(base, spine_col, (W // 2, H - 4), (W // 2 - 2, 6), 2)
-        # Left barbs (cyan-white gradient)
-        barb_cols = [(140, 210, 255), (100, 190, 240), (160, 225, 255)]
-        for i, frac in enumerate([0.2, 0.35, 0.5, 0.65, 0.8]):
-            sy = int(H * (1.0 - frac))
-            col = barb_cols[i % len(barb_cols)]
-            # Left barb
-            pygame.draw.line(base, col,
-                             (W // 2 - 1, sy), (W // 2 - 14 + i, sy - 4), 2)
-            # Right barb
-            pygame.draw.line(base, col,
-                             (W // 2 + 1, sy), (W // 2 + 14 - i, sy - 4), 2)
-        # Feather tip (bright white)
-        pygame.draw.circle(base, (255, 255, 255), (W // 2 - 2, 6), 3)
-        # Small wing silhouette overlay
-        wing_pts = [
-            (W // 2 - 12, H // 2 + 2),
-            (W // 2, H // 2 - 10),
-            (W // 2 + 12, H // 2 + 2),
-            (W // 2, H // 2 + 6),
+        cx, cy = W // 2, H // 2
+        # Large bamboo leaf shape (wide oval with pointed tip)
+        leaf_pts = [
+            (cx, 4),               # top tip
+            (cx + 18, cy - 4),     # right edge
+            (cx + 14, cy + 8),     # right lower
+            (cx, H - 6),           # bottom tip
+            (cx - 14, cy + 8),     # left lower
+            (cx - 18, cy - 4),     # left edge
         ]
-        pygame.draw.polygon(base, (200, 240, 255, 140), wing_pts)
-        pygame.draw.polygon(base, (255, 255, 255, 80), wing_pts, 1)
+        pygame.draw.polygon(base, (70, 165, 55), leaf_pts)
+        # Inner lighter area
+        inner_pts = [
+            (cx, 8), (cx + 12, cy - 2), (cx + 8, cy + 4),
+            (cx, H - 10), (cx - 8, cy + 4), (cx - 12, cy - 2),
+        ]
+        pygame.draw.polygon(base, (100, 195, 75), inner_pts)
+        # Central vein (stem)
+        pygame.draw.line(base, (50, 120, 35), (cx, 4), (cx, H - 6), 2)
+        # Side veins
+        for vy_off in range(-8, 12, 5):
+            pygame.draw.line(base, (55, 135, 42),
+                             (cx, cy + vy_off), (cx - 10, cy + vy_off + 6), 1)
+            pygame.draw.line(base, (55, 135, 42),
+                             (cx, cy + vy_off), (cx + 10, cy + vy_off + 6), 1)
+        # Bright highlight dot (dew drop)
+        pygame.draw.circle(base, (200, 255, 180), (cx + 4, cy - 6), 3)
+        pygame.draw.circle(base, (255, 255, 230), (cx + 4, cy - 7), 1)
+        # Small bamboo stem at bottom
+        pygame.draw.rect(base, (90, 140, 55), (cx - 2, H - 8, 4, 8))
+        pygame.draw.rect(base, (60, 110, 40), (cx - 3, H - 5, 6, 2))
 
         self._base = base
         self.image = self._base.copy()
@@ -1403,16 +1420,14 @@ class GlideFeather(pygame.sprite.Sprite):
 
     def update(self, dt: float) -> None:  # type: ignore[override]
         self.glow_timer += dt * 3.0
-        # Gentle float
         self.rect.y = _fl(self.base_y + math.sin(self.glow_timer) * 4)
-        # Pulsing cyan halo
         alpha = int(100 + 50 * (math.sin(self.glow_timer * 1.8) + 1) * 0.5)
         W, H = self._base.get_size()
         img = pygame.Surface((W + 16, H + 16), pygame.SRCALPHA)
         cx, cy = (W + 16) // 2, (H + 16) // 2
         for r, a_f in ((24, 0.3), (18, 0.55), (12, 0.9)):
             halo = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
-            pygame.draw.circle(halo, (140, 220, 255, int(alpha * a_f)),
+            pygame.draw.circle(halo, (100, 210, 100, int(alpha * a_f)),
                               (r, r), r)
             img.blit(halo, (cx - r, cy - r),
                     special_flags=pygame.BLEND_RGBA_ADD)

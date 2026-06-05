@@ -711,7 +711,7 @@ class Game:
             self.particles.emit_sparkle(weapon.rect.centerx, weapon.rect.centery, 14)
             self.audio.play("collect")
 
-        # Glide feather pickup (10-second timed buff)
+        # Bamboo leaf pickup (10-second timed glide buff)
         from config import GLIDE_DURATION_SEC, DASH_DURATION_SEC
         for feather in pygame.sprite.spritecollide(
                 self.player, self.level.glide_pickups, True):
@@ -719,19 +719,19 @@ class Game:
             self._glide_tutorial_timer = 999.0
             self._glide_used = False
             self.hud.add_floating_text(
-                f"GLIDE! {int(GLIDE_DURATION_SEC)}s",
-                feather.rect.centerx, feather.rect.top - 10, (140, 220, 255))
+                f"BAMBOO LEAF! {int(GLIDE_DURATION_SEC)}s",
+                feather.rect.centerx, feather.rect.top - 10, (100, 210, 100))
             self.particles.emit_sparkle(feather.rect.centerx,
                                         feather.rect.centery, 16)
             self.audio.play("collect")
 
-        # Dash boots pickup (30-second timed buff)
+        # Bamboo wind scroll pickup (30-second timed dash buff)
         for boots in pygame.sprite.spritecollide(
                 self.player, self.level.dash_pickups, True):
             self.player.dash_time_remaining = DASH_DURATION_SEC
             self.hud.add_floating_text(
-                f"DASH! {int(DASH_DURATION_SEC)}s",
-                boots.rect.centerx, boots.rect.top - 10, (255, 180, 100))
+                f"BAMBOO WIND! {int(DASH_DURATION_SEC)}s",
+                boots.rect.centerx, boots.rect.top - 10, (120, 210, 100))
             self.particles.emit_sparkle(boots.rect.centerx,
                                         boots.rect.centery, 16)
             self.audio.play("collect")
@@ -1107,6 +1107,14 @@ class Game:
             q = font.render("?", True, (70, 45, 0))
             self.screen.blit(q, q.get_rect(center=(int(sx), int(sy))))
 
+        # Bamboo leaf parasol while gliding
+        if self.player.is_gliding:
+            self._draw_glide_leaf(cam_x, cam_y)
+
+        # Dash afterimage trail
+        if self.player.is_dashing:
+            self._draw_dash_trail(cam_x, cam_y)
+
         # Sword swing arc (rotational visual + hitbox glow)
         if self.player.is_attacking:
             self._draw_sword_arc(cam_x, cam_y)
@@ -1212,6 +1220,63 @@ class Game:
             self.pause_overlay.draw(self.screen)
         elif self.state == ST_GAME_OVER:
             self.game_over_screen.draw(self.screen, self.player.score)
+
+    def _draw_glide_leaf(self, cam_x: int, cam_y: int) -> None:
+        """Draw a large bamboo leaf parasol above the panda while gliding."""
+        px = self.player.rect.centerx + cam_x
+        py = self.player.rect.top + cam_y - 6
+        t = pygame.time.get_ticks() / 400.0
+        sway = math.sin(t) * 8
+        # Leaf shape: wide ellipse with stem
+        LW, LH = 52, 18
+        leaf = pygame.Surface((LW, LH + 6), pygame.SRCALPHA)
+        # Main leaf body
+        pygame.draw.ellipse(leaf, (70, 160, 50), (0, 0, LW, LH))
+        pygame.draw.ellipse(leaf, (90, 190, 65), (4, 2, LW - 8, LH - 4))
+        # Central vein
+        pygame.draw.line(leaf, (50, 120, 35), (LW // 2, 2), (LW // 2, LH - 2), 2)
+        # Side veins
+        for i in range(3):
+            vx = 10 + i * 10
+            pygame.draw.line(leaf, (55, 130, 40),
+                             (LW // 2, 4 + i * 4), (vx, LH - 4), 1)
+            pygame.draw.line(leaf, (55, 130, 40),
+                             (LW // 2, 4 + i * 4), (LW - vx, LH - 4), 1)
+        # Stem connecting to panda
+        pygame.draw.line(leaf, (80, 130, 40),
+                         (LW // 2, LH), (LW // 2, LH + 6), 2)
+        # Sway rotation
+        angle = sway * 0.6
+        rotated = pygame.transform.rotate(leaf, angle)
+        rw, rh = rotated.get_size()
+        self.screen.blit(rotated, (int(px - rw // 2 + sway * 0.5),
+                                   int(py - rh)))
+
+    def _draw_dash_trail(self, cam_x: int, cam_y: int) -> None:
+        """Draw speed afterimages behind the panda while dashing."""
+        if not self.player.image:
+            return
+        direction = self.player.dash_direction
+        for i in range(3):
+            offset_x = int(-direction * (16 + i * 14))
+            alpha = 120 - i * 40
+            ghost = self.player.image.copy()
+            # Tint green for bamboo-chi feel
+            tint = pygame.Surface(ghost.get_size(), pygame.SRCALPHA)
+            tint.fill((80, 200, 80, alpha))
+            ghost.blit(tint, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+            gx = self.player.rect.x + cam_x + offset_x
+            gy = self.player.rect.y + cam_y
+            self.screen.blit(ghost, (gx, gy))
+        # Speed lines
+        for i in range(4):
+            import random as _r
+            ly = self.player.rect.centery + cam_y + _r.randint(-12, 12)
+            lx = self.player.rect.centerx + cam_x - int(direction * 20)
+            llen = _r.randint(10, 25)
+            streak = pygame.Surface((llen, 2), pygame.SRCALPHA)
+            streak.fill((180, 255, 140, 140))
+            self.screen.blit(streak, (lx - int(direction * llen), ly))
 
     def _draw_sword_arc(self, cam_x: int, cam_y: int) -> None:
         """Bamboo sword STAB: horizontal thrust forward then retract."""
@@ -1335,7 +1400,7 @@ class Game:
         alpha = int(180 + 55 * math.sin(t))
         font_big = pygame.font.SysFont("consolas", 22, bold=True)
         font_small = pygame.font.SysFont("consolas", 14)
-        title = font_big.render("GLIDE UNLOCKED!", True, (140, 220, 255))
+        title = font_big.render("BAMBOO LEAF!", True, (100, 210, 100))
         hint = font_small.render(
             "Hold  [ JUMP ]  while falling to glide!", True, (230, 230, 230))
         w = max(title.get_width(), hint.get_width()) + 32
@@ -1345,8 +1410,8 @@ class Game:
         by = 160 if (self.player.has_bamboo_weapon
                      and not self._weapon_used) else 96
         bg = pygame.Surface((w, h), pygame.SRCALPHA)
-        bg.fill((15, 25, 40, alpha))
-        pygame.draw.rect(bg, (140, 220, 255), (0, 0, w, h), 3, border_radius=6)
+        bg.fill((15, 30, 20, alpha))
+        pygame.draw.rect(bg, (100, 210, 100), (0, 0, w, h), 3, border_radius=6)
         self.screen.blit(bg, (bx, by))
         self.screen.blit(title, title.get_rect(center=(SCREEN_WIDTH // 2, by + 18)))
         self.screen.blit(hint, hint.get_rect(center=(SCREEN_WIDTH // 2, by + 42)))
