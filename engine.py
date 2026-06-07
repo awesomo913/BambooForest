@@ -77,6 +77,18 @@ class ScreenShake:
                     random.randint(-self.intensity, self.intensity))
         return (0, 0)
 
+    def tick(self, dt: float) -> None:
+        """Advance timer only -- no RNG, no return. Use in update loop."""
+        if self.timer > 0:
+            self.timer -= dt
+
+    def get_offset(self) -> tuple[int, int]:
+        """Sample current shake offset. Use in draw loop."""
+        if self.timer > 0:
+            return (random.randint(-self.intensity, self.intensity),
+                    random.randint(-self.intensity, self.intensity))
+        return (0, 0)
+
 
 # ---------------------------------------------------------------------------
 # Particle System

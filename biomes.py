@@ -488,7 +488,8 @@ class Geyser(pygame.sprite.Sprite):
                                random.randint(4, 8))
         self.image = self._img_off
         self.rect = self.image.get_rect(bottomleft=(x, y))
-        self._off_rect = self.image.get_rect(bottomleft=(x, y))
+        # Use a consistent, small vent-opening hitbox for collision
+        self._off_rect = pygame.Rect(x + 8, y - 24, 28, 24)
         self._on_rect = self._img_on.get_rect(bottomleft=(x, y))
         self.erupt_timer: float = random.uniform(0, GEYSER_INTERVAL)
         self.erupt_remaining: float = 0.0
@@ -792,8 +793,11 @@ class AshBat(pygame.sprite.Sprite):
                               player.rect.centery - self.rect.centery)
             if not player.is_on_ground and dist < ASH_BAT_RANGE:
                 self.state = "swoop"
-                self.swoop_tx = float(player.rect.centerx)
-                self.swoop_ty = float(player.rect.centery)
+                # Clamp target to within reasonable range of origin
+                self.swoop_tx = max(self.origin_x - 200,
+                    min(float(player.rect.centerx), self.origin_x + 200))
+                self.swoop_ty = max(self.origin_y - 150,
+                    min(float(player.rect.centery), self.origin_y + 150))
         elif self.state == "swoop":
             dx = self.swoop_tx - self.rect.centerx
             dy = self.swoop_ty - self.rect.centery

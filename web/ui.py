@@ -167,7 +167,7 @@ class HUD:
                 pulse = 0.7 + 0.3 * math.sin(t)
                 pygame.draw.circle(screen,
                                   (int(255 * pulse), 255, int(255 * pulse)),
-                                  (207, 45), 3)
+                                  (48 + mana_w - 4, 45), 3)
 
         # Score (shift down if mana bar visible)
         score_y = 65 if player.has_ice_magic else 50
@@ -200,27 +200,27 @@ class HUD:
             pygame.draw.circle(screen, (30, 30, 30), (lx - 2, lives_y - 1), 2)
             pygame.draw.circle(screen, (30, 30, 30), (lx + 2, lives_y - 1), 2)
 
-        # Power-up indicators (below lives) -- show countdown timers
-        pwr_y = lives_y + 18
+        # Power-up indicators (below lives) -- stack vertically to avoid overflow
         pwr_x = SCREEN_WIDTH - 100
+        pwr_y = lives_y + 18
+        row = 0
         if player.glide_time_remaining > 0:
             gt = int(player.glide_time_remaining)
             col = (140, 220, 255) if gt > 3 else (255, 100, 100)
-            # Cyan feather icon
             pygame.draw.polygon(screen, col, [
-                (pwr_x, pwr_y), (pwr_x + 4, pwr_y - 10),
-                (pwr_x + 8, pwr_y)])
-            draw_text(screen, f"GLIDE {gt}s", 11, col, pwr_x + 14, pwr_y - 2)
-            pwr_x += 75
+                (pwr_x, pwr_y + row * 16), (pwr_x + 4, pwr_y - 10 + row * 16),
+                (pwr_x + 8, pwr_y + row * 16)])
+            draw_text(screen, f"GLIDE {gt}s", 11, col, pwr_x + 14, pwr_y - 2 + row * 16)
+            row += 1
         if player.dash_time_remaining > 0:
             dt_ = int(player.dash_time_remaining)
             col = (255, 180, 100) if dt_ > 5 else (255, 100, 100)
-            draw_text(screen, f"DASH {dt_}s", 11, col, pwr_x, pwr_y - 2)
-            pwr_x += 60
+            draw_text(screen, f"DASH {dt_}s", 11, col, pwr_x, pwr_y - 2 + row * 16)
+            row += 1
         if player.has_bamboo_weapon:
             wt = int(player.weapon_time_remaining)
             col = (255, 230, 120) if wt > 10 else (255, 100, 80)
-            draw_text(screen, f"SWORD {wt}s", 11, col, pwr_x, pwr_y - 2)
+            draw_text(screen, f"SWORD {wt}s", 11, col, pwr_x, pwr_y - 2 + row * 16)
 
         # Combo counter
         if player.combo_count > 1:
@@ -608,16 +608,16 @@ class TitleScreen:
         # === GALLERY (only when dropdown open) ===
         if self.gallery_open:
             # 6-column × N-row grid: all 24 characters fit in one view on 960×540
-            cols = 6
+            cols = 4
             rows = (len(_CHARACTERS) + cols - 1) // cols
-            card_w = 148
+            card_w = 185
             card_h = 72
             gap_x = 8
-            gap_y = 6
+            gap_y = 5
             total_w = cols * card_w + (cols - 1) * gap_x
+            total_h = rows * card_h + (rows - 1) * gap_y
             start_x = (SCREEN_WIDTH - total_w) // 2
-            start_y = btn_y + btn_h + 10
-
+            start_y = btn_y + btn_h + 14
             # Available height: stop above "Press ENTER" prompt + small margin
             prompt_reserve = 50
             avail_h = SCREEN_HEIGHT - start_y - prompt_reserve
@@ -843,7 +843,7 @@ class PauseOverlay:
         sprites = _get_sprite_cache()
         col_w = 150
         row_h = 90
-        cols = 6
+        cols = 4
         start_x = (SCREEN_WIDTH - cols * col_w) // 2
         start_y = 90
         font_name = get_font(12, bold=True)

@@ -111,6 +111,10 @@ class Game:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.running = False
+            if event.type == pygame.ACTIVEEVENT:
+                gain = getattr(event, 'gain', 1)
+                if not gain and self.state == ST_PLAYING:
+                    self.state = ST_PAUSED
             if event.type == pygame.KEYDOWN:
                 # Global toggles (work in any state)
                 if event.key == pygame.K_F11:
@@ -490,10 +494,7 @@ class Game:
         # --- Wind zones (Level 6: Desert) ---
         for wz in self.level.wind_zones:
             if pygame.sprite.collide_rect(self.player, wz):
-                self.player.rect.x += math.floor(wz.get_push() * effective_dt)
-                self.player.rect.x = max(
-                    0, min(self.player.rect.x,
-                           self.level.world_width - self.player.rect.width))
+                self.player.velocity_x += wz.get_push() * effective_dt
 
         # --- Thermal updrafts (Level 6: Desert) ---
         for tu in self.level.updrafts:
@@ -565,9 +566,11 @@ class Game:
             self.level.rising_lava.update(effective_dt)
             # Instant death if player's feet dip into lava
             if (self.player.rect.bottom > self.level.rising_lava.rect.top + 4
-                    and self.player.invincible_timer <= 0):
+                    and self.player.invincible_timer <= 0
+                    and not self.player.dead):
                 self.player.health = 0
                 self.player.dead = True
+                self.player.invincible_timer = 0.5
                 self.audio.play("death")
                 self.shake.trigger(12, 0.4)
 
@@ -858,6 +861,9 @@ class Game:
                 self.player, self.level.enemies, False):
             if not getattr(enemy, "alive_flag", True):
                 continue
+            # Skip enemies with dedicated collision handlers
+            if enemy.__class__.__name__ in ("ForgeHammer", "VoidEater"):
+                continue
             stomp_rect = self.player.get_stomp_rect()
             is_stompable = getattr(enemy, "is_stompable", True)
             if (is_stompable and self.player.velocity_y > 0
@@ -1013,12 +1019,14 @@ class Game:
                 self._advance_level()
 
         # Tutorial hint timer decrement (when not persistent)
-        if self._weapon_tutorial_timer < 999 and self._weapon_tutorial_timer > 0:
-            self._weapon_tutorial_timer -= effective_dt
+        for tvar in ('_weapon_tutorial_timer', '_glide_tutorial_timer', '_ice_tutorial_timer'):
+            val = getattr(self, tvar, 0.0)
+            if 0 < val < 999:
+                setattr(self, tvar, val - effective_dt)
 
         # Camera + effects
         self.camera.update(self.player, effective_dt)
-        self.shake.update(effective_dt)
+        self.shake.tick(effective_dt)
         self.particles.emit_ambient_leaves(self.camera.get_visible_rect())
         self.particles.update(effective_dt)
 
@@ -1047,7 +1055,7 @@ class Game:
         if not self.player or not self.level or not self.camera:
             return
 
-        shake_off = self.shake.update(0)
+        shake_off = self.shake.get_offset()
         self.background.draw(self.screen, self.camera.offset_x)
 
         render_cam_x = math.floor(self.camera.offset_x)

@@ -31,7 +31,9 @@ def save_high_score(score: int, level_reached: int) -> bool:
     except OSError:
         return False
 
-    return entry in scores
+    # Check by rank, not value-equality (which can false-positive)
+    made_list = len(scores) < MAX_SCORES or entry["score"] >= scores[-1]["score"]
+    return made_list
 
 
 def get_best_score() -> int:

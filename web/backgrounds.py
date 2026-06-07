@@ -557,16 +557,18 @@ class TidalBackground(_BaseBackground):
     """Stormy coastal ruin with rocks, lighthouse, and waves."""
 
     def _build(self) -> pygame.Surface:
-        surf = pygame.Surface((self.w, SCREEN_HEIGHT))
+        surf = pygame.Surface((self.w, SCREEN_HEIGHT), pygame.SRCALPHA)
         # Stormy gray-blue gradient
         self._sky_gradient(surf, (70, 90, 110), (120, 140, 160))
         random.seed(242)
         # Distant rain / mist streaks
+        rain_layer = pygame.Surface((self.w, 220), pygame.SRCALPHA)
         for _ in range(50):
             sx = random.randint(0, self.w)
             sy = random.randint(0, 200)
-            pygame.draw.line(surf, (180, 200, 220, 100),
+            pygame.draw.line(rain_layer, (180, 200, 220, 100),
                             (sx, sy), (sx - 2, sy + 8), 1)
+        surf.blit(rain_layer, (0, 0))
         # Coastal rocks (dark silhouettes)
         for i in range(5):
             cx = int(i * self.w / 4) + random.randint(-40, 40)
@@ -895,13 +897,15 @@ class VoidBackground(_BaseBackground):
                              (ix - iw + 5, iy - 2),
                              (ix + iw - 5, iy - 2), 2)
         # Drifting soul orbs (translucent circles)
+        orb_layer = pygame.Surface((self.w, SCREEN_HEIGHT), pygame.SRCALPHA)
         random.seed(1919)
         for _ in range(50):
             ox = random.randint(0, self.w)
             oy = random.randint(0, SCREEN_HEIGHT - 60)
             col = random.choice([(220, 180, 255), (180, 140, 230)])
-            pygame.draw.circle(surf, col, (ox, oy), 2)
-            pygame.draw.circle(surf, (*col, 100), (ox, oy), 4)
+            pygame.draw.circle(orb_layer, col, (ox, oy), 2)
+            pygame.draw.circle(orb_layer, (*col, 100), (ox, oy), 4)
+        surf.blit(orb_layer, (0, 0))
         # Rippling ether streaks
         for _ in range(20):
             sx = random.randint(0, self.w)

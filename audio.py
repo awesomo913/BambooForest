@@ -205,13 +205,14 @@ class AudioManager:
         if elapsed < min_gap:
             return
         sound = self.sounds[name]
+        ch = sound.play()
         # Soft ambient volume. Rapid plays get additional 70% reduction
         # (0.3 * 0.7 = 0.21) so they don't stack harshly.
-        if elapsed < 0.2:
-            sound.set_volume(_BASE_VOLUME * 0.7)
-        else:
-            sound.set_volume(_BASE_VOLUME)
-        sound.play()
+        if ch:
+            if elapsed < 0.2:
+                ch.set_volume(_BASE_VOLUME * 0.7)
+            else:
+                ch.set_volume(_BASE_VOLUME)
         self._last_play_time[name] = now
 
     def toggle(self) -> None:

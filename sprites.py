@@ -814,10 +814,18 @@ class Player(pygame.sprite.Sprite):
                 self.jumps_remaining = 2 if self.has_double_jump else 1
                 # Refresh coyote time on every ground contact
                 self.coyote_timer = 0.12
-            elif dy < 0:
+            elif dy < 0 and not (self.gravity_multiplier < 0 and self.velocity_y <= 0):
                 # Bonked head on underside
                 self.rect.top = hit.rect.bottom
                 self.velocity_y = 0
+            elif dy < 0 and self.gravity_multiplier < 0 and self.velocity_y <= 0:
+                # Reverse gravity: landing on ceiling undersides
+                self.rect.top = hit.rect.bottom
+                self.velocity_y = 0
+                self.is_on_ground = True
+                self.is_slamming = False
+                self.jumps_remaining = 2 if self.has_double_jump else 1
+                self.coyote_timer = 0.12
 
         # Knockback timer decrement (lets knockback velocity ride out)
         if self.knockback_timer > 0:
@@ -879,9 +887,9 @@ class Player(pygame.sprite.Sprite):
         return True
 
     def collect_bamboo(self) -> int:
+        mult = COMBO_MULTIPLIERS[min(self.combo_count, len(COMBO_MULTIPLIERS) - 1)]
         self.combo_count = min(self.combo_count + 1, len(COMBO_MULTIPLIERS) - 1)
         self.combo_timer = COMBO_WINDOW
-        mult = COMBO_MULTIPLIERS[min(self.combo_count, len(COMBO_MULTIPLIERS) - 1)]
         points = BAMBOO_SCORE * mult
         self.score += points
         return points
@@ -1095,6 +1103,8 @@ class Player(pygame.sprite.Sprite):
             if not self.facing_right:
                 lean = -lean
             frame = pygame.transform.rotate(frame, lean)
+            # Keep physics rect centered after rotation
+            self.rect = frame.get_rect(center=self.rect.center)
         self.image = frame if self.facing_right else pygame.transform.flip(frame, True, False)
 
 
