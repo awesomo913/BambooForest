@@ -104,12 +104,25 @@ PHANTOM_SPEED: float = 100.0
 GLIDE_DURATION_SEC: float = 10.0
 DASH_DURATION_SEC: float = 30.0
 
+# --- Chrono Graft time-slow (delightful replay/wow system) ---
+# World (enemies, hazards, proj) slows while player moves full speed.
+# Triggered on chrono dash (and staff hits for extra wow).
+CHRONO_SLOW_FACTOR: float = 0.42
+CHRONO_SLOW_DASH_SEC: float = 0.60
+CHRONO_SLOW_STAFF_SEC: float = 0.35
+
 # --- Controls (jump feel) ---
 JUMP_BUFFER_TIME: float = 0.10   # seconds to queue a jump before landing (buffer + coyote for forgiveness)
 JUMP_CUT_MULTIPLIER: float = 0.52  # velocity multiplier when releasing jump early (variable height; tap=short hop) -- slightly snappier for responsive cut
 COYOTE_TIME: float = 0.14        # seconds of post-leave-ground forgiveness (slightly more 0.14s ~8 frames for premium ledge catch, still crisp no float)
 AIR_ACCEL: float = 1620.0        # air control accel px/s2 (punchier steer curve for smarter air turns + control w/o losing momentum)
 HITSTOP_LAND_SEC: float = 0.035  # tiny juice: very brief x-damp on land for planty "snap" (forgiving stop w/o stick)
+
+# --- Action velocities (extracted from hot physics paths for tuning + style) ---
+DASH_VELOCITY: float = 900.0     # horiz speed while dashing (px/s)
+SLAM_VELOCITY: float = 1200.0    # downward for ground slam
+KNOCKBACK_X: float = 380.0       # horiz knockback impulse on damage
+KNOCKBACK_Y: float = -260.0      # up impulse on damage (negative = up)
 
 # --- Level 14: Fungal Hollows ---
 MUSHROOM_BOUNCE: float = -1100.0
@@ -141,6 +154,15 @@ GRAVITY_HIGH_MULT: float = 2.0
 GRAVITY_REVERSE_MULT: float = -1.0
 DRONE_RANGE: float = 200.0
 DRONE_PULL: float = 150.0
+
+# --- Overgrown (Lane 6 post-game): vine variety + chaotic grav pulses ---
+VINE_SLOW_GROUND: float = 0.55
+VINE_SLOW_AIR: float = 0.42
+VINE_PULL_GROUND: float = 65
+VINE_PULL_AIR: float = 105
+VINE_SNAP_DURATION: float = 0.55
+GRAV_PULSE_PERIOD: float = 4.2
+OVERGROWTH_AURA: tuple = (80, 210, 120)
 
 # --- NPC ---
 NPC_RANGE: float = 60.0
@@ -294,4 +316,23 @@ RECIPES: list[dict] = [
     {"essences": ["salt", "void", "gravity"], "graft": "chrono_step", "name": "Chrono Step", "desc": "Chrono dash: shorter cooldown + brief time slow on trigger"},
     {"essences": ["mushroom", "cave", "forge"], "graft": "spore_shield", "name": "Spore Shield", "desc": "Spore puff: on hit release spores (resist + nearby counter)"},
     {"essences": ["desert", "volcanic", "basalt", "tidal"], "graft": "essence_magnet", "name": "Essence Magnet", "desc": "Essence magnet: +bonus essence on bamboo/clears + pull feel"},
+    # Ultra visionary grafts (Lane for mastery depth + ultra power)
+    {"essences": ["forest", "desert", "volcanic", "gravity", "tidal"], "graft": "wild_weave", "name": "Wild Weave", "desc": "Ultra: permanent vine lash on moves + essence pull aura"},
+    {"essences": ["lair", "mushroom", "void", "forge", "cave"], "graft": "chrono_weave", "name": "Chrono Weave", "desc": "Ultra: world slow on any action + mastery evolution"},
 ]
+
+# --- Graft Synergies (ambitious next-level meta, fits existing graft system) ---
+# When specific combinations of grafts are held, extra effects trigger.
+# Prototype 1: Synergies for depth without new UI.
+GRAFT_SYNERGIES: dict[tuple[str, ...], str] = {
+    ("chrono_step", "dash_mastery"): "chrono_dash",
+    ("vine_whip", "spore_shield"): "thorn_spore",
+    ("glide_efficiency", "dash_mastery", "chrono_step"): "wind_chrono",
+}
+
+# --- Mastery Depth (visionary) ---
+MASTERY_TIERS = {
+    3: "Adept",
+    5: "Master + Aura",
+    8: "Ultra Weaver",
+}

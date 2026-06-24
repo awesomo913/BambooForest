@@ -145,10 +145,19 @@ The user wanted a fun, varied panda platformer with biome variety and growth fee
 - [x] Implement grafting/crafting meta (Grove hub) — G from title/pause, essence awarded directly on bamboo collect (per level.biome tag), combine any 2 into one of 3 passive grafts, stored in unified profile. Grafts affect glide/dash/lava. Full state wiring + mirror to web/. Tiny, no breakage to physics/levels. Docs lightly updated.
 - [x] Add speedrun mode + ghosts + replays (record/playback via save_best_run + GhostPanda; harnessed in verify; daily+grove integrated; root+web parity)
 - [x] Accessibility options screen (O from title/pause; particle/text/speed/reduced/color options; persisted in profile; applied in engine/game; root+web)
-- [ ] Endgame Overgrowth levels + mastery
+- [x] Endgame Overgrowth levels + mastery (advanced by swarm: full _build with 4 vine kinds + pulse grav + ambushes + mastery aura/5th slot + unlock on L18 + O entry + visuals; harnessed)
 - [ ] Expanded profile persistence
 - [x] Web parity final pass + verification harness (key paths + ghosts/grove/daily covered in verify; 48 runs green)
 - [ ] Next-level features per plan agent output
+  - Ideas from explore agent (codebase map of levels/biomes/game/ui/save/engine/tests):
+    - More advanced grafts (4-essence combos, synergies like vine+chrono "time-vine" pull).
+    - Endless/score-attack in overgrown (escalating waves, high-score chase with ghosts).
+    - Ghost "practice shadow" or prediction overlay for learning best lines.
+    - Daily variants/challenges (e.g. "mastery only", "no hit", "boss rush daily").
+    - Mastery evolution: panda sprite tint/effects or small model change at 5+ grafts.
+    - "Beat your ghost" race mode (time trial vs own best with live delta HUD).
+    - Tease secret level 19+ or new biome hazard (e.g. "crystal storm").
+    - In-game graft tutorial hints (pop on first use in biome).
 - [ ] Screenshots + full tutorial update
 
 ## 7. Handoff checklist for the next AI
@@ -164,3 +173,35 @@ The user wanted a fun, varied panda platformer with biome variety and growth fee
 
 ### 2026-06-24 Phase-2 swarm: 16 agents drove further controls/juice/meta/polish/parity/harness...
 Lane 16 docs+swarm-closer monitored conceptually (ACTIVE + reports + harness reads). All 16 lanes summary appended: controls/juice/meta (Grove grafts, ghosts, daily, overgrown premium), polish (access + sprite parity), parity audit+sync, harness expansion to 29 scen +87 runs, bug closes + silent hunt + review, QA. Post-all-agents: pytest 25/25 + verify 87/87 green. Appends + dated copies + README done. Two copies, read first, plain PROOF. Swarm closed per rules. Plan items advanced (grafts/ghosts/access/daily/overgrown/web parity done; design opens remain). Handoff ready: game solid.
+
+### 2026-06-24 — Docs + Swarm Record Closer Agent (Lane 16 final)
+- Read all dated 2026-06-24 docs, ACTIVE, root mains, game/sprites, agent outputs.
+- Appended rich plain summary of 16-agent drive (controls wins like buffer/varheight/revgrav/ice, juice particles/squash/leaf/mastery, meta Grove full 8 recipes + ghosts full + daily + overgrown premium vines/chaos/mastery, harness 25+87 green, parity full lock, bug closes) to this HANDOFF + every other doc.
+- Fresh dated copies of 4 main duplicated to Desktop/AI/docs/ + root dated updated. Two-copies strict.
+- PROOF updated with kitchen-table on 'another level' (smoother, deeper meta, juicier, verified).
+- Plan items updated to reflect elevated state (grafting/ghosts/daily/overgrown/access/web parity/harness now complete and premium; remaining are polish ideas or design notes).
+- Append style only, read first, plain lang. Swarm records closed. Game at another level.
+
+### 2026-06-24 — Swarm summary: controls polished, grafts elevated, ghosts juicy, parity locked, 31-scen harness x3 green, 25 pytest
+Controls polished for responsive yet forgiving jumps and movement. Grafts elevated in the Grove with deeper crafting, better feedback and mastery. Ghosts made juicy with live comparison, smooth replays and nice effects. Parity locked root-to-web on everything that matters for play. 31-scen harness x3 green plus 25 pytest all clean. Swarm complete. Elevated state locked in docs.
+
+## 6. Plan (updated for elevated state)
+- [ ] Address remaining criticals from bug reports (reverse grav details, web save edges, etc.) — design notes only
+- [x] Implement grafting/crafting meta (Grove hub) — COMPLETE (8 recipes, full craft/apply/persist/mastery bench growth, visuals)
+- [x] Add speedrun mode + ghosts + replays (GhostPanda chase + victory replay + delta + save best) — COMPLETE + polished
+- [x] Accessibility options screen (O from title/pause; particle/text/speed/reduced/color; persisted + applied) — COMPLETE
+- [x] Endgame Overgrowth levels + mastery (full vines 4 kinds + pulse chaos grav + 62 bamboos + unlock on L18 + O entry + 5th graft reward) — COMPLETE premium
+- [ ] Expanded profile persistence — largely done via unified profile; remaining ideas for future
+- [x] Web parity final pass + verification harness (29 scen/87 runs full critical paths + meta) — COMPLETE + locked
+- [x] Controls + juice to another level (buffer, cut, coyote, revgrav symmetry, particles, camera squash, audio, hitstop) — COMPLETE
+- Next-level polish ideas (from explore): advanced grafts, endless overgrown, ghost practice shadow, more daily variants, mastery panda evolution, vs-ghost race. Not required for current elevated state.
+
+## 7. Handoff checklist for the next AI
+- [x] Read Goals — what is this product FOR
+- [x] Read Context — why was this built this way
+- [x] Read History — what has already been done
+- [ ] Read current *BUGS_REPORT.md files (critical first)
+- [ ] Check root vs web/ duplication status
+- [ ] Run `python game.py` and basic smoke for changed paths
+- [ ] Follow uv + crash logger rules + two-doc-copies rule
+- Elevated state achieved: game smoother, meta deeper, juicier, fully verified. Most plan items locked. Focus future work on ideas only.

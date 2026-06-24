@@ -67,11 +67,12 @@ def draw_text_left(screen: pygame.Surface, text: str, size: int,
 
 
 def get_daily_modifier_summary(seed: int) -> str:
-    """Readable daily mod summary for title/pause feedback. Deterministic from seed."""
+    """Readable daily mod summary for title/pause/Grove feedback. Deterministic from seed."""
     if not seed:
         return ""
     s = int(seed)
     parts = []
+    # Mirror richer actual level mods (expanded for meaningful variety)
     if (s % 3) == 0:
         parts.append("High wind")
     else:
@@ -81,10 +82,17 @@ def get_daily_modifier_summary(seed: int) -> str:
     parts.append("tougher enemies")
     if (s % 4) == 0:
         parts.append("fewer checkpoints")
+    if (s % 7) == 0:
+        parts.append("low gravity")
+    if (s % 11) < 3:
+        parts.append("fast foes")
     # always signal the essence bonus juice for daily
     if "extra desert essence" not in parts:
         parts.append("extra essence")
-    return " + ".join(parts[:4])
+    # daily often boosts Grove indirectly via more essence
+    if len(parts) < 4:
+        parts.append("grove synergy")
+    return " + ".join(parts[:5])
 
 
 def get_mastery_progress_text() -> str:
@@ -234,7 +242,8 @@ class HUD:
 
     def draw(self, screen: pygame.Surface, player: Player,
              level_num: int, camera: Camera, run_timer: float = 0.0,
-             daily_seed: int = 0) -> None:
+             daily_seed: int = 0, best_time: float | None = None,
+             splits: list = None, ghost_splits: list = None) -> None:
         # HUD backing (tall if mana bar visible)
         hud_h = 100 if player.has_ice_magic else 85
         hud_surf = pygame.Surface((260, hud_h), pygame.SRCALPHA)
@@ -306,6 +315,27 @@ class HUD:
             s = run_timer % 60
             draw_text_shadow(screen, f"{m:02d}:{s:05.2f}", 16, COL_GOLD,
                              SCREEN_WIDTH // 2, 18, bold=True)
+            # Live delta vs best ghost (speedrun polish)
+            if best_time is not None:
+                d = run_timer - best_time
+                col = (90, 255, 140) if d <= 0 else (255, 140, 140)
+                sign = "-" if d <= 0 else "+"
+                ds = abs(d)
+                dm = int(ds // 60)
+                ds_s = ds % 60
+                dstr = f"{sign}{dm}:{ds_s:05.2f}" if dm else f"{sign}{ds_s:05.2f}"
+                draw_text(screen, dstr, 12, col, SCREEN_WIDTH // 2 + 78, 20)
+            # Pro splits overlays (splits vs ghost)
+            if splits and ghost_splits:
+                y_off = 38
+                for i, (si, st) in enumerate(splits[:3]):  # first few splits
+                    gs = ghost_splits[i][1] if i < len(ghost_splits) else st
+                    sd = st - gs
+                    scol = (90, 255, 140) if sd <= 0 else (255, 140, 140)
+                    ssign = "-" if sd <= 0 else "+"
+                    sds = abs(sd)
+                    draw_text(screen, f"S{i+1}:{ssign}{sds:.2f}", 9, scol, SCREEN_WIDTH // 2 + 78, y_off)
+                    y_off += 12
 
         # Lives display (panda heads) — right-anchored so the row never clips the
         # screen edge, even with extra lives; heads grow leftward from the margin.
@@ -352,28 +382,36 @@ class HUD:
                 draw_text(screen, f"{ptype} {val}s", 10, col, pwr_x + 14, pwr_y + row * 20 + 6)
                 row += 1
 
-        # Small active grafts HUD list (Grove mastery feedback, visible in play)
-        # Compact, pale green, only if any. Keeps minimal footprint.
+        # Active grafts as compact juicy tags (Grove mastery feedback, visible in play)
         grafts = getattr(player, "grafts", None) or []
         if grafts:
-            short = []
+            gx = 22
+            gy = 108 if player.has_ice_magic else 93
             for g in grafts:
                 if g == "lava_resist":
-                    short.append("Lava")
+                    label, gcol = "Lava", (220, 140, 80)
                 elif g in ("glide_efficiency", "weak_glide"):
-                    short.append("Glide+")
+                    label, gcol = "Glide+", (140, 220, 255)
                 elif g == "dash_mastery":
-                    short.append("Dash+")
+                    label, gcol = "Dash+", (255, 190, 120)
                 elif g == "ice_armor":
-                    short.append("Ice")
+                    label, gcol = "Ice", (180, 220, 255)
                 elif g == "hp_boost":
-                    short.append("HP+")
+                    label, gcol = "HP+", (255, 120, 140)
+                elif g == "bamboo_yield":
+                    label, gcol = "Yield", (200, 230, 150)
+                elif g == "combo_bonus":
+                    label, gcol = "Combo", (255, 220, 140)
                 else:
-                    short.append(g[:6])
-            glabel = "G: " + " ".join(short)
-            gsurf = get_font(9).render(glabel, True, (110, 195, 125))
-            gy = 108 if player.has_ice_magic else 93
-            screen.blit(gsurf, (22, gy))
+                    label, gcol = g[:5], (110, 195, 125)
+                # tiny tag
+                tw = 42
+                tag = pygame.Surface((tw, 12), pygame.SRCALPHA)
+                tag.fill((*gcol, 60))
+                pygame.draw.rect(tag, gcol, (0, 0, tw, 12), 1, border_radius=2)
+                screen.blit(tag, (gx, gy))
+                draw_text(screen, label, 8, gcol, gx + tw//2, gy + 5)
+                gx += tw + 4
 
         # Combo counter
         if player.combo_count > 1:
@@ -826,26 +864,28 @@ class TitleScreen:
 
         # Daily challenge button (Feature #3) -- above speedrun when closed
         if not self.gallery_open:
-            dbtn_w, dbtn_h = 180, 22
+            # Daily button polish: slightly taller, always teaser, brighter active state
+            dbtn_w, dbtn_h = 180, 26
             dbx = (SCREEN_WIDTH - dbtn_w) // 2
-            dby = SCREEN_HEIGHT - 96
+            dby = SCREEN_HEIGHT - 100
             self._daily_btn_rect = pygame.Rect(dbx, dby, dbtn_w, dbtn_h)
             don = self.daily_mode
-            dbgc = (50, 90, 110) if don else (30, 45, 55)
+            dbgc = (40, 95, 120) if don else (25, 40, 50)
             pygame.draw.rect(screen, dbgc, (dbx, dby, dbtn_w, dbtn_h), border_radius=4)
-            pygame.draw.rect(screen, (140, 200, 220), (dbx, dby, dbtn_w, dbtn_h), 1, border_radius=4)
+            border_col = (160, 230, 255) if don else (120, 160, 180)
+            pygame.draw.rect(screen, border_col, (dbx, dby, dbtn_w, dbtn_h), 2 if don else 1, border_radius=4)
             dseed = ""
             try:
                 import datetime
                 dseed = str(int(datetime.date.today().strftime("%Y%m%d")))
             except Exception:
                 dseed = "----"
-            dlabel = f"DAILY {dseed} ON" if don else f"DAILY {dseed} (D)"
-            draw_text(screen, dlabel, 12, (200, 230, 240) if don else (170, 190, 200), SCREEN_WIDTH // 2, dby + 11)
-            if don:
-                modsum = get_daily_modifier_summary(int(dseed) if dseed.isdigit() else 0)
-                if modsum:
-                    draw_text(screen, modsum, 9, (160, 210, 180), SCREEN_WIDTH // 2, dby + 32)
+            dlabel = f"★ DAILY {dseed} ON" if don else f"DAILY {dseed} (D to toggle)"
+            draw_text(screen, dlabel, 12, (210, 240, 255) if don else (180, 200, 210), SCREEN_WIDTH // 2, dby + 12)
+            # Always show a short teaser mod for daily seeds
+            modsum = get_daily_modifier_summary(int(dseed) if dseed.isdigit() else 0)
+            if modsum:
+                draw_text(screen, modsum, 9, (150, 200, 170) if don else (130, 160, 140), SCREEN_WIDTH // 2, dby + 34)
 
         # Overgrown post-game challenge button (only if unlocked)
         if not self.gallery_open:
@@ -1000,7 +1040,7 @@ class PauseOverlay:
         screen.blit(overlay, (0, 0))
         draw_text_shadow(screen, "PAUSED", 42, COL_WHITE,
                          SCREEN_WIDTH // 2, 36, bold=True)
-        draw_text(screen, "ESC to Resume  |  Q to Quit  |  O Accessibility  |  G: The Grove  |  L: Load Ghost (speedrun)", 14, (180, 180, 180),
+        draw_text(screen, "ESC Resume | Q Quit | O Accessibility | G Grove | L cycle ghosts (speedrun) | 1-3 load specific", 12, (180, 180, 180),
                   SCREEN_WIDTH // 2, 62)
         if daily_mode and daily_seed:
             modsum = get_daily_modifier_summary(daily_seed)
@@ -1009,6 +1049,15 @@ class PauseOverlay:
             mp = get_mastery_progress_text()
             if mp:
                 draw_text(screen, mp, 10, (200, 180, 220), SCREEN_WIDTH // 2, 92)
+            # Streak display (rich daily)
+            try:
+                from save import get_daily_streak
+                st = get_daily_streak()
+                cur = st.get("current", 0)
+                if cur > 1:
+                    draw_text(screen, f"STREAK: {cur}", 10, (255, 200, 120), SCREEN_WIDTH // 2, 105)
+            except:
+                pass
 
         # Mini enemy encyclopedia -- compact grid of all characters
         # Use 5 cols + smaller cards on dense + start_y / row_h calc + pixel wrap to avoid clip/overflow on 960x540
@@ -1364,7 +1413,7 @@ class DeathAnimation:
 
 class AccessibilityOptions:
     """Basic options screen. Game owns the live settings dict and selected index.
-    Reachable via O on title/pause. Minimal: particle density, shake intensity, text scale, reduced motion.
+    Reachable via O on title/pause. Expanded for final polish: particle, shake, text, reduced, game_speed, color_filter, difficulty.
     """
 
     OPTION_KEYS = [
@@ -1372,12 +1421,18 @@ class AccessibilityOptions:
         "shake_intensity",
         "text_scale",
         "reduced_motion",
+        "game_speed",
+        "color_filter",
+        "difficulty",
     ]
     OPTION_TITLES = [
         "Particle Density",
         "Shake Intensity",
         "Text Scale",
         "Reduced Motion",
+        "Game Speed",
+        "Color Filter",
+        "Difficulty",
     ]
 
     def __init__(self) -> None:
@@ -1394,9 +1449,9 @@ class AccessibilityOptions:
         draw_text(screen, "Arrows: select + adjust   |   ESC: back", 14, (180, 200, 180),
                   SCREEN_WIDTH // 2, 78)
 
-        start_y = 120
+        start_y = 95
         for i, (key, title) in enumerate(zip(self.OPTION_KEYS, self.OPTION_TITLES)):
-            y = start_y + i * 48
+            y = start_y + i * 36
             is_sel = (i == self.selected)
             val = settings.get(key, 1.0 if "scale" in key or "intensity" in key or "speed" in key else 0)
             label = ACCESSIBILITY_LABELS.get(key, lambda v: str(v))(val)
@@ -1412,6 +1467,14 @@ class AccessibilityOptions:
             draw_text_left(screen, title, 20, col, SCREEN_WIDTH // 2 - 200, y, bold=is_sel)
             draw_text(screen, label, 20, COL_GOLD if is_sel else COL_WHITE,
                       SCREEN_WIDTH // 2 + 120, y, bold=True)
+            # Mini value bar for visual polish on numeric options (selected)
+            if is_sel and key in ("particle_density", "shake_intensity", "text_scale", "game_speed"):
+                bx = SCREEN_WIDTH // 2 + 180
+                bw = 64
+                bh = 5
+                pygame.draw.rect(screen, (50, 70, 50), (bx, y - 1, bw, bh), border_radius=2)
+                nval = min(1.0, max(0.0, (val - 0.5) / 1.5 if "scale" in key or key == "game_speed" else val))
+                pygame.draw.rect(screen, (140, 220, 140), (bx, y - 1, int(bw * nval), bh), border_radius=2)
 
         # Footer
         draw_text(screen, "Changes save automatically to profile", 13, (140, 160, 140),
@@ -1439,6 +1502,8 @@ GRAFT_DEFS: dict[str, str] = {
     "chrono_step": "Chrono Step — faster dash + chrono slow on use",
     "spore_shield": "Spore Shield — puff spores on hit (resist + counter)",
     "essence_magnet": "Essence Magnet — bonus essence + bamboo pull feel",
+    "wild_weave": "Wild Weave — ULTRA: vine on every move + aura pull",
+    "chrono_weave": "Chrono Weave — ULTRA: slow on actions + mastery evolution",
 }
 
 # Nice labels for biome keys (used for display)
@@ -1475,6 +1540,7 @@ class GroveUI:
         self.message: str = ""
         self.message_timer: float = 0.0
         self.craft_flash: float = 0.0  # >0 = visual success flash
+        self.craft_history: list[str] = []  # visionary history of crafted grafts for depth/juice
 
     def refresh(self) -> None:
         self.essences, self.grafts = get_profile_essences_and_grafts()
@@ -1482,7 +1548,7 @@ class GroveUI:
         self.bench = []
         self.craft_flash = 0.0
         total = sum(self.essences.values())
-        self.message = f"THE GROVE — Combine Bench. Essence: {total}. Pick 2-3 to craft."
+        self.message = f"THE GROVE — Combine Bench. Essence: {total}. Daily runs feed bonus essence. Pick 2-4 to craft."
         self.message_timer = 4.0
 
     def update(self, dt: float) -> None:
@@ -1565,6 +1631,10 @@ class GroveUI:
                     self.message = f"CRAFTED: {rec['name']} !"
                     self.message_timer = 3.0
                     self.essences, self.grafts = get_profile_essences_and_grafts()
+                    # Visionary history juice
+                    if gid not in self.craft_history:
+                        self.craft_history.append(gid)
+                    self.craft_history = self.craft_history[-6:]  # keep last 6
                     self.bench = []
                     return "crafted"
                 else:
@@ -1585,7 +1655,7 @@ class GroveUI:
         draw_text_shadow(screen, "THE GROVE — COMBINE BENCH", 38, title_col,
                          SCREEN_WIDTH // 2, 28, bold=True)
         total_ess = sum(self.essences.values())
-        draw_text(screen, f"Essence: {total_ess}  •  Select 2-3  •  A=add  R=remove  C=craft  ESC/G=leave", 13,
+        draw_text(screen, f"Essence: {total_ess}  •  Daily runs boost essence  •  Select 2-4  •  A add  C craft", 12,
                   (160, 190, 160), SCREEN_WIDTH // 2, 54)
 
         avail = self._get_available()
@@ -1617,6 +1687,8 @@ class GroveUI:
             col = (120, 255, 140) if slot else (90, 110, 90)
             if self.craft_flash > 0 and slot:
                 col = (255, 255, 200)
+            if slot:
+                _draw_biome_icon(screen, slot, bx - 14, by - 2, 10)
             draw_text_left(screen, f"[{si+1}] {slot_label}", 14, col, bx, by)
             by += 17
         # live preview (richer: show name + desc or hint on partial)
@@ -1646,6 +1718,17 @@ class GroveUI:
         else:
             draw_text_left(screen, "(none — craft some!)", 11, (120, 130, 120), rx, ry)
 
+        # Visionary: Craft History (Grove UI juice/history for mastery depth)
+        hy = 320
+        draw_text(screen, "CRAFT HISTORY", 12, COL_GOLD, rx + 40, hy)
+        hy += 14
+        if self.craft_history:
+            for hgid in self.craft_history[-4:]:
+                draw_text_left(screen, f"• {GRAFT_DEFS.get(hgid, hgid)[:24]}", 9, (140, 200, 150), rx, hy)
+                hy += 11
+        else:
+            draw_text_left(screen, "(craft to build history)", 9, (110, 130, 120), rx, hy)
+
         # Controls (improved flow)
         cy = max(ry + 10, 280)
         draw_text(screen, "UP/DWN/W/S sel  A/SP add  R/bs del  X/del clr  1-4 rm slot  C/ENT craft  G/ESC leave", 10,
@@ -1667,8 +1750,8 @@ class GroveUI:
             draw_text_shadow(screen, self.message, 16, mcol,
                              SCREEN_WIDTH // 2, SCREEN_HEIGHT - 48)
 
-        # Footer
-        draw_text(screen, "Essence earned from bamboo + biome clears. Grafts are permanent.", 10,
+        # Footer (daily seeds + grove polish: daily runs feed extra essence into the Grove)
+        draw_text(screen, "Essence from bamboo + clears. Daily runs award bonus essence. Grafts permanent.", 10,
                   (100, 130, 100), SCREEN_WIDTH // 2, SCREEN_HEIGHT - 22)
         mp = get_mastery_progress_text()
         if mp:

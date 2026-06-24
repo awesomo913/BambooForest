@@ -6,7 +6,6 @@ import random
 from dataclasses import dataclass, field
 
 import pygame
-import pygame.sprite  # noqa: F401 -- Pygbag lazy submodule
 
 from config import FLOOR_Y, LEVEL_WIDTHS, SCREEN_HEIGHT
 from sprites import (
@@ -88,8 +87,8 @@ class LevelDef:
     gravity_zone_defs: list[tuple[int, int, int, int, str]] = field(default_factory=list)
     # (x, y, w, h) -- walls that block unless nearby crystal is lit
     dark_wall_defs: list[tuple[int, int, int, int]] = field(default_factory=list)
-    # Overgrown post-game premium area: dense vines (x, y, w, h) entangle zones + chaotic gravity
-    vine_defs: list[tuple[int, int, int, int]] = field(default_factory=list)
+    # Overgrown post-game premium area: dense varied vines (x, y, w, h, kind?) + chaotic grav pulses
+    vine_defs: list = field(default_factory=list)
 
 
 def _scatter_bamboos(platforms: list[PlatformDef], world_width: int,
@@ -354,9 +353,14 @@ class LevelState:
             self.all_sprites.add(p1, p2)
             _portal_bucket.setdefault(pair_id, []).extend([p1, p2])
 
-        # Gravity zones (Level 18)
-        for (gzx, gzy, gzw, gzh, gtype) in level_def.gravity_zone_defs:
-            gz = GravityZone(gzx, gzy, gzw, gzh, gtype)
+        # Gravity zones (Level 18 + overgrown chaotic)
+        for item in level_def.gravity_zone_defs:
+            if isinstance(item, (list, tuple)) and len(item) >= 6:
+                gzx, gzy, gzw, gzh, gtype, pulse = item[0], item[1], item[2], item[3], item[4], bool(item[5])
+            else:
+                gzx, gzy, gzw, gzh, gtype = item
+                pulse = False
+            gz = GravityZone(gzx, gzy, gzw, gzh, gtype, pulse=pulse)
             self.gravity_zones.add(gz)
             self.all_sprites.add(gz)
 
@@ -367,9 +371,14 @@ class LevelState:
             self.dark_walls.add(dw)
             self.all_sprites.add(dw)
 
-        # Overgrown vines (post-L18 premium post-game)
-        for (vx, vy, vw, vh) in getattr(level_def, 'vine_defs', []):
-            v = Vine(vx, vy, vw, vh)
+        # Overgrown vines (post-L18 premium post-game) -- support 4-tuple or (x,y,w,h,kind)
+        for vtpl in getattr(level_def, 'vine_defs', []):
+            if isinstance(vtpl, (list, tuple)) and len(vtpl) >= 5:
+                vx, vy, vw, vh, kind = vtpl[0], vtpl[1], vtpl[2], vtpl[3], vtpl[4]
+            else:
+                vx, vy, vw, vh = vtpl
+                kind = "sway"
+            v = Vine(vx, vy, vw, vh, kind)
             self.vines.add(v)
             self.all_sprites.add(v)
 
@@ -565,8 +574,8 @@ def _build_level_6() -> LevelDef:
     return LevelDef(
         world_width=LEVEL_WIDTHS[5], platforms=plats, biome="desert",
         enemies=[
-            EnemyDef(1000, FLOOR_Y, "dust_devil", 300),
-            EnemyDef(3200, FLOOR_Y, "dust_devil", 280),
+            EnemyDef(1000, FLOOR_Y - 50, "dust_devil", 300),
+            EnemyDef(3200, FLOOR_Y - 50, "dust_devil", 280),
             EnemyDef(550, 410, "cactus_scorpion", 120),
             EnemyDef(2100, 350, "cactus_scorpion", 100),
             EnemyDef(4300, 370, "cactus_scorpion", 120),
@@ -574,14 +583,14 @@ def _build_level_6() -> LevelDef:
         bamboo_positions=_scatter_bamboos(plats, LEVEL_WIDTHS[5], FLOOR_Y, 18),
         heal_positions=[(1520, 410), (3730, 400), (5370, 390)],
         goal_x=6200, checkpoint_positions=[2200, 4200],
-        glide_positions=[(900, FLOOR_Y), (3800, FLOOR_Y)],
-        dash_positions=[(1800, FLOOR_Y)],
         wind_zones=[
             (800, 200, 200, 300, 1.0),
             (2300, 200, 200, 300, -1.0),
             (3900, 200, 200, 300, 1.0),
             (5100, 200, 200, 300, -1.0),
         ],
+        glide_positions=[(900, FLOOR_Y), (3800, FLOOR_Y)],
+        dash_positions=[(1800, FLOOR_Y)],
         updraft_positions=[(1300, FLOOR_Y), (2900, FLOOR_Y), (4600, FLOOR_Y)],
         npc_defs=[(5500, FLOOR_Y, "Silas",
                    ["Watch the wind patterns...",
@@ -650,8 +659,6 @@ def _build_level_8() -> LevelDef:
         bamboo_positions=_scatter_bamboos(ice, LEVEL_WIDTHS[7], FLOOR_Y, 18),
         heal_positions=[(970, 380), (3320, 370), (5120, 410)],
         goal_x=6700, checkpoint_positions=[2400, 4500, 6000],
-        glide_positions=[(2000, FLOOR_Y), (4800, FLOOR_Y)],
-        dash_positions=[(3200, FLOOR_Y)],
         npc_defs=[(6200, FLOOR_Y, "Mirage",
                    ["Nothing is what it seems here...",
                     "Watch for phantoms in the reflection."],
@@ -660,10 +667,7 @@ def _build_level_8() -> LevelDef:
 
 
 def _build_level_9() -> LevelDef:
-    """Abyssal Trench -- dark cave + alternating pressure currents.
-    Currents (reusing WindZone) push the player left/right, forcing
-    adaptation on every section -- the unique mechanic that was missing.
-    """
+    """Abyssal Trench -- underwater feel. Uses cave biome dark + crystals."""
     plats = [
         PlatformDef(400, 420, 200),
         PlatformDef(900, 380, 220),
@@ -689,25 +693,12 @@ def _build_level_9() -> LevelDef:
         heal_positions=[(940, 380), (3020, 400), (4730, 400)],
         goal_x=5600, checkpoint_positions=[1700, 3400],
         weapon_positions=[(1200, FLOOR_Y)],
-        glide_positions=[(2500, FLOOR_Y)],
-        dash_positions=[(4200, FLOOR_Y)],
         crystal_positions=[(600, FLOOR_Y), (1700, FLOOR_Y), (2800, FLOOR_Y),
                           (3900, FLOOR_Y), (5000, FLOOR_Y)],
         trenches=[(1720, 1860), (3400, 3520)],
-        # Abyssal pressure currents: alternating L/R pushes throughout the trench.
-        # Each zone spans floor-to-ceiling (y=200, h=300) so they affect
-        # both ground and air movement, creating constant positional pressure.
-        wind_zones=[
-            (500,  200, 280, 300,  1.0),   # current pushes right
-            (1200, 200, 280, 300, -1.0),   # current pushes left
-            (2200, 200, 280, 300,  1.0),   # right
-            (3100, 200, 280, 300, -1.0),   # left
-            (4000, 200, 280, 300,  1.0),   # right
-            (4900, 200, 280, 300, -1.0),   # left
-        ],
-        npc_defs=[(300, FLOOR_Y, "Luminesce",
-                   ["The abyss currents shift without warning.",
-                    "Strike crystals -- they light the path ahead."],
+        npc_defs=[(5200, FLOOR_Y, "Luminesce",
+                   ["The abyss remembers the light.",
+                    "Strike crystals to see your path."],
                    (100, 200, 240))],
     )
 
@@ -745,8 +736,7 @@ def _build_level_10() -> LevelDef:
         heal_positions=[(1470, 380), (3420, 380), (4820, 360)],
         goal_x=5300, checkpoint_positions=[1500, 3200, 4500],
         weapon_positions=[(1000, FLOOR_Y)],
-        glide_positions=[(2200, FLOOR_Y), (1850, 290)],
-        dash_positions=[(3800, FLOOR_Y)],
+        glide_positions=[(1850, 290)],  # glide helps the stacked vertical climb in orogeny
         trenches=[(680, 760), (1840, 1950), (3380, 3490)],
         npc_defs=[(5100, FLOOR_Y, "Kora",
                    ["The mountain tests your endurance.",
@@ -783,8 +773,6 @@ def _build_level_11() -> LevelDef:
         heal_positions=[(950, 380), (3350, 390), (5130, 380)],
         goal_x=5900, checkpoint_positions=[2100, 3900],
         weapon_positions=[(600, FLOOR_Y)],
-        glide_positions=[(1600, FLOOR_Y), (3600, FLOOR_Y)],
-        dash_positions=[(2800, FLOOR_Y)],
         trenches=[(1200, 1440), (2400, 2600), (4200, 4400)],
         npc_defs=[(5600, FLOOR_Y, "Saltbeard",
                    ["The salt ocean looks calm...",
@@ -875,7 +863,8 @@ def _build_level_13() -> LevelDef:
         heal_positions=[(940, 370), (3080, 370), (4130, 380), (4800, FLOOR_Y)],
         goal_x=6700, checkpoint_positions=[1800, 3500, 4900, 5800],
         weapon_positions=[(500, FLOOR_Y), (3200, FLOOR_Y)],
-        dash_positions=[(2500, FLOOR_Y)],
+        glide_positions=[(2000, FLOOR_Y), (4800, FLOOR_Y)],
+        dash_positions=[(3200, FLOOR_Y)],
         crystal_positions=[(300, FLOOR_Y), (1200, FLOOR_Y), (2200, FLOOR_Y),
                           (3200, FLOOR_Y), (4200, FLOOR_Y), (5400, FLOOR_Y)],
         dark_wall_defs=[(1500, 340, 40, 130), (3700, 340, 40, 130)],
@@ -982,7 +971,7 @@ def _build_level_15() -> LevelDef:
         rising_lava=True,
         lava_pause_ys=[425, 385, 345, 305],  # first pause now threatens the reachable low platforms (was below everything)
         geyser_positions=[(800, FLOOR_Y), (2800, 400), (4300, 360)],
-        glide_positions=[(1500, 380), (4500, 290)],
+        glide_positions=[(700, FLOOR_Y), (5400, 300)],
         dash_positions=[(400, 420), (3200, 360)],
         npc_defs=[(6200, 310, "Vulcan",
                    ["The forge hammers crush what lava doesn't burn.",
@@ -1094,9 +1083,9 @@ def _build_level_17() -> LevelDef:
             (1300, 340, 40, 120),
             (3400, 340, 40, 120),
         ],
-        npc_defs=[(300, FLOOR_Y, "Rift",
-                   ["Ahead lie rifts in the void -- step in to be transported.",
-                    "Portals come in pairs. Use them wisely -- or avoid them."],
+        npc_defs=[(5200, FLOOR_Y, "Rift",
+                   ["The void hungers. Stay moving.",
+                    "Strike crystals to melt the walls ahead!"],
                    (0, 180, 220))],
     )
 
@@ -1168,15 +1157,15 @@ def _build_level_18() -> LevelDef:
     )
 
 
-def _build_overgrown() -> LevelDef:
-    """Premium post-L18 overgrown expansion. Dense wild post-game area:
-    - More platforms incl. moving + narrow reverse-grav ceilings + floating vine chains.
-    - Vines as slow-swaying moving hazards (entangle + force timing).
-    - Unique late enemy density/variants in gravity flips (void/hammer/specter clusters).
-    - Heavy foliage particles via engine + lush gravity bg reuse.
-    - Gravity/reverse + high grav crush sections.
-    - Denser tougher bamboos (62+), sparse heals, crystals for power.
-    Unlock: L18 victory if has_overgrown_mastery() or high essence. Win gives special feedback.
+def _build_overgrown(bloom: bool = False) -> LevelDef:
+    """Premium post-L18 overgrown expansion -- Lane 6: OVERGROWN DEPTH & CHAOS.
+    bloom=True (ambitious prototype 2): adds temporary 'bloom' platforms that feel alive and change the path slightly on mastery/daily.
+    - Varied vine hazards: sway+pull, spike clusters (dmg), timed snap (lethal windows).
+    - Chaotic gravity pulses that flip mid-run (low/high/reverse cycle) for disorient.
+    - Denser late enemy ambushes clustered around grav flip zones (synced pain).
+    - Lush foliage + fair but punishing: air vines stronger, mastery (grafts) resists.
+    - Special mastery reward on clear: 5th graft slot feel + unique overgrowth aura.
+    Keep unlock flow; vines+gravs stay fair green.
     """
     plats = [
         PlatformDef(280, 430, 180),
@@ -1210,7 +1199,7 @@ def _build_overgrown() -> LevelDef:
         # Final approach dense
         PlatformDef(7950, 280, 90),
     ]
-    # Tougher late-game mix: denser + wild variants (void/hammer/specter clusters in grav flips)
+    # Denser late-game ambushes synced to grav flips (clusters near pulse zones)
     enemies = [
         EnemyDef(380, 400, "patrol", 150),
         EnemyDef(720, 355, "slime", 130),
@@ -1234,37 +1223,53 @@ def _build_overgrown() -> LevelDef:
         EnemyDef(7250, 280, "gravity_drone"),
         EnemyDef(7550, 330, "phase_wraith", 90),
         EnemyDef(7800, 250, "void_eater"),
-        # extra tough late mix
+        # late ambushes dense near flips (grav sync)
         EnemyDef(4450, 140, "homing_specter"),
         EnemyDef(6480, 310, "void_eater"),
         EnemyDef(3820, 125, "forge_hammer"),
         EnemyDef(5300, 250, "gravity_drone"),
+        EnemyDef(4850, 110, "homing_specter"),
+        EnemyDef(7050, 180, "void_eater"),
+        EnemyDef(3620, 80, "forge_hammer"),
+        EnemyDef(2050, 150, "gravity_drone"),
     ]
-    bamboos = _scatter_bamboos(plats, 8200, FLOOR_Y, 62)
-    # Expanded vines as slow moving hazards (sway in Vine class): more patches for dense entanglement
+    bamboos = _scatter_bamboos(plats, 8200, FLOOR_Y, 64)
+    # Varied vine hazards for another level: sway+pull, spike clusters, timed snap
     vine_defs = [
-        (720, 390, 120, 65),
-        (1380, 365, 150, 80),
-        (2100, 310, 90, 55),
-        (2720, 275, 110, 70),
-        (3080, 240, 130, 60),
-        (3680, 150, 95, 50),
-        (4180, 138, 100, 55),
-        (4650, 155, 85, 48),
-        (5350, 295, 140, 75),
-        (5880, 250, 105, 62),
-        (6350, 355, 160, 85),
-        (6880, 235, 95, 58),
-        (7420, 295, 120, 68),
-        (7780, 340, 80, 52),
-        # added more vine patches/hazards for denser post-game
-        (920, 370, 80, 48),
-        (1820, 330, 110, 58),
-        (2580, 260, 95, 52),
-        (3920, 145, 85, 45),
-        (5620, 270, 130, 70),
-        (7120, 220, 75, 42),
+        (720, 390, 120, 65, "sway"),
+        (1380, 365, 150, 80, "pull"),
+        (2100, 310, 90, 55, "sway"),
+        (2720, 275, 110, 70, "snap"),
+        (3080, 240, 130, 60, "spike"),
+        (3680, 150, 95, 50, "pull"),
+        (4180, 138, 100, 55, "snap"),
+        (4650, 155, 85, 48, "sway"),
+        (5350, 295, 140, 75, "spike"),
+        (5880, 250, 105, 62, "pull"),
+        (6350, 355, 160, 85, "snap"),
+        (6880, 235, 95, 58, "sway"),
+        (7420, 295, 120, 68, "spike"),
+        (7780, 340, 80, 52, "pull"),
+        # denser late + chaotic placement
+        (920, 370, 80, 48, "snap"),
+        (1820, 330, 110, 58, "spike"),
+        (2580, 260, 95, 52, "pull"),
+        (3920, 145, 85, 45, "snap"),
+        (5620, 270, 130, 70, "sway"),
+        (7120, 220, 75, 42, "spike"),
     ]
+    if bloom:
+        # Ambitious prototype 2: Bloom layers -- temporary lush platforms that "grow" on mastery or special daily.
+        # These use existing platform style but marked for visual/optional lifetime in game.
+        bloom_plats = [
+            (1250, 310, 95, 18),
+            (2390, 195, 70, 16),
+            (4190, 118, 85, 18),
+            (5890, 185, 75, 16),
+            (7310, 265, 90, 18),
+        ]
+        for bx, by, bw, bh in bloom_plats:
+            plats.append(Platform(bx, by, bw, bh))
     return LevelDef(
         world_width=8200,
         platforms=plats,
@@ -1279,13 +1284,13 @@ def _build_overgrown() -> LevelDef:
         dash_positions=[(980, FLOOR_Y), (3400, FLOOR_Y)],
         crystal_positions=[(210, FLOOR_Y), (2850, 235), (4550, 125), (6200, 355), (7580, 260)],
         gravity_zone_defs=[
-            (2050, 160, 520, 240, "low"),
-            (3620, 70, 1350, 200, "reverse"),
-            (5300, 240, 720, 180, "high"),
-            (7050, 190, 480, 160, "low"),
-            # special wild gravity for overgrown: extra chaotic zones
-            (1480, 280, 380, 160, "high"),
-            (4800, 120, 420, 130, "reverse"),
+            (2050, 160, 520, 240, "low", False),
+            (3620, 70, 1350, 200, "reverse", True),  # chaotic pulse
+            (5300, 240, 720, 180, "high", True),
+            (7050, 190, 480, 160, "low", False),
+            # special wild gravity for overgrown: extra chaotic zones (pulses)
+            (1480, 280, 380, 160, "high", True),
+            (4800, 120, 420, 130, "reverse", True),
         ],
         crumbling_defs=[
             PlatformDef(3450, 210, 95),
@@ -1393,11 +1398,11 @@ def build_level_state(level_number: int, daily_seed: int = 0) -> LevelState:
     return LevelState(level_def, level_number)
 
 
-def build_overgrown_state() -> LevelState:
+def build_overgrown_state(bloom: bool = False) -> LevelState:
     """Special post-game challenge loader. Reuses core LevelState + gravity etc.
     No daily seed mods for overgrown.
     """
-    level_def = _build_overgrown()
+    level_def = _build_overgrown(bloom=bloom)
     # Skip strict verify for special post-game layout (may push reach intentionally)
     # _verify_jump_arc(level_def)  # intentionally omitted for minimal post-game
     return LevelState(level_def, 99)

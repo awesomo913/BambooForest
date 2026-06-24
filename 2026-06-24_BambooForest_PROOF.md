@@ -54,3 +54,15 @@ The user (designer of record). Reviewed on 2026-06-24. Docs finalized same day.
 2026-06-24: Crash logger added to game start points so crashes and key events get logged automatically for easier fixes later. Overgrown post-game area now opens after level 18 when you collect enough grafts or essences. More juice on jumps and effects. Ghosts of your best runs and the O accessibility screen (with saved settings) are polished. Daily and overgrown buttons feel right. Ran all tests: 25 small ones and the big verify harness (16 different full-map checks, each run 3 times) all came back green with no problems. Docs updated and fresh dated copies saved to the project and the central docs folder. All in plain words. No code changes in this step.
 
 2026-06-24 Phase-2 swarm: 16 agents drove further controls/juice/meta/polish/parity/harness. Lane 16 updated this dated PROOF copy with closer summary (plain English). Re-ran: 25 pytest + 87 verify all green. Matched copies to root + docs/. Swarm closed, records final. Read before append.
+
+2026-06-24: Docs finalize + two dated copies agent completed. Changelog locked with all swarm completions (ghost delta/replay juice, visuals/polish, 16 lanes, tests 25+87 green). Two copies (project dated + Desktop/AI/docs/) confirmed in sync. Final records.
+
+2026-06-24 — Docs + Swarm Record Closer Agent (final on this dated PROOF)
+- Read dated docs, ACTIVE, mains, current sprites/game (grafts/ghosts/overgrown), agent outputs.
+- Appended rich 16-agent drive summary (controls smoother, juice, deep Grove/ghosts/daily/overgrown meta, harness 87 green, parity, bug closes) to all docs + this dated.
+- Fresh 2026-06-24 copies of 4 main to docs/ . PROOF kitchen-table 'another level' (smoother, deeper meta, juicier, verified) added in root PROOF.
+- HANDOFF plan updated elevated state. Append, read first, two copies. Swarm records closed. Game at another level.
+
+2026-06-24: Final docs lock agent (general-purpose) completed: all project docs + two copies with full swarm history appended. Tests 25p+87v green. Swarm fully recorded.
+
+2026-06-24: Docs + copies + ACTIVE closes enforcement agent completed: explicit closes for harness (29 scen/87 execs), save harden, grafting in all docs/copies/ACTIVE. Tests verified green.

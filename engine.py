@@ -66,7 +66,7 @@ class Camera:
             lead *= 0.38
         goal_x -= lead
         # y-nudge / vertical anticipation (peek where player is headed in air)
-        vlead_y = vy * 0.08
+        vlead_y = vy * 0.085
         if gliding:
             vlead_y *= 0.55
         goal_y -= vlead_y
@@ -384,6 +384,7 @@ class ParticleSystem:
 
     def emit_graft_leaves(self, x: float, y: float, count: int = 10) -> None:
         """Leaf burst + sparkle when grafts are applied (Grove meta juice)."""
+        # VISUALS PARITY: emit params (vx,vy,life,color,leaf,gravity) forced identical root<->web 2026-06-24
         n = self._count(count)
         for _ in range(n):
             angle = random.uniform(-1.0, 1.0)
@@ -656,6 +657,31 @@ class ParticleSystem:
             ))
         if random.random() < 0.6:
             self.emit_sparkle(x, y + 2, 2)
+
+    def emit_overgrowth_aura(self, x: float, y: float, count: int = 5) -> None:
+        """Unique mastery aura for overgrown clear reward: lush chaotic green-purple swirl (5th graft + aura)."""
+        n = self._count(count)
+        for _ in range(n):
+            vx = random.uniform(-45, 45)
+            vy = random.uniform(-95, -25)
+            col = random.choice([(55, 155, 70), (120, 80, 160), (40, 180, 90), (180, 100, 190), (80, 210, 120)])
+            self.particles.append(Particle(
+                x + random.uniform(-12, 12), y + random.uniform(-18, 8),
+                vx, vy,
+                random.uniform(0.75, 1.9),
+                col,
+                random.uniform(3, 6), "leaf", gravity=False,
+            ))
+        # extra chaotic motes for depth
+        if random.random() < 0.5:
+            for _ in range(max(1, n // 3)):
+                self.particles.append(Particle(
+                    x, y - 4,
+                    random.uniform(-25, 25), random.uniform(-50, -10),
+                    random.uniform(0.6, 1.1),
+                    (200, 160, 255),
+                    random.uniform(1, 3), "circle", gravity=False,
+                ))
 
     def emit_ghost_beat_pop(self, x: float, y: float) -> None:
         """Special pop when beating a ghost record or ghost milestone."""

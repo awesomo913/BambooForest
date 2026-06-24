@@ -87,8 +87,8 @@ class LevelDef:
     gravity_zone_defs: list[tuple[int, int, int, int, str]] = field(default_factory=list)
     # (x, y, w, h) -- walls that block unless nearby crystal is lit
     dark_wall_defs: list[tuple[int, int, int, int]] = field(default_factory=list)
-    # Overgrown post-game premium area: dense vines (x, y, w, h) entangle zones + chaotic gravity
-    vine_defs: list[tuple[int, int, int, int]] = field(default_factory=list)
+    # Overgrown post-game premium area: dense varied vines (x, y, w, h, kind?) + chaotic grav pulses
+    vine_defs: list = field(default_factory=list)
 
 
 def _scatter_bamboos(platforms: list[PlatformDef], world_width: int,
@@ -353,9 +353,14 @@ class LevelState:
             self.all_sprites.add(p1, p2)
             _portal_bucket.setdefault(pair_id, []).extend([p1, p2])
 
-        # Gravity zones (Level 18)
-        for (gzx, gzy, gzw, gzh, gtype) in level_def.gravity_zone_defs:
-            gz = GravityZone(gzx, gzy, gzw, gzh, gtype)
+        # Gravity zones (Level 18 + overgrown chaotic)
+        for item in level_def.gravity_zone_defs:
+            if isinstance(item, (list, tuple)) and len(item) >= 6:
+                gzx, gzy, gzw, gzh, gtype, pulse = item[0], item[1], item[2], item[3], item[4], bool(item[5])
+            else:
+                gzx, gzy, gzw, gzh, gtype = item
+                pulse = False
+            gz = GravityZone(gzx, gzy, gzw, gzh, gtype, pulse=pulse)
             self.gravity_zones.add(gz)
             self.all_sprites.add(gz)
 
@@ -366,9 +371,14 @@ class LevelState:
             self.dark_walls.add(dw)
             self.all_sprites.add(dw)
 
-        # Overgrown vines (post-L18 premium post-game)
-        for (vx, vy, vw, vh) in getattr(level_def, 'vine_defs', []):
-            v = Vine(vx, vy, vw, vh)
+        # Overgrown vines (post-L18 premium post-game) -- support 4-tuple or (x,y,w,h,kind)
+        for vtpl in getattr(level_def, 'vine_defs', []):
+            if isinstance(vtpl, (list, tuple)) and len(vtpl) >= 5:
+                vx, vy, vw, vh, kind = vtpl[0], vtpl[1], vtpl[2], vtpl[3], vtpl[4]
+            else:
+                vx, vy, vw, vh = vtpl
+                kind = "sway"
+            v = Vine(vx, vy, vw, vh, kind)
             self.vines.add(v)
             self.all_sprites.add(v)
 
@@ -1147,15 +1157,15 @@ def _build_level_18() -> LevelDef:
     )
 
 
-def _build_overgrown() -> LevelDef:
-    """Premium post-L18 overgrown expansion. Dense wild post-game area:
-    - More platforms incl. moving + narrow reverse-grav ceilings + floating vine chains.
-    - Vines as slow-swaying moving hazards (entangle + force timing).
-    - Unique late enemy density/variants in gravity flips (void/hammer/specter clusters).
-    - Heavy foliage particles via engine + lush gravity bg reuse.
-    - Gravity/reverse + high grav crush sections.
-    - Denser tougher bamboos (62+), sparse heals, crystals for power.
-    Unlock: L18 victory if has_overgrown_mastery() or high essence. Win gives special feedback.
+def _build_overgrown(bloom: bool = False) -> LevelDef:
+    """Premium post-L18 overgrown expansion -- Lane 6: OVERGROWN DEPTH & CHAOS.
+    bloom=True (ambitious prototype 2): adds temporary 'bloom' platforms that feel alive and change the path slightly on mastery/daily.
+    - Varied vine hazards: sway+pull, spike clusters (dmg), timed snap (lethal windows).
+    - Chaotic gravity pulses that flip mid-run (low/high/reverse cycle) for disorient.
+    - Denser late enemy ambushes clustered around grav flip zones (synced pain).
+    - Lush foliage + fair but punishing: air vines stronger, mastery (grafts) resists.
+    - Special mastery reward on clear: 5th graft slot feel + unique overgrowth aura.
+    Keep unlock flow; vines+gravs stay fair green.
     """
     plats = [
         PlatformDef(280, 430, 180),
@@ -1189,7 +1199,7 @@ def _build_overgrown() -> LevelDef:
         # Final approach dense
         PlatformDef(7950, 280, 90),
     ]
-    # Tougher late-game mix: denser + wild variants (void/hammer/specter clusters in grav flips)
+    # Denser late-game ambushes synced to grav flips (clusters near pulse zones)
     enemies = [
         EnemyDef(380, 400, "patrol", 150),
         EnemyDef(720, 355, "slime", 130),
@@ -1213,37 +1223,54 @@ def _build_overgrown() -> LevelDef:
         EnemyDef(7250, 280, "gravity_drone"),
         EnemyDef(7550, 330, "phase_wraith", 90),
         EnemyDef(7800, 250, "void_eater"),
-        # extra tough late mix
+        # late ambushes dense near flips (grav sync)
         EnemyDef(4450, 140, "homing_specter"),
         EnemyDef(6480, 310, "void_eater"),
         EnemyDef(3820, 125, "forge_hammer"),
         EnemyDef(5300, 250, "gravity_drone"),
+        EnemyDef(4850, 110, "homing_specter"),
+        EnemyDef(7050, 180, "void_eater"),
+        EnemyDef(3620, 80, "forge_hammer"),
+        EnemyDef(2050, 150, "gravity_drone"),
     ]
-    bamboos = _scatter_bamboos(plats, 8200, FLOOR_Y, 62)
-    # Expanded vines as slow moving hazards (sway in Vine class): more patches for dense entanglement
+    bamboos = _scatter_bamboos(plats, 8200, FLOOR_Y, 64)
+    # Varied vine hazards for another level: sway+pull, spike clusters, timed snap
     vine_defs = [
-        (720, 390, 120, 65),
-        (1380, 365, 150, 80),
-        (2100, 310, 90, 55),
-        (2720, 275, 110, 70),
-        (3080, 240, 130, 60),
-        (3680, 150, 95, 50),
-        (4180, 138, 100, 55),
-        (4650, 155, 85, 48),
-        (5350, 295, 140, 75),
-        (5880, 250, 105, 62),
-        (6350, 355, 160, 85),
-        (6880, 235, 95, 58),
-        (7420, 295, 120, 68),
-        (7780, 340, 80, 52),
-        # added more vine patches/hazards for denser post-game
-        (920, 370, 80, 48),
-        (1820, 330, 110, 58),
-        (2580, 260, 95, 52),
-        (3920, 145, 85, 45),
-        (5620, 270, 130, 70),
-        (7120, 220, 75, 42),
+        (720, 390, 120, 65, "sway"),
+        (1380, 365, 150, 80, "pull"),
+        (2100, 310, 90, 55, "sway"),
+        (2720, 275, 110, 70, "snap"),
+        (3080, 240, 130, 60, "spike"),
+        (3680, 150, 95, 50, "pull"),
+        (4180, 138, 100, 55, "snap"),
+        (4650, 155, 85, 48, "sway"),
+        (5350, 295, 140, 75, "spike"),
+        (5880, 250, 105, 62, "pull"),
+        (6350, 355, 160, 85, "snap"),
+        (6880, 235, 95, 58, "sway"),
+        (7420, 295, 120, 68, "spike"),
+        (7780, 340, 80, 52, "pull"),
+        # denser late + chaotic placement
+        (920, 370, 80, 48, "snap"),
+        (1820, 330, 110, 58, "spike"),
+        (2580, 260, 95, 52, "pull"),
+        (3920, 145, 85, 45, "snap"),
+        (5620, 270, 130, 70, "sway"),
+        (7120, 220, 75, 42, "spike"),
     ]
+    if bloom:
+        # Ambitious prototype 2: Bloom layers -- temporary lush platforms that "grow" on mastery or special daily.
+        # These use existing platform style but marked for visual/optional lifetime in game.
+        bloom_plats = [
+            (1250, 310, 95, 18),
+            (2390, 195, 70, 16),
+            (4190, 118, 85, 18),
+            (5890, 185, 75, 16),
+            (7310, 265, 90, 18),
+        ]
+        for bx, by, bw, bh in bloom_plats:
+            plats.append(Platform(bx, by, bw, bh))
+
     return LevelDef(
         world_width=8200,
         platforms=plats,
@@ -1258,13 +1285,13 @@ def _build_overgrown() -> LevelDef:
         dash_positions=[(980, FLOOR_Y), (3400, FLOOR_Y)],
         crystal_positions=[(210, FLOOR_Y), (2850, 235), (4550, 125), (6200, 355), (7580, 260)],
         gravity_zone_defs=[
-            (2050, 160, 520, 240, "low"),
-            (3620, 70, 1350, 200, "reverse"),
-            (5300, 240, 720, 180, "high"),
-            (7050, 190, 480, 160, "low"),
-            # special wild gravity for overgrown: extra chaotic zones
-            (1480, 280, 380, 160, "high"),
-            (4800, 120, 420, 130, "reverse"),
+            (2050, 160, 520, 240, "low", False),
+            (3620, 70, 1350, 200, "reverse", True),  # chaotic pulse
+            (5300, 240, 720, 180, "high", True),
+            (7050, 190, 480, 160, "low", False),
+            # special wild gravity for overgrown: extra chaotic zones (pulses)
+            (1480, 280, 380, 160, "high", True),
+            (4800, 120, 420, 130, "reverse", True),
         ],
         crumbling_defs=[
             PlatformDef(3450, 210, 95),
@@ -1369,14 +1396,27 @@ def build_level_state(level_number: int, daily_seed: int = 0) -> LevelState:
         level_def.daily_bonus_essence = True
         level_def.daily_time_attack = True
 
+        # Richer variety modifiers (meaningful & impactful, per daily seed lane)
+        # Low gravity: floatier jumps, higher terminal, harder precision (good for some biomes)
+        if rng.random() < 0.25:
+            level_def.low_gravity = True
+
+        # Fast enemies: boost chase/patrol speeds for pressure
+        if rng.random() < 0.22:
+            level_def.fast_enemies = True
+
+        # Bonus bamboo / yield feel (more score pressure or reward)
+        if rng.random() < 0.18:
+            level_def.bonus_bamboo = True
+
     return LevelState(level_def, level_number)
 
 
-def build_overgrown_state() -> LevelState:
+def build_overgrown_state(bloom: bool = False) -> LevelState:
     """Special post-game challenge loader. Reuses core LevelState + gravity etc.
     No daily seed mods for overgrown.
     """
-    level_def = _build_overgrown()
+    level_def = _build_overgrown(bloom=bloom)
     # Skip strict verify for special post-game layout (may push reach intentionally)
     # _verify_jump_arc(level_def)  # intentionally omitted for minimal post-game
     return LevelState(level_def, 99)

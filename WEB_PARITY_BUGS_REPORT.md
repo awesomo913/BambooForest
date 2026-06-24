@@ -98,6 +98,21 @@ Web uses a forest-themed naming scheme; root uses action-verb naming. Pick one a
 
 ---
 
+## 2026-06-24 Touch + Parity Polish (closed)
+**Area:** web/touch_overlay.html + game.py (root+web)
+
+- Button sizes/feedback improved: larger hit areas (86/68/60px), visual press juice (scale 0.82 +Y4 +filter +shadow boost + active knob).
+- Ghost clicks prevented: added click/mousedown eaters with capture+stop, extra touch guards.
+- Key actions (dash via Shift, staff/attack via e, jump via space, grove via g) all wired + work great on overlay.
+- Web-only drift fixed: attack() sound calls unified to "attack" (was "stomp" only in web); double-applied input sync note in _handle_events to both game.py copies.
+- HTML remains single source of truth for web touch.
+- web/README.md extended.
+- No state/control drift left in input path; synthetic events from touch now robust + parity comments added.
+
+Resolves prior LOW "Touch/UI concerns" item. All root/web syncs for changed logic.
+
+---
+
 ### BUG-05 — Glide/Dash Pickup Positions Stripped from Root Levels (GAMEPLAY BREAK)
 **Files:** `web/levels.py` vs `levels.py` (root)  
 **Impact:** Desktop players almost never encounter glide pickups. The glide mechanic is effectively non-functional on desktop.

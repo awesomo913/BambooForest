@@ -60,3 +60,18 @@ Live: https://awesomo913.github.io/BambooForest/
 (Or custom domain if configured.)
 
 Everything else (sprites, levels, biomes, audio, power-ups) is kept in sync with desktop via the agent swarm.
+
+## Touch / mobile controls (web only)
+
+Virtual joystick (left) + buttons (right) auto-appear on touch devices (coarse pointer or no hover).
+
+- Jump (large B): space
+- Staff/Attack (A): e / x
+- Dash (pill): shift
+- Move: arrows (from joystick)
+- Grove: small G button (enters in title/pause/victory)
+- Start: center pill
+
+Polish (2026-06-24): bigger thumb-friendly sizes (86px jump, 68px staff, wider dash), stronger visual press juice (scale+translate+filter+shadow), ghost-click prevention (eat synth mouse/click), fixed stray dispatch code, added grove button, synced attack sound parity. All main actions (dash/staff/jump) reliable on overlay. HTML is single source (injected at build).
+
+Responsive: sizes degrade gracefully on small portrait phones. Safe area insets respected.

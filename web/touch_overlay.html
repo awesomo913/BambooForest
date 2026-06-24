@@ -24,25 +24,25 @@
   /* ── Joystick (left thumb) ── */
   .joy-zone {
     position: absolute;
-    left: 12px;
-    bottom: 12px;
-    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-    width: 140px;
-    height: 140px;
+    left: 14px;
+    bottom: 14px;
+    bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+    width: 158px;
+    height: 158px;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.06);
-    border: 2px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.07);
+    border: 3px solid rgba(255, 255, 255, 0.18);
     pointer-events: auto;
     touch-action: none;
   }
   .joy-knob {
     position: absolute;
-    width: 56px;
-    height: 56px;
+    width: 64px;
+    height: 64px;
     border-radius: 50%;
-    background: radial-gradient(circle at 40% 38%, rgba(180, 220, 140, 0.7), rgba(80, 160, 60, 0.5));
-    border: 2px solid rgba(180, 220, 140, 0.6);
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5), inset 0 1px 2px rgba(255, 255, 255, 0.2);
+    background: radial-gradient(circle at 40% 38%, rgba(180, 220, 140, 0.75), rgba(80, 160, 60, 0.55));
+    border: 3px solid rgba(180, 220, 140, 0.7);
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.55), inset 0 2px 3px rgba(255, 255, 255, 0.25);
     left: 50%;
     top: 50%;
     transform: translate(-50%, -50%);
@@ -51,6 +51,12 @@
   }
   .joy-zone:not(.joy-active) .joy-knob {
     transition: transform 0.15s ease-out;
+  }
+  .joy-zone.joy-active .joy-knob {
+    /* press juice: knob grows slightly + brighter on active touch */
+    transform: translate(-50%, -50%) scale(1.08);
+    box-shadow: 0 4px 14px rgba(0,0,0,0.6), inset 0 1px 3px rgba(255,255,255,0.3);
+    filter: brightness(1.1);
   }
   .joy-dir {
     position: absolute;
@@ -78,11 +84,11 @@
   /* ── A/B Buttons (right thumb) ── */
   .btn-cluster {
     position: absolute;
-    right: 12px;
-    bottom: 16px;
-    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-    width: 160px;
-    height: 140px;
+    right: 10px;
+    bottom: 18px;
+    bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+    width: 180px;
+    height: 158px;
     pointer-events: none;
   }
   .ab-btn {
@@ -99,82 +105,86 @@
     -webkit-touch-callout: none;
     will-change: transform;
     contain: layout style paint;
+    transition: transform 0.04s ease-out, filter 0.04s ease-out, box-shadow 0.04s ease-out;
   }
   .ab-btn.ab-pressed {
-    transform: scale(0.88);
+    transform: scale(0.82) translateY(4px);
+    filter: brightness(0.82) saturate(1.25);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.45) inset, 0 0 0 3px rgba(255,255,255,0.15) !important;
   }
 
-  /* B = Jump (big, bottom-right — primary action) */
+  /* B = Jump (big, bottom-right — primary action; larger for reliable thumb hit) */
   .ab-b {
-    width: 72px;
-    height: 72px;
+    width: 86px;
+    height: 86px;
     right: 0;
     bottom: 0;
     background: radial-gradient(circle at 40% 35%, rgba(100, 180, 255, 0.65), rgba(40, 100, 200, 0.45));
-    border: 2.5px solid rgba(140, 200, 255, 0.6);
-    box-shadow: 0 3px 14px rgba(40, 100, 200, 0.35), inset 0 1px 3px rgba(255, 255, 255, 0.15);
+    border: 3px solid rgba(140, 200, 255, 0.6);
+    box-shadow: 0 4px 16px rgba(40, 100, 200, 0.35), inset 0 1px 3px rgba(255, 255, 255, 0.15);
     color: rgba(255, 255, 255, 0.95);
-    font-size: 20px;
+    font-size: 22px;
     letter-spacing: 1px;
   }
   .ab-b.ab-pressed {
-    background: radial-gradient(circle at 40% 35%, rgba(140, 210, 255, 0.9), rgba(80, 150, 240, 0.8));
-    box-shadow: 0 0 20px rgba(100, 180, 255, 0.5);
+    background: radial-gradient(circle at 40% 35%, rgba(140, 210, 255, 0.95), rgba(80, 150, 240, 0.85));
+    box-shadow: 0 0 26px rgba(100, 180, 255, 0.65), 0 1px 3px rgba(0,0,0,0.4) inset;
   }
   .ab-b-label {
     position: absolute;
-    bottom: -18px;
+    bottom: -20px;
     font-size: 9px;
-    font-weight: 600;
+    font-weight: 700;
     letter-spacing: 1.5px;
-    color: rgba(140, 200, 255, 0.5);
+    color: rgba(140, 200, 255, 0.6);
     text-transform: uppercase;
   }
 
-  /* A = Attack (medium, upper-left of B) */
+  /* A = Staff/Attack (medium, upper-left of B; good size for thumb) */
   .ab-a {
-    width: 60px;
-    height: 60px;
-    right: 90px;
-    bottom: 50px;
+    width: 68px;
+    height: 68px;
+    right: 98px;
+    bottom: 58px;
     background: radial-gradient(circle at 40% 35%, rgba(255, 120, 120, 0.65), rgba(200, 50, 50, 0.45));
-    border: 2.5px solid rgba(255, 160, 140, 0.55);
-    box-shadow: 0 3px 14px rgba(200, 50, 50, 0.3), inset 0 1px 3px rgba(255, 255, 255, 0.15);
+    border: 3px solid rgba(255, 160, 140, 0.55);
+    box-shadow: 0 4px 16px rgba(200, 50, 50, 0.3), inset 0 1px 3px rgba(255, 255, 255, 0.15);
     color: rgba(255, 255, 255, 0.95);
-    font-size: 18px;
+    font-size: 19px;
     letter-spacing: 1px;
   }
   .ab-a.ab-pressed {
-    background: radial-gradient(circle at 40% 35%, rgba(255, 160, 160, 0.9), rgba(230, 90, 90, 0.8));
-    box-shadow: 0 0 20px rgba(255, 120, 120, 0.5);
+    background: radial-gradient(circle at 40% 35%, rgba(255, 160, 160, 0.95), rgba(230, 90, 90, 0.85));
+    box-shadow: 0 0 26px rgba(255, 120, 120, 0.65), 0 1px 3px rgba(0,0,0,0.4) inset;
   }
   .ab-a-label {
     position: absolute;
-    bottom: -18px;
+    bottom: -20px;
     font-size: 9px;
-    font-weight: 600;
+    font-weight: 700;
     letter-spacing: 1.5px;
-    color: rgba(255, 160, 140, 0.5);
+    color: rgba(255, 160, 140, 0.6);
     text-transform: uppercase;
   }
 
-  /* Dash = small trigger above cluster */
+  /* Dash = reliable pill trigger above cluster (bigger hit area) */
   .ab-dash {
-    width: 52px;
-    height: 36px;
-    right: 34px;
-    top: 0;
-    border-radius: 18px;
-    background: rgba(255, 200, 80, 0.3);
-    border: 2px solid rgba(255, 210, 120, 0.35);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
-    color: rgba(255, 255, 255, 0.7);
-    font-size: 11px;
+    width: 60px;
+    height: 40px;
+    right: 36px;
+    top: -2px;
+    border-radius: 20px;
+    background: rgba(255, 200, 80, 0.35);
+    border: 2.5px solid rgba(255, 210, 120, 0.45);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 12px;
     letter-spacing: 1.5px;
   }
   .ab-dash.ab-pressed {
-    background: rgba(255, 210, 100, 0.75);
+    background: rgba(255, 210, 100, 0.85);
     color: #fff;
+    box-shadow: 0 0 16px rgba(255,200,80,0.6), 0 1px 2px rgba(0,0,0,0.3) inset;
   }
 
   /* ── START (top-right, small pill) ── */
@@ -203,6 +213,32 @@
     transform: translateX(-50%) scale(0.95);
   }
 
+  /* Grove access pill (small, top-right; sends g key for grove entry in supported states) */
+  .tc-grove {
+    position: absolute;
+    top: 12px;
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    right: 12px;
+    padding: 4px 14px;
+    border-radius: 12px;
+    background: rgba(180, 140, 220, 0.28);
+    border: 1.5px solid rgba(200, 170, 240, 0.4);
+    color: rgba(255, 255, 255, 0.75);
+    font-family: system-ui, sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    pointer-events: auto;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .tc-grove.ab-pressed {
+    background: rgba(200, 170, 240, 0.75);
+    color: #fff;
+    transform: scale(0.94);
+    filter: brightness(0.9);
+  }
+
   /* ── Fullscreen prompt ── */
   .fs-prompt {
     position: absolute;
@@ -226,14 +262,14 @@
   .fs-prompt.fs-hidden { display: none; }
   @keyframes fsPulse { 0%, 100% { opacity: 0.8; } 50% { opacity: 1; } }
 
-  /* ── Responsive: portrait small phone ── */
+  /* ── Responsive: portrait small phone (still decent size, scaled down less aggressively) */
   @media (orientation: portrait) and (max-width: 420px) {
-    .joy-zone { width: 120px; height: 120px; }
-    .joy-knob { width: 48px; height: 48px; }
-    .btn-cluster { width: 140px; height: 120px; }
-    .ab-b { width: 62px; height: 62px; font-size: 17px; }
-    .ab-a { width: 52px; height: 52px; font-size: 15px; right: 78px; bottom: 42px; }
-    .ab-dash { right: 24px; width: 46px; height: 32px; font-size: 10px; }
+    .joy-zone { width: 136px; height: 136px; left: 10px; bottom: 10px; }
+    .joy-knob { width: 54px; height: 54px; }
+    .btn-cluster { width: 158px; height: 136px; right: 8px; bottom: 12px; }
+    .ab-b { width: 74px; height: 74px; font-size: 19px; }
+    .ab-a { width: 58px; height: 58px; font-size: 16px; right: 86px; bottom: 48px; }
+    .ab-dash { right: 30px; width: 52px; height: 34px; font-size: 11px; top: -2px; }
   }
 </style>
 
@@ -253,9 +289,12 @@
   <!-- A/B Button Cluster -->
   <div class="btn-cluster">
     <div class="ab-btn ab-dash" id="ab-dash" data-key="Shift" data-code="16">DASH</div>
-    <div class="ab-btn ab-a" id="ab-a" data-key="e" data-code="69">A<span class="ab-a-label">ATK</span></div>
+    <div class="ab-btn ab-a" id="ab-a" data-key="e" data-code="69">A<span class="ab-a-label">STAFF</span></div>
     <div class="ab-btn ab-b" id="ab-b" data-key=" " data-code="32">B<span class="ab-b-label">JUMP</span></div>
   </div>
+
+  <!-- Grove access (for menu/pause/victory states; small to not clutter play) -->
+  <div class="tc-grove" id="tc-grove" data-key="g" data-code="71">GROVE</div>
 </div>
 
 <script>
@@ -263,10 +302,9 @@
     /* ── Key dispatch (unchanged — proven reliable) ── */
     var CODE_MAP = {
       " ": "Space", "ArrowLeft": "ArrowLeft", "ArrowRight": "ArrowRight",
-      "e": "KeyE", "Shift": "ShiftLeft", "Enter": "Enter"
+      "e": "KeyE", "Shift": "ShiftLeft", "Enter": "Enter",
+      "g": "KeyG"   // for grove touch button (lowercase sent from data-key)
     };
-    // Ensure Shift key event has proper key for pygame mapping
-    if (key === "Shift") { key = "Shift"; }
     var activeKeys = {};
 
     function dispatchKey(type, key, code) {
@@ -431,7 +469,8 @@
 
     function findBtn(touch) {
       var el = document.elementFromPoint(touch.clientX, touch.clientY);
-      return el && el.closest ? el.closest(".ab-btn, .tc-start") : null;
+      // include grove pill + start + ab buttons for full touch coverage
+      return el && el.closest ? el.closest(".ab-btn, .tc-start, .tc-grove") : null;
     }
 
     var container = document.getElementById("touch-controls");
@@ -487,13 +526,19 @@
     container.addEventListener("touchend", handleBtnEnd, { passive: false });
     container.addEventListener("touchcancel", handleBtnEnd, { passive: false });
 
-    /* ── Prevent unwanted gestures ── */
+    /* ── Prevent unwanted gestures + ghost clicks (touch synths mouse/clicks) ── */
     document.addEventListener("gesturestart", function(e) { e.preventDefault(); }, { passive: false });
     document.addEventListener("gesturechange", function(e) { e.preventDefault(); }, { passive: false });
     document.addEventListener("contextmenu", function(e) {
       if (e.target && e.target.closest && e.target.closest("#touch-controls")) e.preventDefault();
     });
     document.addEventListener("touchmove", function(e) {
+      if (e.target && e.target.closest && e.target.closest("#touch-controls")) e.preventDefault();
+    }, { passive: false });
+
+    // Anti-ghost shield: eat synthesized clicks/mouse from touch to stop ghost canvas interactions
+    container.addEventListener("click", function(e) { e.preventDefault(); e.stopImmediatePropagation(); }, { passive: false, capture: true });
+    container.addEventListener("mousedown", function(e) {
       if (e.target && e.target.closest && e.target.closest("#touch-controls")) e.preventDefault();
     }, { passive: false });
 

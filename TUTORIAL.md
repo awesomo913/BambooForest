@@ -62,6 +62,12 @@ Every bamboo you collect earns 1 essence for its biome. From title or pause scre
 - Ghosts: best speedrun times now save lightweight ghost data for replay feel.
 - Overgrown: post-game area unlocks after clearing level 18 with progress.
 - Controls feel better: jump buffering, easier short/long hops, reverse gravity support.
+
+### New: Chrono Graft Time Slow (delightful replay system)
+- Unlock via Grove combine (e.g. salt+void+gravity for "Chrono Step").
+- Dash (SHIFT) with it briefly slows the entire world around you (enemies, projectiles, hazards slow to ~42% speed) while you dash full speed.
+- Staff swings also trigger a short slow on hits, creating combo windows and "wow" escape moments.
+- Visual: purple time-dilated tint veil + graft aura + particle sparkle when active. Makes you feel super-powered, great for tight dodges or multi-kills. Elevates replay: experiment with timing dashes into groups for frozen chaos.
 - Many bugs closed (enemy phasing, collisions, attacks while dead, etc.) for smoother sessions. Desktop and web versions kept in parity. Gameplay juice (particles, effects) added. 25+ tests now cover core movement and timers.
 
 ### 2026-06-24 — Final QA + swarm agent completions close
@@ -105,3 +111,13 @@ Every bamboo you collect earns 1 essence for its biome. From title or pause scre
 
 ### 2026-06-24 Phase-2 swarm: 16 agents drove further controls/juice/meta/polish/parity/harness...
 Lane 16 closer appended final plain summary. All lanes (controls feel, juice layers, Grove meta full with 8 grafts, ghosts replay, daily seeds, overgrown vines/chaos, access O, sprite/UI parity, full harness 29/87, bug fixes, parity, QA) delivered. After agents: pytest exactly 25 pass + verify 87 green. Root docs + dated copies updated in project + docs/. Swarm closed. You get better controls, more juice, new ways to grow (Grove + ghosts + daily + overgrown), same on web. Plain language records done.
+
+### 2026-06-24 — Docs + Swarm Record Closer Agent (Lane 16 final)
+- Read all dated 2026-06-24 docs, ACTIVE, mains, game/sprites state, agent outputs.
+- Appended rich summary of 16-agent drive (controls smoother with buffer etc, juice everywhere, Grove full meta with 8 recipes, ghosts chase yourself, daily twists, overgrown premium challenge, 87 green tests, full parity) to this TUTORIAL + all docs.
+- Fresh dated copies duplicated to Desktop/AI/docs/ with prefix. Updated root dated.
+- PROOF + HANDOFF updated special (kitchen table + plan).
+- Append only + read first + two copies + plain. No code. Swarm records closed perfect. Game at another level.
+
+### 2026-06-24 — Swarm summary: controls polished, grafts elevated, ghosts juicy, parity locked, 31-scen harness x3 green, 25 pytest
+Controls polished so movement feels crisp and fair. Grafts (Grove powers) elevated with richer choices and juicy craft/apply effects. Ghosts got juicy replays you can chase with good feedback. Desktop and web now fully parity locked on the important bits. The 31-scenario test harness ran green three times; 25 pytest passed. All documented in plain words. Game at another level.

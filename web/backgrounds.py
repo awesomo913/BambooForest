@@ -561,14 +561,12 @@ class TidalBackground(_BaseBackground):
         # Stormy gray-blue gradient
         self._sky_gradient(surf, (70, 90, 110), (120, 140, 160))
         random.seed(242)
-        # Distant rain / mist streaks
-        rain_layer = pygame.Surface((self.w, 220), pygame.SRCALPHA)
+        # Distant rain / mist streaks (on alpha surface so alpha is respected)
         for _ in range(50):
             sx = random.randint(0, self.w)
             sy = random.randint(0, 200)
-            pygame.draw.line(rain_layer, (180, 200, 220, 100),
+            pygame.draw.line(surf, (180, 200, 220, 100),
                             (sx, sy), (sx - 2, sy + 8), 1)
-        surf.blit(rain_layer, (0, 0))
         # Coastal rocks (dark silhouettes)
         for i in range(5):
             cx = int(i * self.w / 4) + random.randint(-40, 40)

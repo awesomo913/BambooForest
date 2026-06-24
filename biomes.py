@@ -12,27 +12,29 @@ from sprites import generate_platform_tile
 
 from config import (
     ASH_BAT_RANGE, ASH_BAT_SWOOP, BRINE_DMG_RADIUS, BRINE_GROW_RATE,
-    COL_BASALT, COL_BLACK, COL_CRYSTAL, COL_ICE, COL_LAVA, COL_LIMESTONE,
-    COL_SALT, COL_SANDSTONE, COL_TOXIC, COL_WHITE, CRUMBLE_DELAY,
-    CRUMBLE_RESPAWN, CRYSTAL_LIGHT_TIME, CRYSTAL_RADIUS, DARK_RADIUS,
-    DUST_DEVIL_SPEED, ENEMY_PATROL_SPEED, FLOOR_Y, GLOWWORM_SNAP_RANGE,
-    GEYSER_DURATION, GEYSER_INTERVAL, GEYSER_LAUNCH, GOLEM_COOLDOWN,
-    GOLEM_STRIKE_RANGE, GOLEM_STRIKE_SPEED, GRAVITY, ICE_ACCEL,
-    ICE_FRICTION, KELP_CRAB_SPEED, NPC_RANGE, PHANTOM_SPEED,
-    PLAYER_SPEED, SCORPION_FIRE_RATE, SCORPION_PROJ_SPEED, PROJECTILE_WORLD_WIDTH,
+    COL_BASALT, COL_BLACK, COL_CRYSTAL, COL_ICE,
+    COL_SALT, COL_SANDSTONE, COL_WHITE, CRUMBLE_DELAY,
+    CRUMBLE_RESPAWN, CRYSTAL_LIGHT_TIME,
+    ENEMY_PATROL_SPEED, FLOOR_Y, GLOWWORM_SNAP_RANGE,
+    GEYSER_DURATION, GEYSER_INTERVAL, GOLEM_COOLDOWN,
+    GOLEM_STRIKE_RANGE, GOLEM_STRIKE_SPEED, GRAVITY,
+    KELP_CRAB_SPEED, NPC_RANGE, PHANTOM_SPEED,
+    SCORPION_FIRE_RATE, SCORPION_PROJ_SPEED, PROJECTILE_WORLD_WIDTH,
     SPIDER_DROP_RANGE, SPIDER_DROP_SPEED, SULFUR_SPEED,
-    SULFUR_TRAIL_DMG, SULFUR_TRAIL_LIFE, TERMINAL_VELOCITY,
+    SULFUR_TRAIL_LIFE, TERMINAL_VELOCITY,
     WIND_PUSH,
     # Level 14-18 new constants
-    MUSHROOM_BOUNCE, MUSHROOM_COMPRESS_SEC, SPORE_INTERVAL,
+    MUSHROOM_COMPRESS_SEC, SPORE_INTERVAL,
     SPORE_LIFETIME, SPORE_DRIFT, SPORE_DAMAGE,
     LAVA_RISE_SPEED, LAVA_PAUSE_SEC, LAVA_START_Y,
     LEAPER_JUMP, LEAPER_INTERVAL,
     GATE_CYCLE_SEC, GATE_TELEGRAPH_SEC, TIDAL_CRAB_SPEED,
     PORTAL_COOLDOWN_SEC, WRAITH_SPEED,
     GRAVITY_LOW_MULT, GRAVITY_HIGH_MULT, GRAVITY_REVERSE_MULT,
-    DRONE_RANGE, DRONE_PULL,
     MOVING_PLAT_SPEED,
+    # Overgrown Lane 6
+    VINE_SLOW_GROUND, VINE_SLOW_AIR, VINE_PULL_GROUND, VINE_PULL_AIR,
+    VINE_SNAP_DURATION, GRAV_PULSE_PERIOD,
 )
 
 # ===================================================================
@@ -1892,14 +1894,19 @@ class GravityZone(pygame.sprite.Sprite):
     """Rectangular zone that alters player gravity while inside.
 
     Types: 'low' (0.3x), 'high' (2.0x), 'reverse' (-1.0x).
+    pulse=True enables chaotic mid-run flips for overgrown depth.
     """
 
-    def __init__(self, x: int, y: int, w: int, h: int, gravity_type: str) -> None:
+    def __init__(self, x: int, y: int, w: int, h: int, gravity_type: str, pulse: bool = False) -> None:
         super().__init__()
         self.gravity_type = gravity_type
+        self.base_gravity_type = gravity_type
+        self.current_gravity_type = gravity_type
+        self.pulse = pulse
         self.rect = pygame.Rect(x, y, w, h)
         self.image = self._make_surf(w, h, gravity_type)
         self._wave_timer: float = 0.0
+        self.pulse_timer: float = random.uniform(0.0, 2.0)
 
     @staticmethod
     def _make_surf(w: int, h: int, gtype: str) -> pygame.Surface:
@@ -1942,14 +1949,29 @@ class GravityZone(pygame.sprite.Sprite):
         return surf
 
     def get_multiplier(self) -> float:
-        if self.gravity_type == "low":
+        gtype = getattr(self, 'current_gravity_type', self.gravity_type)
+        if gtype == "low":
             return GRAVITY_LOW_MULT
-        if self.gravity_type == "high":
+        if gtype == "high":
             return GRAVITY_HIGH_MULT
         return GRAVITY_REVERSE_MULT
 
     def update(self, dt: float) -> None:  # type: ignore[override]
-        # Static zone; no state to update
+        if getattr(self, 'pulse', False):
+            self.pulse_timer += dt
+            if self.pulse_timer >= GRAV_PULSE_PERIOD:
+                self.pulse_timer = 0.0
+                # Chaotic flip: cycle through types for depth & chaos
+                types_cycle = ["low", "high", "reverse"]
+                try:
+                    idx = types_cycle.index(self.current_gravity_type)
+                except ValueError:
+                    idx = 0
+                # Prefer shift by 1 or 2 to avoid no-op
+                shift = random.choice([1, 2])
+                self.current_gravity_type = types_cycle[(idx + shift) % 3]
+                # subtle visual pop handled by game caller on mult change
+        # no base image swap to keep perf; effect is through mult
         pass
 
 
@@ -2169,44 +2191,104 @@ class ForgeHammer(pygame.sprite.Sprite):
 # ===================================================================
 
 class Vine(pygame.sprite.Sprite):
-    """Dense vine patch. On contact: slows player x vel, adds light downward pull.
-    Sways slowly (moving hazard) in overgrown for premium post-game challenge.
+    """Dense vine patch. Varied hazards for overgrown chaos (sway+pull, spike clusters, timed snap).
+    On contact: slows, pulls, damages or snaps. Lush and punishing yet fair.
     """
 
-    def __init__(self, x: int, y: int, w: int, h: int) -> None:
+    def __init__(self, x: int, y: int, w: int, h: int, kind: str = "sway") -> None:
         super().__init__()
+        self.kind = kind  # "sway" | "pull" | "spike" | "snap"
         self.image = pygame.Surface((w, h), pygame.SRCALPHA)
         # Lush tangled green look for overgrown
-        self.image.fill((35, 95, 45, 95))
+        base_col = (35, 95, 45, 95)
+        self.image.fill(base_col)
         for i in range(0, w, 11):
             pygame.draw.line(self.image, (25, 80, 35, 170), (i, 3), (i + 5, h - 2), 3)
             pygame.draw.line(self.image, (55, 130, 60, 120), (i + 7, 1), (i - 3, h), 1)
             if i % 3 == 0:
                 pygame.draw.line(self.image, (70, 150, 70, 80), (i + 2, h // 3), (i + 9, 2 * h // 3), 2)
+        # Variant visuals
+        if kind == "spike":
+            for i in range(5, w-5, 14):
+                pygame.draw.polygon(self.image, (25, 60, 25, 220), [(i, 4), (i+4, 12), (i-3, 11)])
+        elif kind == "snap":
+            pygame.draw.rect(self.image, (20, 70, 30, 60), (2, 2, w-4, h-4), 1)
+        elif kind == "pull":
+            for i in range(0, w, 9):
+                pygame.draw.line(self.image, (15, 55, 25, 150), (i, h//2), (i+3, h-1), 2)
         self.rect = self.image.get_rect(topleft=(x, y))
         self.base_x: int = x
         self.sway_time: float = random.uniform(0.0, 6.28)
-        self.sway_amp: float = random.uniform(5.0, 11.0)  # variable for premium unpredictable feel
+        self.sway_amp: float = random.uniform(4.0, 12.0)
+        self.snap_timer: float = random.uniform(1.8, 3.2)
+        self.state: str = "idle"  # idle/snapping for snap kind
 
     def update(self, dt: float) -> None:
-        """Slow horizontal sway -- vines as moving hazards. Variable amp."""
-        self.sway_time += dt * 0.85
-        offset = int(math.sin(self.sway_time) * self.sway_amp)
-        self.rect.x = self.base_x + offset
+        """Behavior by kind: sway+pull, spike (static), timed snap."""
+        if self.kind in ("sway", "pull"):
+            rate = 1.05 if self.kind == "pull" else 0.85
+            self.sway_time += dt * rate
+            off = int(math.sin(self.sway_time) * self.sway_amp)
+            self.rect.x = self.base_x + off
+        elif self.kind == "snap":
+            self.snap_timer -= dt
+            if self.state == "idle" and self.snap_timer <= 0:
+                self.state = "snapping"
+                self.snap_timer = VINE_SNAP_DURATION
+            elif self.state == "snapping":
+                self.snap_timer -= dt
+                if self.snap_timer <= 0:
+                    self.state = "idle"
+                    self.snap_timer = random.uniform(2.2, 4.0)
+            self.sway_time += dt * 1.3
+            off = int(math.sin(self.sway_time) * (self.sway_amp * 0.5))
+            self.rect.x = self.base_x + off
+        # spike: subtle micro sway only
+        elif self.kind == "spike":
+            self.sway_time += dt * 0.3
+            off = int(math.sin(self.sway_time) * 2.0)
+            self.rect.x = self.base_x + off
 
     def apply_entangle(self, player) -> None:
-        """Slow and snag. Stronger in air. Mastery (2+ grafts) resists the wild (premium progression feel)."""
+        """Dispatch to varied hazard effect. Fair: air stronger, mastery resist, snap telegraphed."""
         grafts = getattr(player, "grafts", []) or []
-        resist = 0.72 if len(grafts) >= 2 else 1.0
+        resist = 0.68 if len(grafts) >= 2 else 1.0
+        # Richer thorn_spore synergy: even stronger resist on vines
+        if "thorn_spore" in getattr(player, "active_synergies", set()):
+            resist *= 0.7
+        on_ground = getattr(player, "is_on_ground", True)
+        if self.kind == "spike":
+            # Spike cluster: light contact dmg + strong slow
+            if hasattr(player, "take_damage"):
+                player.take_damage(8)
+            if hasattr(player, "velocity_x"):
+                player.velocity_x *= 0.28 * resist
+            if hasattr(player, "velocity_y"):
+                player.velocity_y = min(getattr(player, "velocity_y", 0) + (90 * resist), 220)
+            return
+        if self.kind == "snap" and self.state != "snapping":
+            # idle snap = weak entangle
+            pass
         if hasattr(player, "velocity_x"):
-            factor = (0.55 if getattr(player, "is_on_ground", True) else 0.42) * resist
+            factor = (VINE_SLOW_GROUND if on_ground else VINE_SLOW_AIR) * resist
+            if self.kind == "pull":
+                factor *= 0.85
+            if self.kind == "snap" and self.state == "snapping":
+                factor *= 0.25
             player.velocity_x *= factor
         if hasattr(player, "velocity_y"):
-            pull = (105 if not getattr(player, "is_on_ground", True) else 65) * resist
-            player.velocity_y = min(getattr(player, "velocity_y", 0) + pull, 175)
+            base_pull = VINE_PULL_AIR if not on_ground else VINE_PULL_GROUND
+            if self.kind == "pull":
+                base_pull *= 1.45
+            if self.kind == "snap" and self.state == "snapping":
+                base_pull *= 1.8
+            pull = base_pull * resist
+            player.velocity_y = min(getattr(player, "velocity_y", 0) + pull, 220)
+            # Minor overgrown biome interaction elevation: vine_whip graft springs player on snap/pull (delightful whip-rebound)
+            if "vine_whip" in grafts and self.kind in ("snap", "pull") and not on_ground:
+                player.velocity_y = min(player.velocity_y, -85)
         if hasattr(player, "input_locked"):
             player.input_locked = True
-            # cleared by gameplay on next ground or timer
 
 
 # ===================================================================

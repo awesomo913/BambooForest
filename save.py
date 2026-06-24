@@ -21,10 +21,18 @@ Unlocks (ice magic, glide, ...) and other meta are persisted with the profile.
 import json
 import os
 import sys
+from pathlib import Path
 from config import SAVE_FILE, DEFAULT_ACCESSIBILITY
 
 MAX_SCORES: int = 5
 SAVE_VERSION: int = 2
+
+# Crash / diagnostic logger (required per workspace rules) - safe for lib import + web
+sys.path.insert(0, str(Path.home() / ".claude" / "scripts"))
+try:
+    from crash_logger import log_event
+except Exception:
+    def log_event(*a, **k): pass
 
 # Web detection (pygbag / emscripten / pyodide)
 _IS_WEB = False
@@ -53,7 +61,8 @@ def _web_load():
             data = json.loads(raw)
             _web_scores = data.get("high_scores", [])
             return _web_scores
-    except (AttributeError, TypeError, RuntimeError, KeyError, json.JSONDecodeError):
+    except (AttributeError, TypeError, RuntimeError, KeyError, json.JSONDecodeError) as e:
+        log_event("warning", f"web highscores load failed, using []: {type(e).__name__}")
         pass
     _web_scores = []
     return _web_scores
@@ -65,7 +74,8 @@ def _web_save(scores):
     try:
         from js import localStorage  # type: ignore
         localStorage.setItem("bambooforest_highscores", json.dumps({"high_scores": scores}))
-    except (AttributeError, TypeError, RuntimeError):
+    except (AttributeError, TypeError, RuntimeError) as e:
+        log_event("warning", f"web highscores save failed (in-mem only): {type(e).__name__}")
         pass  # in-memory only this session
 
 
@@ -271,8 +281,9 @@ def _load_profile_data():
                 data = json.loads(raw)
                 if isinstance(data, dict):
                     return _migrate_profile(data)
-        except Exception:
+        except Exception as e:
             # Pyodide/JS access can fail in some embed contexts; fall back
+            log_event("warning", f"web profile load failed, using defaults: {type(e).__name__}")
             pass
         return {"version": SAVE_VERSION, "high_scores": [], "settings": DEFAULT_SETTINGS.copy(), "unlocks": {}, "bests": {"times": {}, "ghosts": {}}}
     try:
@@ -309,10 +320,10 @@ def _save_profile_data(data: dict) -> bool:
             from js import localStorage  # type: ignore
             localStorage.setItem("bambooforest_profile", json.dumps(data))
             return True
-        except (AttributeError, TypeError, RuntimeError):
+        except (AttributeError, TypeError, RuntimeError) as e:
             # Common pyodide case: no window / no LS in this context.
             # Caller gets False so it can decide (e.g. keep in mem for session).
-            # Do not swallow without trace in debug; here we surface via return.
+            log_event("warning", f"web profile save failed (in-mem fallback): {type(e).__name__}")
             return False
     try:
         # Desktop: ensure dir exists (in case SAVE_FILE is in frozen exe dir)
@@ -323,7 +334,8 @@ def _save_profile_data(data: dict) -> bool:
             json.dump(data, f, indent=2)
         return True
     except (OSError, PermissionError, IOError) as e:
-        # Report-ish: avoid total silent fail. In real app could route to crash_logger.
+        # Report-ish: avoid total silent fail. Route to log_event so no silent failure.
+        log_event("failure", f"profile write failed to {SAVE_FILE}: {type(e).__name__} {e}")
         try:
             print(f"[save] WARNING: failed writing profile to {SAVE_FILE}: {e}", file=sys.stderr)
         except Exception:
@@ -378,8 +390,8 @@ def load_best_time(level: int) -> float | None:
     return float(t) if t is not None else None
 
 
-def save_best_run(level: int, time_sec: float, ghost: list) -> bool:
-    """Save if better (or first). Stores time + ghost samples. Returns True if saved."""
+def save_best_run(level: int, time_sec: float, ghost: list, splits: list | None = None) -> bool:
+    """Save if better (or first). Stores time + ghost samples (+ splits for pro). Returns True if saved."""
     data = _load_profile_data()
     _ensure_bests(data)
     key = str(level)
@@ -389,6 +401,8 @@ def save_best_run(level: int, time_sec: float, ghost: list) -> bool:
     data["bests"]["times"][key] = round(float(time_sec), 3)
     # store compact ghost
     data["bests"]["ghosts"][key] = [[round(float(s[0]), 3), int(s[1]), int(s[2]), bool(s[3])] for s in ghost]
+    if splits:
+        data["bests"].setdefault("splits", {})[key] = [[int(i), float(t)] for i, t in splits]
     return _save_profile_data(data)
 
 
@@ -406,6 +420,41 @@ def get_best_ghost(level: int) -> list | None:
 def get_best_time(level: int) -> float | None:
     """Alias for load_best_time (convenience)."""
     return load_best_time(level)
+
+
+def get_ghost_splits(level: int) -> list:
+    """Return list of [split_index, time] for the best ghost on level."""
+    data = _load_profile_data()
+    _ensure_bests(data)
+    sp = data["bests"].get("splits", {}).get(str(level), [])
+    return [[int(i), float(t)] for i, t in sp]
+
+
+# ---------------------------------------------------------------------------
+# Ghost library (pro level): keep several personal ghosts per level for practice
+# "ghost_library": { "0": [ [time, ghost_list], ... ] up to 3 }
+# ---------------------------------------------------------------------------
+
+def save_ghost_to_library(level: int, time_sec: float, ghost: list) -> bool:
+    data = _load_profile_data()
+    _ensure_bests(data)
+    lib = data.setdefault("ghost_library", {})
+    key = str(level)
+    entries = lib.setdefault(key, [])
+    # store compact
+    compact = [[round(float(s[0]), 3), int(s[1]), int(s[2]), bool(s[3])] for s in ghost]
+    entries.append([round(float(time_sec), 3), compact])
+    # keep only best 3 (by time)
+    entries.sort(key=lambda e: e[0])
+    lib[key] = entries[:3]
+    return _save_profile_data(data)
+
+
+def get_ghost_library(level: int):
+    """Return list of [time, ghost] for the level."""
+    data = _load_profile_data()
+    lib = data.get("ghost_library", {})
+    return lib.get(str(level), [])
 
 
 # ---------------------------------------------------------------------------
@@ -449,6 +498,34 @@ def get_daily_best(daily_seed: int) -> float | None:
     dbests = data.get("daily_bests", {})
     t = dbests.get(str(daily_seed))
     return float(t) if t is not None else None
+
+
+# ---------------------------------------------------------------------------
+# Daily streaks (richer variety): consecutive days completed
+# "daily_streaks": {"current": 3, "longest": 7, "last_seed": 20260624}
+# ---------------------------------------------------------------------------
+
+def update_daily_streak(daily_seed: int) -> int:
+    """Update streak on complete. Returns current streak length."""
+    data = _load_profile_data()
+    streaks = data.setdefault("daily_streaks", {"current": 0, "longest": 0, "last_seed": 0})
+    last = int(streaks.get("last_seed", 0))
+    current = int(streaks.get("current", 0))
+    if last == 0 or (daily_seed - last == 1):  # consecutive day
+        current += 1
+    else:
+        current = 1
+    streaks["current"] = current
+    streaks["longest"] = max(int(streaks.get("longest", 0)), current)
+    streaks["last_seed"] = daily_seed
+    _save_profile_data(data)
+    return current
+
+
+def get_daily_streak() -> dict:
+    """Return streak info dict."""
+    data = _load_profile_data()
+    return data.get("daily_streaks", {"current": 0, "longest": 0, "last_seed": 0})
 
 
 # ---------------------------------------------------------------------------
