@@ -107,6 +107,9 @@ DASH_DURATION_SEC: float = 30.0
 # --- Controls (jump feel) ---
 JUMP_BUFFER_TIME: float = 0.10   # seconds to queue a jump before landing (buffer + coyote for forgiveness)
 JUMP_CUT_MULTIPLIER: float = 0.55  # velocity multiplier when releasing jump early (variable height; tap=short hop)
+COYOTE_TIME: float = 0.12        # seconds of post-leave-ground forgiveness (crisp 0.12s ~7 frames; forgiving ledges w/o floaty/easy)
+AIR_ACCEL: float = 1580.0        # air control accel px/s2 (tuned for crisp turns + steer without losing momentum feel)
+HITSTOP_LAND_SEC: float = 0.032  # tiny juice: very brief x-damp on land for planty "snap" (forgiving stop w/o stick)
 
 # --- Level 14: Fungal Hollows ---
 MUSHROOM_BOUNCE: float = -1100.0
