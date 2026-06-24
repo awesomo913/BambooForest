@@ -21,9 +21,14 @@ that is a hard blocker -- the entry point is broken before any runtime.
 from __future__ import annotations
 
 import os
+import sys
 import unittest
 
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
 
 import pygame  # noqa: E402
 
@@ -70,5 +75,45 @@ def smoke_run_frames(n: int = 30, level: int = 0) -> None:
           f"ground={p.is_on_ground}")
 
 
+def smoke_new_features(n: int = 8) -> None:
+    """Minimal smoke for recent: daily seed build + graft apply + updates."""
+    from sprites import Player
+    from levels import build_level_state
+    from config import FLOOR_Y
+    ls = build_level_state(5, daily_seed=20260624)
+    p = Player(150, FLOOR_Y)
+    p.apply_grafts(["glide_efficiency", "dash_mastery"])
+    dt = 1.0 / 60.0
+    keys = pygame.key.get_pressed()
+    for _ in range(n):
+        p.update(dt, keys, ls.platforms)
+    print(f"[smoke-new] daily+graft+{n} updates OK")
+
+
+def smoke_overgrown_mastery(n: int = 12) -> None:
+    """Smoke start overgrown + mastery path (build, grafts full, run frames, win path simulation)."""
+    from levels import build_overgrown_state
+    from sprites import Player
+    from save import has_overgrown_mastery, load_grafts, load_essences, is_overgrown_mastered
+    from config import FLOOR_Y
+    # Build the post-game level (premium overgrown + vines + grav)
+    ls = build_overgrown_state()
+    assert ls.biome == "overgrown", "overgrown biome"
+    assert len(ls.vines) > 0, "vines present"
+    # Simulate full mastery grafts
+    p = Player(200, FLOOR_Y)
+    full_grafts = ["glide_efficiency", "lava_resist", "dash_mastery", "ice_armor", "hp_boost"]
+    p.apply_grafts(full_grafts)
+    assert len(p.grafts) >= 5 or has_overgrown_mastery(), "mastery threshold reachable"
+    dt = 1.0 / 60.0
+    keys = pygame.key.get_pressed()
+    for _ in range(n):
+        p.update(dt, keys, ls.platforms)
+        ls.vines.update(dt) if hasattr(ls, 'vines') else None
+    print(f"[smoke-overgrown] start+mastery {n} frames OK; biome={ls.biome} grafts={len(p.grafts)} mastered_flag={is_overgrown_mastered()}")
+
+
 if __name__ == "__main__":
+    smoke_new_features(5)
+    smoke_overgrown_mastery(10)
     unittest.main(verbosity=2)

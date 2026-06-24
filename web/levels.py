@@ -24,6 +24,7 @@ from biomes import (
     RisingLava, SporePuffer, TeleportPortal, TidalCrab, TimedGate,
     # L14-L18 rework: new enemies + anti-cheese + dark walls
     HomingSpecter, ForgeHammer, VoidEater, DarkWall,
+    Vine,
 )
 
 
@@ -87,6 +88,8 @@ class LevelDef:
     gravity_zone_defs: list[tuple[int, int, int, int, str]] = field(default_factory=list)
     # (x, y, w, h) -- walls that block unless nearby crystal is lit
     dark_wall_defs: list[tuple[int, int, int, int]] = field(default_factory=list)
+    # Overgrown post-game premium area: dense vines (x, y, w, h) entangle zones + chaotic gravity
+    vine_defs: list[tuple[int, int, int, int]] = field(default_factory=list)
 
 
 def _scatter_bamboos(platforms: list[PlatformDef], world_width: int,
@@ -153,6 +156,7 @@ class LevelState:
         self.poison_spores = pygame.sprite.Group()
         self.rising_lava: RisingLava | None = None
         self.dark_walls = pygame.sprite.Group()
+        self.vines = pygame.sprite.Group()
 
         self.goal: SafeZone | None = None
         self.boss: Boss | None = None
@@ -362,6 +366,12 @@ class LevelState:
                           self.crystals, self.platforms)
             self.dark_walls.add(dw)
             self.all_sprites.add(dw)
+
+        # Overgrown vines (post-L18 premium post-game)
+        for (vx, vy, vw, vh) in getattr(level_def, 'vine_defs', []):
+            v = Vine(vx, vy, vw, vh)
+            self.vines.add(v)
+            self.all_sprites.add(v)
 
         # Goal
         sz = SafeZone(level_def.goal_x, 200)
@@ -1159,73 +1169,137 @@ def _build_level_18() -> LevelDef:
 
 
 def _build_overgrown() -> LevelDef:
-    """Basic post-game Overgrown area (unlocked after L18 + high essence).
-    Reuses gravity zones + mechanics. Extra bamboos, mixed enemies from across game, foliage via particles.
-    Minimal new code -- reuses LevelDef, GravityZone, enemy defs, _scatter.
+    """Premium post-L18 overgrown expansion. Dense wild post-game area:
+    - More platforms incl. moving + narrow reverse-grav ceilings + floating vine chains.
+    - Vines as slow-swaying moving hazards (entangle + force timing).
+    - Unique late enemy density/variants in gravity flips (void/hammer/specter clusters).
+    - Heavy foliage particles via engine + lush gravity bg reuse.
+    - Gravity/reverse + high grav crush sections.
+    - Denser tougher bamboos (62+), sparse heals, crystals for power.
+    Unlock: L18 victory if has_overgrown_mastery() or high essence. Win gives special feedback.
     """
     plats = [
-        PlatformDef(300, 420, 200),
-        PlatformDef(700, 380, 180),
-        PlatformDef(1200, 410, 220),
-        PlatformDef(1700, 360, 160, moving=True, axis="horizontal", distance=120),
-        PlatformDef(2200, 390, 180),
-        # Gravity reuse: low grav floating
-        PlatformDef(2800, 320, 140),
-        PlatformDef(3100, 280, 160),
-        # Reverse grav ceilings (high)
-        PlatformDef(3800, 160, 180, 18),
-        PlatformDef(4200, 150, 180, 18),
-        PlatformDef(4600, 170, 160, 18),
-        PlatformDef(5100, 400, 200),
-        # High grav + mixed
-        PlatformDef(5600, 370, 180),
-        PlatformDef(6000, 390, 220),
-        PlatformDef(6500, 410, 300, 18),
+        PlatformDef(280, 430, 180),
+        PlatformDef(560, 395, 160),
+        PlatformDef(850, 365, 200),
+        PlatformDef(1180, 410, 150),
+        PlatformDef(1500, 340, 180, moving=True, axis="horizontal", distance=90),
+        PlatformDef(1950, 380, 170),
+        PlatformDef(2320, 320, 140),
+        # Low-grav floating vine chain section
+        PlatformDef(2680, 290, 120),
+        PlatformDef(2950, 255, 160),
+        PlatformDef(3250, 280, 90),
+        PlatformDef(3550, 220, 130),
+        # Reverse gravity ceiling challenge (high y small) -- narrow + moving
+        PlatformDef(3850, 155, 140, 18),
+        PlatformDef(4080, 142, 110, 18),
+        PlatformDef(4320, 160, 150, 18, moving=True, axis="horizontal", distance=70),
+        PlatformDef(4620, 148, 100, 18),
+        PlatformDef(4880, 165, 130, 18),
+        # Return to mid + high grav crush
+        PlatformDef(5200, 310, 170),
+        PlatformDef(5520, 355, 150),
+        PlatformDef(5820, 270, 120),
+        PlatformDef(6100, 390, 200),
+        PlatformDef(6450, 340, 160, moving=True, axis="vertical", distance=80),
+        PlatformDef(6780, 380, 140),
+        PlatformDef(7080, 250, 110),
+        PlatformDef(7350, 310, 180),
+        PlatformDef(7650, 370, 220),
+        # Final approach dense
+        PlatformDef(7950, 280, 90),
     ]
-    # Mixed enemies: gravity drones + patrol/slime/chaser/flying/homing from various biomes
+    # Tougher late-game mix: denser + wild variants (void/hammer/specter clusters in grav flips)
     enemies = [
-        EnemyDef(420, 400, "patrol", 160),
-        EnemyDef(850, 360, "slime", 140),
-        EnemyDef(1400, 380, "chaser"),
-        EnemyDef(2600, 300, "gravity_drone"),
-        EnemyDef(3400, 260, "gravity_drone"),
-        EnemyDef(4100, 130, "gravity_drone"),
-        EnemyDef(2000, 220, "flying", 180),
-        EnemyDef(4800, 200, "flying", 160),
-        EnemyDef(5600, 340, "homing_specter"),
-        EnemyDef(6100, 280, "homing_specter"),
-        EnemyDef(3000, 350, "patrol", 120),
+        EnemyDef(380, 400, "patrol", 150),
+        EnemyDef(720, 355, "slime", 130),
+        EnemyDef(1050, 380, "chaser"),
+        EnemyDef(1600, 300, "gravity_drone"),
+        EnemyDef(2100, 280, "flying", 170),
+        EnemyDef(2500, 200, "gravity_drone"),
+        EnemyDef(2800, 240, "phase_wraith", 110),
+        EnemyDef(3200, 180, "gravity_drone"),
+        EnemyDef(3600, 130, "homing_specter"),
+        EnemyDef(4000, 120, "void_eater"),
+        EnemyDef(4300, 135, "forge_hammer"),
+        EnemyDef(4700, 115, "homing_specter"),
+        EnemyDef(5100, 280, "phase_wraith", 120),
+        EnemyDef(5450, 320, "gravity_drone"),
+        EnemyDef(5750, 230, "flying", 150),
+        EnemyDef(5950, 350, "homing_specter"),
+        EnemyDef(6250, 360, "void_eater"),
+        EnemyDef(6600, 300, "forge_hammer"),
+        EnemyDef(6950, 210, "homing_specter"),
+        EnemyDef(7250, 280, "gravity_drone"),
+        EnemyDef(7550, 330, "phase_wraith", 90),
+        EnemyDef(7800, 250, "void_eater"),
+        # extra tough late mix
+        EnemyDef(4450, 140, "homing_specter"),
+        EnemyDef(6480, 310, "void_eater"),
+        EnemyDef(3820, 125, "forge_hammer"),
+        EnemyDef(5300, 250, "gravity_drone"),
     ]
-    # Extra bamboos for post-game density
-    bamboos = _scatter_bamboos(plats, 7200, FLOOR_Y, 38)
+    bamboos = _scatter_bamboos(plats, 8200, FLOOR_Y, 62)
+    # Expanded vines as slow moving hazards (sway in Vine class): more patches for dense entanglement
+    vine_defs = [
+        (720, 390, 120, 65),
+        (1380, 365, 150, 80),
+        (2100, 310, 90, 55),
+        (2720, 275, 110, 70),
+        (3080, 240, 130, 60),
+        (3680, 150, 95, 50),
+        (4180, 138, 100, 55),
+        (4650, 155, 85, 48),
+        (5350, 295, 140, 75),
+        (5880, 250, 105, 62),
+        (6350, 355, 160, 85),
+        (6880, 235, 95, 58),
+        (7420, 295, 120, 68),
+        (7780, 340, 80, 52),
+        # added more vine patches/hazards for denser post-game
+        (920, 370, 80, 48),
+        (1820, 330, 110, 58),
+        (2580, 260, 95, 52),
+        (3920, 145, 85, 45),
+        (5620, 270, 130, 70),
+        (7120, 220, 75, 42),
+    ]
     return LevelDef(
-        world_width=7200,
+        world_width=8200,
         platforms=plats,
         biome="overgrown",
         enemies=enemies,
         bamboo_positions=bamboos,
-        heal_positions=[(600, 380), (2500, 300), (4800, 390), (6300, 400)],
-        goal_x=6800,
-        checkpoint_positions=[1500, 3200, 5200],
-        weapon_positions=[(400, FLOOR_Y), (5500, FLOOR_Y)],
-        glide_positions=[(1800, FLOOR_Y), (4200, FLOOR_Y)],
-        dash_positions=[(1100, FLOOR_Y), (3800, FLOOR_Y)],
-        crystal_positions=[(250, FLOOR_Y), (2900, 260), (4700, 140), (6100, FLOOR_Y)],
+        heal_positions=[(520, 365), (1880, 340), (2980, 230), (5050, 280), (6150, 355), (6920, 220), (7600, 340)],
+        goal_x=7800,
+        checkpoint_positions=[1400, 2900, 5100, 6800],
+        weapon_positions=[(320, FLOOR_Y), (5700, FLOOR_Y)],
+        glide_positions=[(1650, FLOOR_Y), (4550, FLOOR_Y)],
+        dash_positions=[(980, FLOOR_Y), (3400, FLOOR_Y)],
+        crystal_positions=[(210, FLOOR_Y), (2850, 235), (4550, 125), (6200, 355), (7580, 260)],
         gravity_zone_defs=[
-            (2100, 180, 600, 260, "low"),
-            (3700, 80, 1100, 220, "reverse"),
-            (5400, 280, 800, 200, "high"),
+            (2050, 160, 520, 240, "low"),
+            (3620, 70, 1350, 200, "reverse"),
+            (5300, 240, 720, 180, "high"),
+            (7050, 190, 480, 160, "low"),
+            # special wild gravity for overgrown: extra chaotic zones
+            (1480, 280, 380, 160, "high"),
+            (4800, 120, 420, 130, "reverse"),
         ],
         crumbling_defs=[
-            PlatformDef(3600, 180, 120),
-            PlatformDef(4000, 160, 120),
+            PlatformDef(3450, 210, 95),
+            PlatformDef(3850, 148, 80),
+            PlatformDef(5220, 295, 85),
+            PlatformDef(6700, 235, 75),
         ],
-        wind_zones=[(2400, 220, 180, 160, 0.9)],
-        geyser_positions=[(6200, FLOOR_Y)],
-        npc_defs=[(6600, FLOOR_Y, "Overgrowth",
-                   ["The forest grows wild again.",
-                    "Gravity still bends here. Collect the last bamboo."],
-                   (60, 160, 80))],
+        wind_zones=[(2250, 200, 160, 150, 0.85), (5650, 280, 140, 130, 1.15)],
+        geyser_positions=[(5980, FLOOR_Y)],
+        vine_defs=vine_defs,
+        npc_defs=[(7600, FLOOR_Y, "Overgrowth",
+                   ["The wild reclaims its own.",
+                    "Swaying vines remember. Gravity bends the bold. Claim the heart."],
+                   (55, 145, 70))],
     )
 
 

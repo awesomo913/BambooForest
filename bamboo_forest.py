@@ -2,6 +2,15 @@ import random
 import pygame
 import sys
 import os
+from pathlib import Path
+
+# Crash / diagnostic logger (workspace rule for all entry points)
+sys.path.insert(0, str(Path.home() / ".claude" / "scripts"))
+try:
+    from crash_logger import install, log_event
+    install(project_root=Path(__file__).parent)
+except Exception:
+    def log_event(*a, **k): pass
 
 # --- PATH FIX FOR LINUX SHORTCUTS ---
 # This forces the game to look for images exactly where the script lives (your Desktop)

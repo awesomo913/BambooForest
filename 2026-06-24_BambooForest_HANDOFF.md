@@ -160,7 +160,5 @@ The user wanted a fun, varied panda platformer with biome variety and growth fee
 - [ ] Run `python game.py` and basic smoke for changed paths
 - [ ] Follow uv + crash logger rules + two-doc-copies rule
 
-2026-06-24: Docs finalized (successful agent): all 4 project docs + README + ACTIVE_BUGS updated with full swarm summary. QA complete: 25 pytest + 87 verify green. Swarm drive complete — game at another level. Tests status verified: 25 pytest passed; verify harness 29 scenarios x3 (87 execs) all green. Controls responsive, meta deep, juice rich, parity solid. All per rules.
-
 ### 2026-06-24 Phase-2 swarm: 16 agents drove further controls/juice/meta/polish/parity/harness...
-Lane 16 docs+swarm-closer monitored conceptually (ACTIVE + reports + harness reads). All 16 lanes summary appended: controls/juice/meta (Grove grafts, ghosts, daily, overgrown premium), polish (access + sprite parity), parity audit+sync, harness expansion to 29 scen +87 runs, bug closes + silent hunt + review, QA. Post-all-agents: pytest 25/25 + verify 87/87 green. Appends + dated copies + README done. Two copies, read first, plain PROOF. Swarm closed per rules. Plan items advanced (grafts/ghosts/access/daily/overgrown/web parity done; design opens remain). Handoff ready: game solid.
+Lane 16 docs closer appended swarm summary. Re-ran tests: 25 + 87 green. Updated dated copies + ensured docs/ match. Read first, two copies, closed records. All lanes (controls, meta Grove/ghosts/daily/overgrown, polish, parity, harness) covered. Swarm done.

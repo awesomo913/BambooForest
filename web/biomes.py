@@ -961,27 +961,51 @@ class DustDevil(pygame.sprite.Sprite):
 
     def __init__(self, x: int, y: int, patrol_width: float = 300.0) -> None:
         super().__init__()
-        # Enforce minimum width so small instances still move visibly
+        # Minimum patrol width so movement reads clearly even in tight spaces
         self.patrol_width = max(150.0, patrol_width)
-        # Build a bigger, more readable sandstorm sprite (44x72)
-        W, H = 44, 72
+        # Build a BIG tornado -- wide at top, narrow at ground (real dust-devil shape)
+        W, H = 64, 110
         self._frames = []
-        for frame_offset in range(4):
+        for frame_offset in range(6):
             surf = pygame.Surface((W, H), pygame.SRCALPHA)
+            # Column slabs: width starts wide at top and tapers to narrow point
             for dy in range(0, H, 3):
-                # Wider base, narrower top (tornado shape)
-                base_w = 10 + int(14 * (dy / H))
-                wobble = int(7 * math.sin(dy * 0.15 + frame_offset))
-                w = base_w + wobble
-                # Darker sand at core, lighter at edges
-                alpha = 140 if abs(wobble) < 4 else 90
-                pygame.draw.rect(surf, (*COL_SANDSTONE, alpha),
-                                 (W // 2 - w // 2, dy, w, 3))
-            # Darker swirl lines
-            for i in range(4):
-                sx = (frame_offset * 3 + i * 5) % W
-                pygame.draw.line(surf, (140, 100, 60, 160),
-                                 (sx, 10), (sx + 6, H - 8), 1)
+                frac = dy / H  # 0 at top, 1 at bottom
+                # Wide top (50% of W), narrow bottom (15%)
+                base_w = int(W * (0.5 - 0.35 * frac))
+                # Swirl wobble -- shifts with frame for rotation illusion
+                wobble = int(9 * math.sin(dy * 0.18 + frame_offset * 0.9))
+                w = max(4, base_w + abs(wobble))
+                off_x = wobble // 2
+                # Alpha gradient: more opaque in middle of the column
+                alpha = 180 - int(abs(wobble) * 6)
+                alpha = max(70, min(200, alpha))
+                # Darker sand core, lighter at edges
+                col_core = (150, 110, 65, alpha)
+                col_edge = (200, 170, 120, max(40, alpha - 60))
+                rect_x = (W - w) // 2 + off_x
+                pygame.draw.rect(surf, col_core, (rect_x, dy, w, 3))
+                # Bright edge highlights to catch the eye
+                pygame.draw.rect(surf, col_edge, (rect_x, dy, 2, 3))
+                pygame.draw.rect(surf, col_edge, (rect_x + w - 2, dy, 2, 3))
+            # Rotating debris streaks (darker, diagonal)
+            for i in range(6):
+                sx_top = (frame_offset * 4 + i * 11) % W
+                sx_bot = (sx_top + W // 2) % W  # crossover diagonal
+                pygame.draw.line(surf, (90, 60, 30, 180),
+                                 (sx_top, 4), (sx_bot, H - 6), 2)
+            # Flying sand particles scattered around
+            for _ in range(15):
+                px = random.randint(0, W - 1)
+                py_ = random.randint(0, H - 1)
+                pygame.draw.circle(surf, (220, 190, 130, 200), (px, py_), 1)
+            # Cap at top: wide dark "cloud" cap so it reads as a SANDSTORM
+            cap_w = int(W * 0.55)
+            cap_x = (W - cap_w) // 2
+            pygame.draw.ellipse(surf, (120, 90, 55, 200),
+                                (cap_x, 0, cap_w, 14))
+            pygame.draw.ellipse(surf, (160, 130, 90, 150),
+                                (cap_x + 4, 2, cap_w - 8, 10))
             self._frames.append(surf)
         self.image = self._frames[0]
         self.rect = self.image.get_rect(bottomleft=(x, y))
@@ -2141,6 +2165,52 @@ class ForgeHammer(pygame.sprite.Sprite):
 
     def alive(self):
         return True
+
+
+# ===================================================================
+# Vine -- Overgrown post-game hazard (dense theme)
+# Entangles player: slows horiz move + light downward snag. Visual tangle.
+# ===================================================================
+
+class Vine(pygame.sprite.Sprite):
+    """Dense vine patch. On contact: slows player x vel, adds light downward pull.
+    Sways slowly (moving hazard) in overgrown for premium post-game challenge.
+    """
+
+    def __init__(self, x: int, y: int, w: int, h: int) -> None:
+        super().__init__()
+        self.image = pygame.Surface((w, h), pygame.SRCALPHA)
+        # Lush tangled green look for overgrown
+        self.image.fill((35, 95, 45, 95))
+        for i in range(0, w, 11):
+            pygame.draw.line(self.image, (25, 80, 35, 170), (i, 3), (i + 5, h - 2), 3)
+            pygame.draw.line(self.image, (55, 130, 60, 120), (i + 7, 1), (i - 3, h), 1)
+            if i % 3 == 0:
+                pygame.draw.line(self.image, (70, 150, 70, 80), (i + 2, h // 3), (i + 9, 2 * h // 3), 2)
+        self.rect = self.image.get_rect(topleft=(x, y))
+        self.base_x: int = x
+        self.sway_time: float = random.uniform(0.0, 6.28)
+        self.sway_amp: float = random.uniform(5.0, 11.0)  # variable for premium unpredictable feel
+
+    def update(self, dt: float) -> None:
+        """Slow horizontal sway -- vines as moving hazards. Variable amp."""
+        self.sway_time += dt * 0.85
+        offset = int(math.sin(self.sway_time) * self.sway_amp)
+        self.rect.x = self.base_x + offset
+
+    def apply_entangle(self, player) -> None:
+        """Slow and snag. Stronger in air. Mastery (2+ grafts) resists the wild (premium progression feel)."""
+        grafts = getattr(player, "grafts", []) or []
+        resist = 0.72 if len(grafts) >= 2 else 1.0
+        if hasattr(player, "velocity_x"):
+            factor = (0.55 if getattr(player, "is_on_ground", True) else 0.42) * resist
+            player.velocity_x *= factor
+        if hasattr(player, "velocity_y"):
+            pull = (105 if not getattr(player, "is_on_ground", True) else 65) * resist
+            player.velocity_y = min(getattr(player, "velocity_y", 0) + pull, 175)
+        if hasattr(player, "input_locked"):
+            player.input_locked = True
+            # cleared by gameplay on next ground or timer
 
 
 # ===================================================================

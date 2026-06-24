@@ -94,8 +94,8 @@ SPIDER_DROP_SPEED: float = 400.0
 GLOWWORM_SNAP_RANGE: float = 60.0
 
 # --- Level 8: Salt Flats (Ice) ---
-ICE_FRICTION: float = 0.90     # final tuned 0.90 (per-frame mult); ~1.5-2s coast feel on ice with snap-to-zero logic
-ICE_ACCEL: float = 1500.0      # px/s^2 -- meaningful acceleration on ice
+ICE_FRICTION: float = 0.88     # tuned 0.88 (quicker predictable stop, no creep, with snap-to-zero on no-input); still ~1.2s coast feel
+ICE_ACCEL: float = 1470.0      # px/s^2 -- meaningful acceleration on ice (slightly gentler punch for perfect control)
 BRINE_GROW_RATE: float = 0.5
 BRINE_DMG_RADIUS: float = 40.0
 PHANTOM_SPEED: float = 100.0
@@ -106,10 +106,10 @@ DASH_DURATION_SEC: float = 30.0
 
 # --- Controls (jump feel) ---
 JUMP_BUFFER_TIME: float = 0.10   # seconds to queue a jump before landing (buffer + coyote for forgiveness)
-JUMP_CUT_MULTIPLIER: float = 0.55  # velocity multiplier when releasing jump early (variable height; tap=short hop)
-COYOTE_TIME: float = 0.12        # seconds of post-leave-ground forgiveness (crisp 0.12s ~7 frames; forgiving ledges w/o floaty/easy)
-AIR_ACCEL: float = 1580.0        # air control accel px/s2 (tuned for crisp turns + steer without losing momentum feel)
-HITSTOP_LAND_SEC: float = 0.032  # tiny juice: very brief x-damp on land for planty "snap" (forgiving stop w/o stick)
+JUMP_CUT_MULTIPLIER: float = 0.52  # velocity multiplier when releasing jump early (variable height; tap=short hop) -- slightly snappier for responsive cut
+COYOTE_TIME: float = 0.14        # seconds of post-leave-ground forgiveness (slightly more 0.14s ~8 frames for premium ledge catch, still crisp no float)
+AIR_ACCEL: float = 1620.0        # air control accel px/s2 (punchier steer curve for smarter air turns + control w/o losing momentum)
+HITSTOP_LAND_SEC: float = 0.035  # tiny juice: very brief x-damp on land for planty "snap" (forgiving stop w/o stick)
 
 # --- Level 14: Fungal Hollows ---
 MUSHROOM_BOUNCE: float = -1100.0
@@ -289,4 +289,9 @@ RECIPES: list[dict] = [
     {"essences": ["basalt", "desert"], "graft": "bamboo_yield", "name": "Bamboo Yield", "desc": "Bamboo yield: +10 score per bamboo"},
     {"essences": ["forest", "corrupted"], "graft": "combo_bonus", "name": "Combo Boost", "desc": "Combo bonus: stronger scaling on combos"},
     {"essences": ["volcanic", "gravity"], "graft": "weak_glide", "name": "Feather Fall", "desc": "Weak glide: mild permanent slow-fall"},
+    # New powerful grafts (Lane 5 expansion: 12+ recipes, 3/4-essence richer combos)
+    {"essences": ["forest", "mushroom"], "graft": "vine_whip", "name": "Vine Whip", "desc": "Vine lash: melee extends + entangle chance on hit"},
+    {"essences": ["salt", "void", "gravity"], "graft": "chrono_step", "name": "Chrono Step", "desc": "Chrono dash: shorter cooldown + brief time slow on trigger"},
+    {"essences": ["mushroom", "cave", "forge"], "graft": "spore_shield", "name": "Spore Shield", "desc": "Spore puff: on hit release spores (resist + nearby counter)"},
+    {"essences": ["desert", "volcanic", "basalt", "tidal"], "graft": "essence_magnet", "name": "Essence Magnet", "desc": "Essence magnet: +bonus essence on bamboo/clears + pull feel"},
 ]

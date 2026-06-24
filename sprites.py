@@ -23,6 +23,7 @@ from config import (
     JUMP_BUFFER_TIME, GHOST_ALPHA, PROJECTILE_WORLD_WIDTH,
     ICE_ACCEL, ICE_FRICTION,
     JUMP_CUT_MULTIPLIER, GLIDE_DURATION_SEC,
+    COYOTE_TIME, AIR_ACCEL, HITSTOP_LAND_SEC,
     SHURIKEN_SPEED, ICE_PROJECTILE_SPEED,
 )
 
@@ -688,6 +689,7 @@ class Player(pygame.sprite.Sprite):
         self._jump_buffered: bool = False
         self._jump_buffer_time: float = 0.0
         self._consumed_buffered_jump: bool = False  # set True for one frame when buffer auto-fires on land
+        self._just_cut: bool = False  # one-frame for jump cut visual juice
         # Grafts from Grove meta (profile persisted modifiers, applied on spawn)
         self.grafts: list[str] = []
         # Hit flash juice (brief white pop on damage for feedback)
@@ -697,11 +699,14 @@ class Player(pygame.sprite.Sprite):
 
     def update(self, dt: float, keys: pygame.key.ScancodeWrapper,
                platforms: pygame.sprite.Group) -> None:
+        # HOTPATH: player physics, timers, movement, collisions. Called every frame.
+        # Avoid allocations here; use precomputed grafts, dt scaling from caller.
         if self.dead:
             return
 
         # Clear one-frame buffered-jump-consumed flag each frame
         self._consumed_buffered_jump = False
+        self._just_cut = False
 
         # Hitstop juice countdown (tiny land/vine snap)
         if self.hitstop_timer > 0:
@@ -753,10 +758,10 @@ class Player(pygame.sprite.Sprite):
             self.velocity_x *= ICE_FRICTION
             max_v = PLAYER_SPEED * 1.5
             self.velocity_x = max(-max_v, min(max_v, self.velocity_x))
-            # Only snap to zero when truly stopped AND no input
+            # Only snap to zero when truly stopped AND no input -- tighter snap for perfect no-creep predictable ice
             no_input = not (keys[pygame.K_LEFT] or keys[pygame.K_a]
                            or keys[pygame.K_RIGHT] or keys[pygame.K_d])
-            if no_input and abs(self.velocity_x) < 0.5:
+            if no_input and abs(self.velocity_x) < 0.8:
                 self.velocity_x = 0.0  # ice snap: stop cleanly only with zero input (prevents creep/softlock)
         else:
             # Non-ice ground/air movement
@@ -779,8 +784,8 @@ class Player(pygame.sprite.Sprite):
                     # Accelerate toward input; allow turning around with a bit more "bite"
                     if (desired > 0) != (self.velocity_x > 0) and abs(self.velocity_x) > 60:
                         # Turning around: give a stronger kick so you don't feel stuck in old direction
-                        # (air accel turning kick) -- crispier 0.65 for responsive reverse
-                        self.velocity_x += (desired - self.velocity_x) * 0.65
+                        # smarter curve: 0.72 for even crisper responsive reverse (air control punch w/o twitch)
+                        self.velocity_x += (desired - self.velocity_x) * 0.72
                     else:
                         # Normal accel toward desired direction, capped at desired speed
                         step = AIR_ACCEL * dt
@@ -790,7 +795,7 @@ class Player(pygame.sprite.Sprite):
                             self.velocity_x = max(desired, self.velocity_x - step)
                 else:
                     # No input: gentle air friction so you eventually slow if you let go
-                    self.velocity_x *= 0.985
+                    self.velocity_x *= 0.980
 
         # Glide: hold SPACE while airborne + falling
         # Low threshold (10) makes glide forgiving -- catches you soon after apex (glide forgiving threshold)
@@ -801,6 +806,7 @@ class Player(pygame.sprite.Sprite):
         # (JUMP_CUT) -- polled here for consistency; removed duplicate from game KEYUP to prevent double mul
         if not jump_held and self.velocity_y < 0 and not self.is_gliding and not self.is_dashing:
             self.velocity_y *= JUMP_CUT_MULTIPLIER
+            self._just_cut = True  # for juice feedback in game loop
 
         # Jump buffer: allow pressing jump slightly before landing (JUMP_BUFFER_TIME window)
         # Makes controls feel much more responsive and forgiving
@@ -920,6 +926,15 @@ class Player(pygame.sprite.Sprite):
                     self.coyote_timer = COYOTE_TIME
                     # Tiny juice: landing snap hitstop (plant feet crisp on ceiling revgrav)
                     self.hitstop_timer = HITSTOP_LAND_SEC
+                    # Consume jump buffer on revgrav ceiling land (symmetric to normal gravity)
+                    if self._jump_buffered and self.jumps_remaining > 0:
+                        kick = -PLAYER_JUMP
+                        self.velocity_y = kick
+                        self.jumps_remaining -= 1
+                        self.is_on_ground = False
+                        self._jump_buffered = False
+                        self._jump_buffer_time = 0.0
+                        self._consumed_buffered_jump = True
                 elif dy > 0:
                     # Bonked feet on top of platform while falling down in reverse grav
                     self.rect.bottom = hit.rect.top
@@ -991,9 +1006,9 @@ class Player(pygame.sprite.Sprite):
             if getattr(self, 'gravity_multiplier', 1.0) < 0:
                 kick = -PLAYER_JUMP
             self.velocity_y = kick
-            # Revgrav ceiling launch feel tweak: give a touch more "pop" off stick for crisp release
+            # Revgrav ceiling launch feel tweak: give a touch more "pop" off stick for crisp release -- 1.05 for closer symmetry to normal grav jump
             if getattr(self, 'gravity_multiplier', 1.0) < 0:
-                self.velocity_y *= 1.08  # tiny extra launch snap without making floaty or easy
+                self.velocity_y *= 1.05  # tiny extra launch snap without making floaty or easy; symmetric tuned
             self.jumps_remaining -= 1
             if self.is_on_ground:
                 self.is_on_ground = False
@@ -1182,6 +1197,7 @@ class Player(pygame.sprite.Sprite):
         self._jump_buffered = False
         self._jump_buffer_time = 0.0
         self._consumed_buffered_jump = False
+        self._just_cut = False
 
     def apply_grafts(self, grafts: list[str]) -> None:
         """Apply profile grafts. Called by Game after player creation.
@@ -1410,6 +1426,24 @@ class GhostPanda(pygame.sprite.Sprite):
             sx = self.rect.x + offset_x
             sy = self.rect.y + offset_y
         screen.blit(frame, (sx, sy))
+        # Richer motion-blur trail: faint prior frames with fading alpha (premium ghost feel, encouraging chase)
+        trail_fades = [0.72, 0.48, 0.30, 0.16]
+        for k, fade in enumerate(trail_fades):
+            pidx = self.idx - 1 - k
+            if pidx < 0:
+                break
+            _, pgx, pgy, pf = self.replay[pidx]
+            lag = (k + 1) * 1
+            pframe = lst[(fidx - lag) % len(lst)].copy() if len(lst) > 1 else frame.copy()
+            if not pf:
+                pframe = pygame.transform.flip(pframe, True, False)
+            pframe.set_alpha(int(GHOST_ALPHA * fade))
+            if camera is not None:
+                psx, psy = camera.apply_pos(pgx, pgy)
+            else:
+                psx = pgx + offset_x
+                psy = pgy + offset_y
+            screen.blit(pframe, (psx, psy))
 
 
 class Platform(pygame.sprite.Sprite):

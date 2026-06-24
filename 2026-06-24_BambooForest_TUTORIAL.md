@@ -101,7 +101,4 @@ Every bamboo you collect earns 1 essence for its biome. From title or pause scre
 - All verified green: 25 pytest + 16 scenarios in verify harness (x3) including overgrown, ghosts, grafts, web parity.
 - Docs finalized with appends + fresh dated copies of the four main docs to root and central AI/docs folder. Plain language. No code changes this pass.
 
-2026-06-24: Docs finalized (successful agent): all 4 project docs + README + ACTIVE_BUGS updated with full swarm summary. QA complete: 25 pytest + 87 verify green. Swarm drive complete — game at another level. Tests status verified: 25 pytest passed; verify harness 29 scenarios x3 (87 execs) all green. Controls responsive, meta deep, juice rich, parity solid. All per rules.
-
-### 2026-06-24 Phase-2 swarm: 16 agents drove further controls/juice/meta/polish/parity/harness...
-Lane 16 closer appended final plain summary. All lanes (controls feel, juice layers, Grove meta full with 8 grafts, ghosts replay, daily seeds, overgrown vines/chaos, access O, sprite/UI parity, full harness 29/87, bug fixes, parity, QA) delivered. After agents: pytest exactly 25 pass + verify 87 green. Root docs + dated copies updated in project + docs/. Swarm closed. You get better controls, more juice, new ways to grow (Grove + ghosts + daily + overgrown), same on web. Plain language records done.
+2026-06-24 Phase-2 swarm: 16 agents drove further controls/juice/meta/polish/parity/harness. Lane 16 appended final to this dated TUTORIAL. 25 pytest + 87 verify green post agents. Dated copies synced to project/docs/. Read before write. Swarm closed.

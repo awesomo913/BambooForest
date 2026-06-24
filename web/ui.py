@@ -8,12 +8,12 @@ from typing import TYPE_CHECKING
 import pygame
 
 from config import (
-    COL_BAMBOO, COL_BLACK, COL_GOLD, COL_HP_GREEN, COL_HP_RED, COL_HUD_BG,
-    COL_MENU_BG, COL_RED, COL_WHITE, LEVEL_NAMES, PLAYER_MAX_HP,
-    SCREEN_HEIGHT, SCREEN_WIDTH, ACCESSIBILITY_LABELS, ACCESSIBILITY_RANGES,
+    COL_BAMBOO, COL_GOLD, COL_HP_GREEN, COL_HP_RED, COL_HUD_BG,
+    COL_RED, COL_WHITE, LEVEL_NAMES, PLAYER_MAX_HP,
+    SCREEN_HEIGHT, SCREEN_WIDTH, ACCESSIBILITY_LABELS,
 )
-from save import get_best_score, add_essence, load_essences, load_grafts, unlock_graft, ESSENCE_BIOME_KEYS, get_profile_essences_and_grafts, load_settings, save_settings, spend_essence, spend_specific_essences
-from config import BIOME_ESSENCE, RECIPES
+from save import get_best_score, unlock_graft, ESSENCE_BIOME_KEYS, get_profile_essences_and_grafts, spend_specific_essences
+from config import RECIPES
 
 if TYPE_CHECKING:
     from engine import Camera
@@ -64,6 +64,71 @@ def draw_text_left(screen: pygame.Surface, text: str, size: int,
     font = get_font(size, bold)
     surf = font.render(text, True, color)
     screen.blit(surf, surf.get_rect(midleft=(x, cy)))
+
+
+def get_daily_modifier_summary(seed: int) -> str:
+    """Readable daily mod summary for title/pause feedback. Deterministic from seed."""
+    if not seed:
+        return ""
+    s = int(seed)
+    parts = []
+    if (s % 3) == 0:
+        parts.append("High wind")
+    else:
+        parts.append("Gusty winds")
+    if (s % 5) < 2:
+        parts.append("extra desert essence")
+    parts.append("tougher enemies")
+    if (s % 4) == 0:
+        parts.append("fewer checkpoints")
+    # always signal the essence bonus juice for daily
+    if "extra desert essence" not in parts:
+        parts.append("extra essence")
+    return " + ".join(parts[:4])
+
+
+def get_mastery_progress_text() -> str:
+    """Progress toward overgrown (5 grafts or 25 total ess)."""
+    try:
+        from save import load_grafts, load_essences
+        g = len(load_grafts())
+        ess = load_essences() or {}
+        te = sum(ess.values()) if ess else 0
+        gstr = f"{g}/5"
+        estr = f"{te}/25"
+        if g >= 5 or te >= 25:
+            return f"OVERGROWN MASTERED (G{gstr} E{estr})"
+        return f"Mastery: G{gstr}  E{estr}"
+    except Exception:
+        return "Mastery: G0/5 E0/25"
+
+
+def _draw_biome_icon(screen: pygame.Surface, key: str, x: int, y: int, size: int = 10) -> None:
+    """Tiny biome icon for Grove essence list (juice feedback)."""
+    k = key or ""
+    if k == "desert":
+        # cactus
+        pygame.draw.rect(screen, (34, 139, 34), (x + 2, y + 1, size - 4, size - 2))
+        pygame.draw.circle(screen, (34, 139, 34), (x + 1, y + 3), 2)
+        pygame.draw.circle(screen, (34, 139, 34), (x + size - 1, y + size - 3), 2)
+    elif k == "forest":
+        # tree
+        pygame.draw.polygon(screen, (34, 120, 34), [(x + size//2, y), (x, y + size - 2), (x + size, y + size - 2)])
+        pygame.draw.rect(screen, (101, 67, 33), (x + size//2 - 1, y + size - 4, 3, 4))
+    elif k in ("volcanic", "forge"):
+        # lava/magma
+        pygame.draw.polygon(screen, (200, 80, 40), [(x + 1, y + size), (x + size//2, y), (x + size - 1, y + size)])
+    elif k in ("salt", "ice"):
+        # ice/salt
+        pygame.draw.polygon(screen, (200, 220, 255), [(x + 1, y), (x + size, y + 2), (x + size//2, y + size)])
+    elif k == "cave":
+        pygame.draw.circle(screen, (100, 120, 160), (x + size//2, y + size//2), size//2)
+    elif k == "gravity":
+        pygame.draw.circle(screen, (140, 80, 180), (x + size//2, y + size//2), size//2 - 1)
+        pygame.draw.line(screen, (200, 160, 220), (x + 2, y + 2), (x + size - 3, y + size - 3), 1)
+    else:
+        # default leaf dot
+        pygame.draw.circle(screen, (80, 160, 60), (x + size//2, y + size//2), max(2, size//3))
 
 
 # ---------------------------------------------------------------------------
@@ -233,6 +298,9 @@ class HUD:
         if daily_seed:
             draw_text(screen, f"DAILY {daily_seed}", 12, (160, 200, 160),
                       SCREEN_WIDTH // 2, 8)
+            mod = get_daily_modifier_summary(daily_seed)
+            if mod:
+                draw_text(screen, mod, 8, (140, 190, 160), SCREEN_WIDTH // 2, 18)  # visible daily mod summary during play (juice)
 
         # Speedrun timer (next-level feature - visible in play)
         if run_timer > 0:
@@ -285,6 +353,29 @@ class HUD:
                 picon(screen, pwr_x, pwr_y + row * 20 + 2, col)
                 draw_text(screen, f"{ptype} {val}s", 10, col, pwr_x + 14, pwr_y + row * 20 + 6)
                 row += 1
+
+        # Small active grafts HUD list (Grove mastery feedback, visible in play)
+        # Compact, pale green, only if any. Keeps minimal footprint.
+        grafts = getattr(player, "grafts", None) or []
+        if grafts:
+            short = []
+            for g in grafts:
+                if g == "lava_resist":
+                    short.append("Lava")
+                elif g in ("glide_efficiency", "weak_glide"):
+                    short.append("Glide+")
+                elif g == "dash_mastery":
+                    short.append("Dash+")
+                elif g == "ice_armor":
+                    short.append("Ice")
+                elif g == "hp_boost":
+                    short.append("HP+")
+                else:
+                    short.append(g[:6])
+            glabel = "G: " + " ".join(short)
+            gsurf = get_font(9).render(glabel, True, (110, 195, 125))
+            gy = 108 if player.has_ice_magic else 93
+            screen.blit(gsurf, (22, gy))
 
         # Combo counter
         if player.combo_count > 1:
@@ -847,6 +938,10 @@ class TitleScreen:
                 dseed = "----"
             dlabel = f"DAILY {dseed} ON" if don else f"DAILY {dseed} (D)"
             draw_text(screen, dlabel, 12, (200, 230, 240) if don else (170, 190, 200), SCREEN_WIDTH // 2, dby + 11)
+            if don:
+                modsum = get_daily_modifier_summary(int(dseed) if dseed.isdigit() else 0)
+                if modsum:
+                    draw_text(screen, modsum, 9, (160, 210, 180), SCREEN_WIDTH // 2, dby + 32)
 
         # Overgrown post-game challenge button (only if unlocked, Feature post-L18)
         if not self.gallery_open:
@@ -863,6 +958,14 @@ class TitleScreen:
                     pygame.draw.rect(screen, (180, 140, 220), (obx, oby, obtn_w, obtn_h), 1, border_radius=4)
                     olabel = "OVERGROWN ON" if oon else "OVERGROWN (O)"
                     draw_text(screen, olabel, 12, (220, 200, 240) if oon else (180, 160, 200), SCREEN_WIDTH // 2, oby + 11)
+                    # Polish: show mastery progress on entry button (full rewards at 5)
+                    try:
+                        from save import load_grafts
+                        gct = len(load_grafts())
+                        mp = get_mastery_progress_text()
+                        draw_text(screen, mp.split("Mastery: ")[-1] if "Mastery:" in mp else f"G{gct}/5", 9, (200, 180, 220), SCREEN_WIDTH // 2, oby + 22)
+                    except Exception:
+                        pass
             except Exception:
                 pass
 
@@ -1007,7 +1110,7 @@ class PauseOverlay:
             return True
         return False
 
-    def draw(self, screen: pygame.Surface) -> None:
+    def draw(self, screen: pygame.Surface, grafts: list[str] | None = None, daily_seed: int = 0, daily_mode: bool = False) -> None:
         overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 200))
         screen.blit(overlay, (0, 0))
@@ -1015,6 +1118,13 @@ class PauseOverlay:
                          SCREEN_WIDTH // 2, 36, bold=True)
         draw_text(screen, "ESC to Resume  |  Q to Quit  |  O Accessibility  |  G: The Grove", 14, (180, 180, 180),
                   SCREEN_WIDTH // 2, 62)
+        if daily_mode and daily_seed:
+            modsum = get_daily_modifier_summary(daily_seed)
+            if modsum:
+                draw_text(screen, f"DAILY MODS: {modsum}", 11, (160, 210, 180), SCREEN_WIDTH // 2, 78)
+            mp = get_mastery_progress_text()
+            if mp:
+                draw_text(screen, mp, 10, (200, 180, 220), SCREEN_WIDTH // 2, 92)
 
         # Mini enemy encyclopedia -- use 5 cols + smaller cards on dense; fix start_y / row_h / col_w / total calc
         # pixel-width wrap so text never clips card bounds. Scroll preserved.
@@ -1080,10 +1190,13 @@ class PauseOverlay:
                 if font_desc.size(test)[0] <= text_max_w and len(lines) < 2:
                     cur = test
                 else:
-                    if cur: lines.append(cur)
+                    if cur:
+                        lines.append(cur)
                     cur = w
-                    if len(lines) >= 2: break
-            if cur and len(lines) < 2: lines.append(cur)
+                    if len(lines) >= 2:
+                        break
+            if cur and len(lines) < 2:
+                lines.append(cur)
             for li, ln in enumerate(lines[:2]):
                 d = font_desc.render(ln, True, (195, 205, 195))
                 screen.blit(d, (x + text_left, y + 30 + li * 9))
@@ -1115,6 +1228,29 @@ class PauseOverlay:
                 SCREEN_HEIGHT - arr_h - 14)
             draw_text(screen, "▲▼ scroll", 9, (145, 180, 145),
                       arr_x + arr_w // 2, SCREEN_HEIGHT - arr_h - 22)
+
+        # Active grafts list in pause (mastery feedback)
+        gs = grafts or []
+        if gs:
+            short = []
+            for g in gs:
+                if g == "lava_resist":
+                    short.append("Lava")
+                elif g in ("glide_efficiency", "weak_glide"):
+                    short.append("Glide+")
+                elif g == "dash_mastery":
+                    short.append("Dash+")
+                elif g == "ice_armor":
+                    short.append("Ice")
+                elif g == "hp_boost":
+                    short.append("HP+")
+                else:
+                    short.append(g[:6])
+            draw_text(screen, "GRAFTS: " + "  ".join(short), 11, (120, 210, 130),
+                      SCREEN_WIDTH // 2, SCREEN_HEIGHT - 28)
+        mp = get_mastery_progress_text()
+        if mp and "MASTERED" not in mp:
+            draw_text(screen, mp, 9, (180, 160, 200), SCREEN_WIDTH // 2, SCREEN_HEIGHT - 14)
 
 
 # ---------------------------------------------------------------------------
@@ -1174,7 +1310,6 @@ class _Confetto:
         if self.life <= 0:
             return
         a = max(30, int(255 * (self.life / self.max_life)))
-        c = (*self.color, a) if len(self.color) == 3 else self.color
         cx, cy = int(self.x), int(self.y)
         s = max(2, int(self.size * (self.life / self.max_life + 0.2)))
         if self.shape == "spark":
@@ -1205,7 +1340,16 @@ class VictoryScreen:
         self.timer += dt
         # spawn juicy confetti + leaves + sparkles over time
         import random
-        while len(self.confetti) < 42 and random.random() < 0.85:
+        cap = 42
+        rate = 0.85
+        try:
+            from save import is_overgrown_unlocked
+            if is_overgrown_unlocked():
+                cap = 58  # denser particles on victory when mastery booster unlocked
+                rate = 0.92
+        except Exception:
+            pass
+        while len(self.confetti) < cap and random.random() < rate:
             self.confetti.append(_Confetto(
                 random.uniform(40, SCREEN_WIDTH-40),
                 random.uniform(-20, SCREEN_HEIGHT * 0.45)
@@ -1219,7 +1363,10 @@ class VictoryScreen:
              is_high_score: bool,
              speedrun_time: float | None = None,
              best_time: float | None = None,
-             has_ghost: bool = False) -> None:
+             has_ghost: bool = False,
+             graft_count: int | None = None,
+             essence_total: int | None = None,
+             overgrown_mastered: bool = False) -> None:
         # Richer gradient + subtle leaves/sparkle bg
         for y in range(SCREEN_HEIGHT):
             t = y / SCREEN_HEIGHT
@@ -1228,7 +1375,7 @@ class VictoryScreen:
             b = int(20 * (1 - t) + 5 * t)
             pygame.draw.line(screen, (r, g, b), (0, y), (SCREEN_WIDTH, y))
         # ambient sparkles and leaves (non-gameplay juicy)
-        import random, math as m
+        import math as m
         for i in range(8):
             sx = (SCREEN_WIDTH * 0.2 + (i * 97) % (SCREEN_WIDTH * 0.6)) + m.sin(self.timer * 1.6 + i) * 12
             sy = 80 + ((i * 47) % 160) + m.cos(self.timer * 2 + i) * 8
@@ -1248,6 +1395,15 @@ class VictoryScreen:
                          SCREEN_WIDTH // 2, int(SCREEN_HEIGHT * 0.28 + bounce), bold=True)
         draw_text(screen, f"Final Score: {final_score}", 36, COL_WHITE,
                   SCREEN_WIDTH // 2, int(SCREEN_HEIGHT * 0.48))
+        # End screen mastery stats (final closer)
+        if graft_count is not None or essence_total is not None:
+            gc = graft_count if graft_count is not None else 0
+            et = essence_total if essence_total is not None else 0
+            draw_text(screen, f"Grafts: {gc}   Essences: {et}", 16, (170, 210, 160),
+                      SCREEN_WIDTH // 2, int(SCREEN_HEIGHT * 0.53))
+        if overgrown_mastered:
+            draw_text(screen, "★ OVERGROWN MASTERED ★", 18, (140, 255, 160),
+                      SCREEN_WIDTH // 2, int(SCREEN_HEIGHT * 0.565))
         if is_high_score:
             alpha = int(128 + 127 * math.sin(self.timer * 5))
             font = get_font(28, bold=True)
@@ -1271,6 +1427,16 @@ class VictoryScreen:
                           SCREEN_WIDTH // 2, int(SCREEN_HEIGHT * 0.78) - 22)
         draw_text(screen, "Press ENTER to Play Again", 24, (180, 180, 180),
                   SCREEN_WIDTH // 2, int(SCREEN_HEIGHT * 0.78))
+        # Overgrown entry from victory if unlocked -- premium post-game offer
+        try:
+            from save import is_overgrown_unlocked
+            if is_overgrown_unlocked():
+                draw_text(screen, "O: Enter Overgrown (post-L18 wilds — moving vines, reverse grav)", 12, (140, 200, 160),
+                          SCREEN_WIDTH // 2, int(SCREEN_HEIGHT * 0.84))
+                draw_text(screen, "MASTERY CHALLENGE — denser bamboos, tougher foes", 10, (95, 205, 135),
+                          SCREEN_WIDTH // 2, int(SCREEN_HEIGHT * 0.88))
+        except Exception:
+            pass
 
 
 # ---------------------------------------------------------------------------
@@ -1303,7 +1469,6 @@ class LevelTransition:
         for i in range(12):
             sx = (80 + (i * 71) % (SCREEN_WIDTH - 160)) + m.sin(self.timer * 2.2 + i) * 18
             sy = 60 + ((i * 31) % 420) * (0.6 + 0.4 * m.sin(tt * 3))
-            a = int(alpha * (0.6 + 0.4 * m.sin(self.timer * 7 + i)))
             pygame.draw.circle(screen, (255, 250, 180), (int(sx), int(sy)), 2)
         # rising leaves
         for i in range(6):
@@ -1422,6 +1587,10 @@ GRAFT_DEFS: dict[str, str] = {
     "weak_glide": "Weak Glide — permanent light slow-fall",
     "combo_bonus": "Combo Bonus — slightly stronger bamboo combos",
     "bamboo_yield": "Bamboo Yield — +10 score per bamboo collected",
+    "vine_whip": "Vine Whip — melee lash extends + entangles foes",
+    "chrono_step": "Chrono Step — faster dash + chrono slow on use",
+    "spore_shield": "Spore Shield — puff spores on hit (resist + counter)",
+    "essence_magnet": "Essence Magnet — bonus essence + bamboo pull feel",
 }
 
 # Nice labels for biome keys (used for display)
@@ -1570,6 +1739,7 @@ class GroveUI:
             prefix = ">" if i == self.cursor else " "
             col = (255, 255, 180) if i == self.cursor else (200, 230, 200)
             label = BIOME_LABELS.get(k, k)
+            _draw_biome_icon(screen, k, 42, y - 3, 11)
             line = f"{prefix} {label} x{cnt}"
             draw_text_left(screen, line, 14, col, 60, y)
             y += 17
@@ -1639,3 +1809,6 @@ class GroveUI:
         # Footer
         draw_text(screen, "Essence earned from bamboo + biome clears. Grafts are permanent.", 10,
                   (100, 130, 100), SCREEN_WIDTH // 2, SCREEN_HEIGHT - 22)
+        mp = get_mastery_progress_text()
+        if mp:
+            draw_text(screen, mp, 9, (200, 180, 220), SCREEN_WIDTH // 2, SCREEN_HEIGHT - 8)

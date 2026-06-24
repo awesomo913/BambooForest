@@ -9,6 +9,16 @@ the game resolves correctly.
 """
 
 import asyncio
+import sys
+from pathlib import Path
+
+# Crash logger (web-safe: install may be no-op in Pyodide)
+try:
+    sys.path.insert(0, str(Path.home() / ".claude" / "scripts"))
+    from crash_logger import install, log_event
+    install(project_root=Path(__file__).parent)
+except Exception:
+    def log_event(*a, **k): pass
 
 import pygame
 import pygame.sprite   # noqa: F401 -- needed for pygame.sprite.Sprite to resolve

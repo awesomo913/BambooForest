@@ -109,14 +109,18 @@ _MIN_INTERVAL: dict[str, float] = {
     "crystal": 0.10,
     "crumble": 0.30,
     "wind": 0.50,
-    "ice_slide": 0.20,
+    "ice_slide": 0.18,
     "dash": 0.12,
     "attack": 0.08,
     "slam": 0.12,
     "ice": 0.15,
-    "land": 0.10,
-    "graft": 0.25,
+    "land": 0.12,
+    "graft": 0.22,
     "essence": 0.15,
+    "vine": 0.18,
+    "portal": 0.32,
+    "break": 0.07,
+    "ghost": 0.25,
 }
 _DEFAULT_INTERVAL: float = 0.05
 
@@ -163,11 +167,11 @@ class AudioManager:
         ))
         _reg("stomp", _apply_envelope(
             _concat(
-                _noise_samples(0.04, 0.35),
-                _sine_samples(300, 0.08, 0.35),
+                _noise_samples(0.055, 0.42),
+                _sine_samples(160, 0.11, 0.38),
             ),
-            0.005, 0.03,
-        ))
+            0.002, 0.045,
+        ))  # juicier low-end for enemy stomp / plant feel
         _reg("menu_select", _apply_envelope(_sine_samples(600, 0.08, 0.3), 0.005, 0.02))
         _reg("boss_hit", _apply_envelope(_square_samples(80, 0.2, 0.35), 0.01, 0.06))
         _reg("victory", _apply_envelope(
@@ -188,7 +192,7 @@ class AudioManager:
             _concat(_sine_samples(1000, 0.08, 0.4), _sine_samples(1500, 0.12, 0.3)),
             0.005, 0.04,
         ))
-        _reg("ice_slide", _apply_envelope(_sweep_samples(800, 200, 0.2, 0.2), 0.01, 0.08))
+        _reg("ice_slide", _apply_envelope(_sweep_samples(650, 130, 0.36, 0.26), 0.008, 0.11))  # whooshier slide
         # Cute dance tune
         dance_notes = [523, 659, 784, 1047, 659, 784, 1047, 1319]
         dance_parts = []
@@ -228,11 +232,11 @@ class AudioManager:
         # Juicier feedback (graft/essence/land for task)
         _reg("land", _apply_envelope(
             _concat(
-                _noise_samples(0.04, 0.25),
-                _sine_samples(120, 0.06, 0.22),
+                _noise_samples(0.055, 0.32),
+                _sine_samples(95, 0.09, 0.28),
             ),
-            0.003, 0.04,
-        ))
+            0.002, 0.05,
+        ))  # satisfying thump
         _reg("graft", _apply_envelope(
             _concat(
                 _sine_samples(440, 0.06, 0.35),
@@ -245,6 +249,33 @@ class AudioManager:
             _sweep_samples(900, 1400, 0.12, 0.25),
             0.01, 0.06,
         ))
+
+        # New premium layer: vine plant-thump, portal whoosh, bamboo crisp break, ghost beat
+        _reg("vine", _apply_envelope(
+            _concat(
+                _noise_samples(0.07, 0.28),
+                _sine_samples(75, 0.12, 0.24),
+            ),
+            0.003, 0.07,
+        ))  # satisfying "plant" snag thump for vines/landings
+        _reg("portal", _apply_envelope(
+            _sweep_samples(380, 95, 0.32, 0.38),
+            0.015, 0.15,
+        ))  # warp whoosh
+        _reg("break", _apply_envelope(
+            _concat(
+                _square_samples(920, 0.025, 0.32),
+                _noise_samples(0.045, 0.26),
+            ),
+            0.001, 0.035,
+        ))  # crisp bamboo snap
+        _reg("ghost", _apply_envelope(
+            _concat(
+                _sine_samples(720, 0.09, 0.18),
+                _sine_samples(980, 0.07, 0.12),
+            ),
+            0.02, 0.1,
+        ))  # ethereal ghost replay beat
 
     def play(self, name: str, pitch: float = 1.0) -> None:
         """Play a sound with 30% volume cap + rate limiting.
@@ -263,6 +294,8 @@ class AudioManager:
         # Variation: tiny random pitch wobble on lively sounds (no cost)
         if name in ("jump", "dash", "collect", "attack", "stomp"):
             pitch *= random.uniform(0.96, 1.04)
+        if name == "graft":
+            pitch *= random.uniform(0.97, 1.04)  # extra organic for graft tiers
 
         use_pitch = abs(pitch - 1.0) > 0.01
         if use_pitch and name in self.raw_bufs:
@@ -275,6 +308,8 @@ class AudioManager:
         if ch:
             master = getattr(self, '_master_volume', 0.8)
             vol = master * _BASE_VOLUME * (0.7 if elapsed < 0.2 else 1.0)
+            if name in ("land", "vine", "stomp", "break", "portal"):
+                vol *= 0.82  # balanced thump/whoosh not overpower
             ch.set_volume(vol)
         self._last_play_time[name] = now
 

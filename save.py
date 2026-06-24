@@ -36,7 +36,7 @@ try:
         "pyodide" in str(os.environ) or
         "emscripten" in str(getattr(__import__("platform", fromlist=[""]), "platform", lambda: "")()).lower()):
         _IS_WEB = True
-except Exception:
+except (AttributeError, ImportError, OSError, TypeError, RuntimeError):
     pass
 
 _web_scores = None  # session fallback
@@ -53,7 +53,7 @@ def _web_load():
             data = json.loads(raw)
             _web_scores = data.get("high_scores", [])
             return _web_scores
-    except Exception:
+    except (AttributeError, TypeError, RuntimeError, KeyError, json.JSONDecodeError):
         pass
     _web_scores = []
     return _web_scores
@@ -65,7 +65,7 @@ def _web_save(scores):
     try:
         from js import localStorage  # type: ignore
         localStorage.setItem("bambooforest_highscores", json.dumps({"high_scores": scores}))
-    except Exception:
+    except (AttributeError, TypeError, RuntimeError):
         pass  # in-memory only this session
 
 
@@ -153,10 +153,11 @@ def spend_essence(n: int = 1) -> int:
 
 
 def spend_specific_essences(essence_keys: list[str]) -> bool:
-    """Spend exactly 1 of each provided biome essence key (for 2-3 combine bench).
+    """Spend exactly 1 of each provided biome essence key (for 2-4 combine bench, richer combos).
     Returns True only if every key had >=1 and all were decremented. Persists.
+    Supports daily bonus / overgrown clear extra sources via caller.
     """
-    if not essence_keys or len(essence_keys) < 2 or len(essence_keys) > 3:
+    if not essence_keys or len(essence_keys) < 2 or len(essence_keys) > 4:
         return False
     data = _load_profile_data()
     ess = data.get("essences", {}).copy()
@@ -270,7 +271,7 @@ def _load_profile_data():
                 data = json.loads(raw)
                 if isinstance(data, dict):
                     return _migrate_profile(data)
-        except Exception as e:
+        except Exception:
             # Pyodide/JS access can fail in some embed contexts; fall back
             pass
         return {"version": SAVE_VERSION, "high_scores": [], "settings": DEFAULT_SETTINGS.copy(), "unlocks": {}, "bests": {"times": {}, "ghosts": {}}}
@@ -308,7 +309,7 @@ def _save_profile_data(data: dict) -> bool:
             from js import localStorage  # type: ignore
             localStorage.setItem("bambooforest_profile", json.dumps(data))
             return True
-        except Exception as e:
+        except (AttributeError, TypeError, RuntimeError):
             # Common pyodide case: no window / no LS in this context.
             # Caller gets False so it can decide (e.g. keep in mem for session).
             # Do not swallow without trace in debug; here we surface via return.
@@ -411,6 +412,7 @@ def get_best_time(level: int) -> float | None:
 # Daily challenge completion tracking + best times (expanded to full modifiers)
 # "daily_completions": {"20260624": true, ...}
 # "daily_bests": {"20260624": 1234.56, ...}  # best full-run clear time (sec) for seed
+# Daily ghost support: visible in HUD/timer when daily_mode (per-level ghosts still used + chased for daily runs)
 # ---------------------------------------------------------------------------
 
 def mark_daily_complete(daily_seed: int) -> bool:
@@ -464,6 +466,34 @@ def is_overgrown_unlocked() -> bool:
 def unlock_overgrown() -> bool:
     """Set the overgrown unlock flag. Returns success."""
     return save_unlock("overgrown")
+
+
+def has_overgrown_mastery() -> bool:
+    """Mastery for overgrown unlock + full rewards: 5+ grafts OR 25+ total essence.
+    Called on L18 victory and for visible endgame rewards / aura.
+    """
+    grafts = load_grafts()
+    ess = load_essences()
+    total_ess = sum(ess.values()) if ess else 0
+    return len(grafts) >= 5 or total_ess >= 25
+
+
+def is_overgrown_mastered() -> bool:
+    """Return True if player has fully cleared the Overgrown post-game (saved mastery)."""
+    data = _load_profile_data()
+    u = data.get("unlocks", {})
+    return bool(u.get("overgrown_mastered", False)) or bool(data.get("overgrown_cleared", False))
+
+
+def mark_overgrown_mastery() -> bool:
+    """Persist full overgrown clear (mastery victory). Also ensures unlock. Returns success."""
+    data = _load_profile_data()
+    unlocks = data.get("unlocks", {}).copy()
+    unlocks["overgrown"] = True
+    unlocks["overgrown_mastered"] = True
+    data["unlocks"] = unlocks
+    data["overgrown_cleared"] = True
+    return _save_profile_data(data)
 
 
 # (high score load/save now implemented above using the profile helpers for unified persistence)

@@ -94,8 +94,8 @@ SPIDER_DROP_SPEED: float = 400.0
 GLOWWORM_SNAP_RANGE: float = 60.0
 
 # --- Level 8: Salt Flats (Ice) ---
-ICE_FRICTION: float = 0.90     # final tuned 0.90 (per-frame mult); ~1.5-2s coast feel on ice with snap-to-zero logic
-ICE_ACCEL: float = 1500.0      # px/s^2 -- meaningful acceleration on ice
+ICE_FRICTION: float = 0.88     # tuned 0.88 (quicker predictable stop, no creep, with snap-to-zero on no-input); still ~1.2s coast feel
+ICE_ACCEL: float = 1470.0      # px/s^2 -- meaningful acceleration on ice (slightly gentler punch for perfect control)
 BRINE_GROW_RATE: float = 0.5
 BRINE_DMG_RADIUS: float = 40.0
 PHANTOM_SPEED: float = 100.0
@@ -106,10 +106,10 @@ DASH_DURATION_SEC: float = 30.0
 
 # --- Controls (jump feel) ---
 JUMP_BUFFER_TIME: float = 0.10   # seconds to queue a jump before landing (buffer + coyote for forgiveness)
-JUMP_CUT_MULTIPLIER: float = 0.55  # velocity multiplier when releasing jump early (variable height; tap=short hop)
-COYOTE_TIME: float = 0.12        # seconds of post-leave-ground forgiveness (crisp 0.12s ~7 frames; forgiving ledges w/o floaty/easy)
-AIR_ACCEL: float = 1580.0        # air control accel px/s2 (tuned for crisp turns + steer without losing momentum feel)
-HITSTOP_LAND_SEC: float = 0.032  # tiny juice: very brief x-damp on land for planty "snap" (forgiving stop w/o stick)
+JUMP_CUT_MULTIPLIER: float = 0.52  # velocity multiplier when releasing jump early (variable height; tap=short hop) -- slightly snappier for responsive cut
+COYOTE_TIME: float = 0.14        # seconds of post-leave-ground forgiveness (slightly more 0.14s ~8 frames for premium ledge catch, still crisp no float)
+AIR_ACCEL: float = 1620.0        # air control accel px/s2 (punchier steer curve for smarter air turns + control w/o losing momentum)
+HITSTOP_LAND_SEC: float = 0.035  # tiny juice: very brief x-damp on land for planty "snap" (forgiving stop w/o stick)
 
 # --- Level 14: Fungal Hollows ---
 MUSHROOM_BOUNCE: float = -1100.0
@@ -209,36 +209,50 @@ ST_LEVEL_TRANS = "LEVEL_TRANS"
 ST_GROVE = "GROVE"
 ST_OVERGROWN = "OVERGROWN"  # basic post-game state entry (victory offers if unlocked)
 
-# --- Paths (web build: no PyInstaller) ---
-BASE_DIR: str = os.path.dirname(os.path.abspath(__file__))
-SAVE_FILE: str = os.path.join(BASE_DIR, "highscores.json")
+# --- Paths ---
+if getattr(sys, "frozen", False):
+    BASE_DIR: str = sys._MEIPASS  # type: ignore[attr-defined]
+else:
+    BASE_DIR: str = os.path.dirname(os.path.abspath(__file__))
+_EXE_DIR: str = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else BASE_DIR
+SAVE_FILE: str = os.path.join(_EXE_DIR, "highscores.json")
 MUTANT_PNG: str = os.path.join(BASE_DIR, "mutant.png")
 
 # --- Accessibility (defaults; actual values live in profile via save.py) ---
-# Basic options per spec: particle density (0.5/1.0/1.5), shake intensity, text scale, reduced motion.
+# Basic options per spec: particle density, shake intensity, text scale, reduced motion (skips sparkles).
+# Other keys retained for forward compat with existing profiles/UI.
 DEFAULT_ACCESSIBILITY: dict = {
+    "volume": 0.8,               # 0.0 mute ... 1.0 full
     "particle_density": 1.0,     # 0.5 / 1.0 / 1.5
     "shake_intensity": 1.0,      # 0.5 / 1.0 / 1.5
     "text_scale": 1.0,           # 0.75 small ... 1.5 large
-    "reduced_motion": False,     # skips some sparkles
-    "color_filter": 0,           # 0=off, 1=grayscale, 2=warm, 3=high contrast
+    "reduced_motion": False,     # skips some sparkles for accessibility
+    "color_filter": 0,           # 0=off, 1=grayscale, 2=warm, 3=high contrast, 4=colorblind
     "game_speed": 1.0,           # 0.5 slow ... 1.5 fast
+    "difficulty": "normal",      # "normal" | "easy"
+    "fullscreen": False,
 }
 ACCESSIBILITY_RANGES: dict = {
+    "volume": [0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
     "particle_density": [0.5, 1.0, 1.5],
     "shake_intensity": [0.5, 1.0, 1.5],
     "text_scale": [0.75, 1.0, 1.25, 1.5],
     "reduced_motion": [False, True],
-    "color_filter": [0, 1, 2, 3],
+    "color_filter": [0, 1, 2, 3, 4],
     "game_speed": [0.5, 0.75, 1.0, 1.25, 1.5],
+    "difficulty": ["normal", "easy"],
+    "fullscreen": [False, True],
 }
 ACCESSIBILITY_LABELS: dict = {
+    "volume": lambda v: f"{int(v*100)}%",
     "particle_density": lambda v: f"{v:.1f}x",
     "shake_intensity": lambda v: f"{v:.1f}x",
     "text_scale": lambda v: f"{v:.2f}x",
     "reduced_motion": lambda v: "On" if v else "Off",
-    "color_filter": lambda v: ["Off", "Grayscale", "Warm tint", "High contrast"][int(v)] if 0 <= int(v) < 4 else "Off",
+    "color_filter": lambda v: ["Off", "Grayscale", "Warm tint", "High contrast", "Colorblind"][int(v)] if 0 <= int(v) < 5 else "Off",
     "game_speed": lambda v: f"{v:.2f}x",
+    "difficulty": lambda v: v.capitalize(),
+    "fullscreen": lambda v: "On" if v else "Off",
 }
 
 # --- Speedrun / Ghost (lightweight) ---
@@ -275,4 +289,9 @@ RECIPES: list[dict] = [
     {"essences": ["basalt", "desert"], "graft": "bamboo_yield", "name": "Bamboo Yield", "desc": "Bamboo yield: +10 score per bamboo"},
     {"essences": ["forest", "corrupted"], "graft": "combo_bonus", "name": "Combo Boost", "desc": "Combo bonus: stronger scaling on combos"},
     {"essences": ["volcanic", "gravity"], "graft": "weak_glide", "name": "Feather Fall", "desc": "Weak glide: mild permanent slow-fall"},
+    # New powerful grafts (Lane 5 expansion: 12+ recipes, 3/4-essence richer combos)
+    {"essences": ["forest", "mushroom"], "graft": "vine_whip", "name": "Vine Whip", "desc": "Vine lash: melee extends + entangle chance on hit"},
+    {"essences": ["salt", "void", "gravity"], "graft": "chrono_step", "name": "Chrono Step", "desc": "Chrono dash: shorter cooldown + brief time slow on trigger"},
+    {"essences": ["mushroom", "cave", "forge"], "graft": "spore_shield", "name": "Spore Shield", "desc": "Spore puff: on hit release spores (resist + nearby counter)"},
+    {"essences": ["desert", "volcanic", "basalt", "tidal"], "graft": "essence_magnet", "name": "Essence Magnet", "desc": "Essence magnet: +bonus essence on bamboo/clears + pull feel"},
 ]

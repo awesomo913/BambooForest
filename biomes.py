@@ -2164,6 +2164,52 @@ class ForgeHammer(pygame.sprite.Sprite):
 
 
 # ===================================================================
+# Vine -- Overgrown post-game hazard (dense theme)
+# Entangles player: slows horiz move + light downward snag. Visual tangle.
+# ===================================================================
+
+class Vine(pygame.sprite.Sprite):
+    """Dense vine patch. On contact: slows player x vel, adds light downward pull.
+    Sways slowly (moving hazard) in overgrown for premium post-game challenge.
+    """
+
+    def __init__(self, x: int, y: int, w: int, h: int) -> None:
+        super().__init__()
+        self.image = pygame.Surface((w, h), pygame.SRCALPHA)
+        # Lush tangled green look for overgrown
+        self.image.fill((35, 95, 45, 95))
+        for i in range(0, w, 11):
+            pygame.draw.line(self.image, (25, 80, 35, 170), (i, 3), (i + 5, h - 2), 3)
+            pygame.draw.line(self.image, (55, 130, 60, 120), (i + 7, 1), (i - 3, h), 1)
+            if i % 3 == 0:
+                pygame.draw.line(self.image, (70, 150, 70, 80), (i + 2, h // 3), (i + 9, 2 * h // 3), 2)
+        self.rect = self.image.get_rect(topleft=(x, y))
+        self.base_x: int = x
+        self.sway_time: float = random.uniform(0.0, 6.28)
+        self.sway_amp: float = random.uniform(5.0, 11.0)  # variable for premium unpredictable feel
+
+    def update(self, dt: float) -> None:
+        """Slow horizontal sway -- vines as moving hazards. Variable amp."""
+        self.sway_time += dt * 0.85
+        offset = int(math.sin(self.sway_time) * self.sway_amp)
+        self.rect.x = self.base_x + offset
+
+    def apply_entangle(self, player) -> None:
+        """Slow and snag. Stronger in air. Mastery (2+ grafts) resists the wild (premium progression feel)."""
+        grafts = getattr(player, "grafts", []) or []
+        resist = 0.72 if len(grafts) >= 2 else 1.0
+        if hasattr(player, "velocity_x"):
+            factor = (0.55 if getattr(player, "is_on_ground", True) else 0.42) * resist
+            player.velocity_x *= factor
+        if hasattr(player, "velocity_y"):
+            pull = (105 if not getattr(player, "is_on_ground", True) else 65) * resist
+            player.velocity_y = min(getattr(player, "velocity_y", 0) + pull, 175)
+        if hasattr(player, "input_locked"):
+            player.input_locked = True
+            # cleared by gameplay on next ground or timer
+
+
+# ===================================================================
 # VoidEater -- L17 Contact damage when open
 # ===================================================================
 
