@@ -572,14 +572,14 @@ class TitleScreen:
             # Dim background panel behind the grid
             cols = 4
             rows = (len(_CHARACTERS) + cols - 1) // cols
-            card_w = 185
-            card_h = 72
-            gap_x = 8
-            gap_y = 5
+            card_w = 170
+            card_h = 58 if rows > 5 else 68
+            gap_x = 6
+            gap_y = 4
             total_w = cols * card_w + (cols - 1) * gap_x
             total_h = rows * card_h + (rows - 1) * gap_y
             start_x = (SCREEN_WIDTH - total_w) // 2
-            start_y = btn_y + btn_h + 14
+            start_y = btn_y + btn_h + 8
             # Semi-opaque panel behind
             panel = pygame.Surface((total_w + 20, total_h + 40),
                                     pygame.SRCALPHA)
@@ -726,11 +726,11 @@ class PauseOverlay:
 
         # Mini enemy encyclopedia -- compact grid of all characters
         sprites = _get_sprite_cache()
-        col_w = 150
-        row_h = 90
-        cols = 4
+        col_w = 145
+        row_h = 68 if len(_CHARACTERS) > 20 else 82
+        cols = 5 if len(_CHARACTERS) > 20 else 4
         start_x = (SCREEN_WIDTH - cols * col_w) // 2
-        start_y = 90
+        start_y = 82
         font_name = get_font(12, bold=True)
         font_desc = get_font(10)
         for i, char in enumerate(_CHARACTERS):

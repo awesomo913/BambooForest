@@ -491,9 +491,9 @@ class Geyser(pygame.sprite.Sprite):
             pygame.draw.circle(self._img_on, (240, 230, 220, 180), (px, py),
                                random.randint(4, 8))
         self.image = self._img_off
-        self.rect = self.image.get_rect(bottomleft=(x, y))
-        # Use a consistent, small vent-opening hitbox for collision
-        self._off_rect = pygame.Rect(x + 8, y - 24, 28, 24)
+        # FIXED: always use the small vent rect for collision (prevents side-launches and dormant false-negatives)
+        self.rect = pygame.Rect(x + 8, y - 24, 28, 24)
+        self._off_rect = self.rect.copy()
         self._on_rect = self._img_on.get_rect(bottomleft=(x, y))
         self.erupt_timer: float = random.uniform(0, GEYSER_INTERVAL)
         self.erupt_remaining: float = 0.0
@@ -503,11 +503,10 @@ class Geyser(pygame.sprite.Sprite):
             self.erupt_remaining -= dt
             if self.image is not self._img_on:
                 self.image = self._img_on
-                self.rect = self._on_rect.copy()
+                # keep rect as small vent for consistent collision; tall image is VFX only
             if self.erupt_remaining <= 0:
                 self.erupt_timer = GEYSER_INTERVAL
                 self.image = self._img_off
-                self.rect = self._off_rect.copy()
         else:
             self.erupt_timer -= dt
             if self.erupt_timer <= 0:
@@ -1169,6 +1168,7 @@ class BrineShard(pygame.sprite.Sprite):
         self.rect = self.image.get_rect(bottomleft=(x, y))
         self.base_y = y
         self.alive_flag = True
+        self._still_time: float = 0.0  # accumulated "standing still" time (ice tolerant)
 
     def _regen_image(self) -> None:
         sz = max(8, int(self.base_size * self.size_scale))
@@ -1184,8 +1184,12 @@ class BrineShard(pygame.sprite.Sprite):
             return
         dist = math.hypot(player.rect.centerx - self.rect.centerx,
                           player.rect.centery - self.rect.centery)
-        player_still = abs(player.velocity_x) < 10
+        player_still = abs(player.velocity_x) < 12
         if dist < BRINE_DMG_RADIUS * 2 and player_still:
+            self._still_time += dt
+        else:
+            self._still_time = max(0.0, self._still_time - dt * 2.0)
+        if dist < BRINE_DMG_RADIUS * 2 and self._still_time > 0.28:
             self.size_scale = min(3.0, self.size_scale + BRINE_GROW_RATE * dt)
         else:
             self.size_scale = max(1.0, self.size_scale - BRINE_GROW_RATE * 0.5 * dt)

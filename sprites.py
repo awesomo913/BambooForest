@@ -19,7 +19,8 @@ from config import (
     PLAYER_DAMAGE, PLAYER_INVINCIBLE_SEC, PLAYER_JUMP,
     PLAYER_MAX_HP, PLAYER_SIZE, PLAYER_SPEED, TERMINAL_VELOCITY,
     HEAL_AMOUNT, SAFE_ZONE_WIDTH, SLIME_BOUNCE_SPEED, SLIME_HOP_POWER,
-    FLOOR_Y,
+    FLOOR_Y, SCREEN_HEIGHT,
+    JUMP_BUFFER_TIME,
 )
 
 # ---------------------------------------------------------------------------
@@ -51,23 +52,23 @@ def generate_panda_frames() -> dict[str, list[pygame.Surface]]:
             pygame.draw.rect(surf, COL_PANDA_BLACK, (lx, ly + dy, lw, lh),
                              border_radius=4)
         # Head
-        pygame.draw.circle(surf, COL_PANDA_WHITE, (w // 2, 12), 11)
+        pygame.draw.circle(surf, COL_PANDA_WHITE, (w // 2, 12 + dy), 11)
         # Ears (outer black + inner pink)
         for ex in (7, 29):
-            pygame.draw.circle(surf, COL_PANDA_BLACK, (ex, 3), 5)
-            pygame.draw.circle(surf, (180, 130, 130), (ex, 3), 2)
+            pygame.draw.circle(surf, COL_PANDA_BLACK, (ex, 3 + dy), 5)
+            pygame.draw.circle(surf, (180, 130, 130), (ex, 3 + dy), 2)
         # Eye patches (smooth ellipses)
-        pygame.draw.ellipse(surf, COL_PANDA_BLACK, (10, 7, 8, 7))
-        pygame.draw.ellipse(surf, COL_PANDA_BLACK, (18, 7, 8, 7))
+        pygame.draw.ellipse(surf, COL_PANDA_BLACK, (10, 7 + dy, 8, 7))
+        pygame.draw.ellipse(surf, COL_PANDA_BLACK, (18, 7 + dy, 8, 7))
         # Eyes (white with black pupil and highlight)
         for ex, px in ((14, 15), (22, 21)):
-            pygame.draw.circle(surf, COL_WHITE, (ex, 10), 3)
-            pygame.draw.circle(surf, COL_BLACK, (px, 10), 2)
-            pygame.draw.circle(surf, COL_WHITE, (px - 1, 9), 1)
+            pygame.draw.circle(surf, COL_WHITE, (ex, 10 + dy), 3)
+            pygame.draw.circle(surf, COL_BLACK, (px, 10 + dy), 2)
+            pygame.draw.circle(surf, COL_WHITE, (px - 1, 9 + dy), 1)
         # Nose
-        pygame.draw.ellipse(surf, (60, 40, 40), (16, 14, 5, 3))
+        pygame.draw.ellipse(surf, (60, 40, 40), (16, 14 + dy, 5, 3))
         # Mouth
-        pygame.draw.arc(surf, COL_BLACK, (15, 15, 7, 4), 3.14, 6.28, 1)
+        pygame.draw.arc(surf, COL_BLACK, (15, 15 + dy, 7, 4), 3.14, 6.28, 1)
 
     frames: dict[str, list[pygame.Surface]] = {}
 
@@ -79,9 +80,9 @@ def generate_panda_frames() -> dict[str, list[pygame.Surface]]:
 
     # Run: alternating limb positions
     run_data = [
-        ((0, 18, 7, 12), (29, 22, 7, 12), (6, 33, 9, 9), (21, 37, 9, 9)),
+        ((1, 18, 7, 12), (28, 22, 7, 12), (6, 33, 9, 9), (21, 37, 9, 9)),
         ((2, 20, 7, 12), (27, 20, 7, 12), (8, 35, 9, 9), (19, 35, 9, 9)),
-        ((29, 18, 7, 12), (0, 22, 7, 12), (21, 33, 9, 9), (6, 37, 9, 9)),
+        ((28, 18, 7, 12), (1, 22, 7, 12), (21, 33, 9, 9), (6, 37, 9, 9)),
         ((2, 20, 7, 12), (27, 20, 7, 12), (8, 35, 9, 9), (19, 35, 9, 9)),
     ]
     for al, ar, ll, lr in run_data:
@@ -99,9 +100,23 @@ def generate_panda_frames() -> dict[str, list[pygame.Surface]]:
     # Fall: arms spread, legs down
     s = pygame.Surface((w, h), pygame.SRCALPHA)
     _draw_panda(s, body_dy=1,
-                arm_l=(-1, 16, 8, 12), arm_r=(29, 16, 8, 12),
+                arm_l=(1, 16, 8, 12), arm_r=(27, 16, 8, 12),
                 leg_l=(9, 38, 8, 6), leg_r=(19, 38, 8, 6))
     frames["fall"] = [s]
+
+    # Glide: arms fully spread, legs tucked, body slightly arched upward
+    s = pygame.Surface((w, h), pygame.SRCALPHA)
+    _draw_panda(s, body_dy=-1,
+                arm_l=(-4, 14, 10, 8), arm_r=(30, 14, 10, 8),
+                leg_l=(10, 34, 8, 7), leg_r=(18, 34, 8, 7))
+    frames["glide"] = [s]
+
+    # Dash: body leaned forward, arms behind like a sprinter
+    s = pygame.Surface((w, h), pygame.SRCALPHA)
+    _draw_panda(s, body_dy=-1,
+                arm_l=(4, 24, 6, 14), arm_r=(26, 24, 6, 14),
+                leg_l=(8, 33, 9, 11), leg_r=(20, 33, 9, 11))
+    frames["dash"] = [s]
 
     return frames
 
@@ -136,6 +151,9 @@ def generate_platform_tile(width: int, height: int) -> pygame.Surface:
     Evokes a temple walkway / wooden tea-house plank.
     """
     surf = pygame.Surface((width, height))
+    # Seed for deterministic visuals per platform instance
+    seed_val = hash((width, height, width * 31 + height))
+    random.seed(seed_val)
     # Deep earthy teak base with gradient
     for y in range(height):
         t = y / max(1, height)
@@ -174,6 +192,8 @@ def generate_platform_tile(width: int, height: int) -> pygame.Surface:
     # Dark edge trim (lacquered corners)
     pygame.draw.rect(surf, (40, 25, 15), (0, 0, 2, height))
     pygame.draw.rect(surf, (40, 25, 15), (width - 2, 0, 2, height))
+    # Restore global RNG
+    random.seed()
     return surf
 
 
@@ -424,9 +444,9 @@ def _generate_chaser_frames() -> list[pygame.Surface]:
             pygame.draw.rect(surf, body_c, (lx, 26 + dy, 4, 10), border_radius=2)
             pygame.draw.ellipse(surf, (40, 25, 50), (lx - 1, 33 + dy, 6, 3))  # paw
         # Tail (smooth curve)
-        pts = [(36, 14 + dy), (40, 10 + dy), (43, 8 + dy), (44, 6 + dy)]
+        pts = [(36, 14 + dy), (40, 10 + dy), (43, 8 + dy), (41, 6 + dy)]
         pygame.draw.lines(surf, body_c, False, pts, 3)
-        pygame.draw.circle(surf, body_c, (44, 6 + dy), 2)
+        pygame.draw.circle(surf, body_c, (41, 6 + dy), 2)
         frames.append(surf)
     return frames
 
@@ -634,6 +654,7 @@ class Player(pygame.sprite.Sprite):
         self._sub_x: float = 0.0
         # Input lock (dash, cutscene) -- ALWAYS cleared by reset_state()
         self.input_locked: bool = False
+        self.input_lock_timer: float = 0.0  # safety timeout so locks cannot stick forever
         # Dash ability
         self.is_dashing: bool = False
         self.dash_timer: float = 0.0
@@ -659,11 +680,18 @@ class Player(pygame.sprite.Sprite):
         self.mana_max: float = 100.0
         self.ice_cast_cooldown: float = 0.0
         self.pending_ice_casts: list = []  # (x, y, direction) tuples
+        # Jump buffer state for super responsive controls
+        self._jump_buffered: bool = False
+        self._jump_buffer_time: float = 0.0
+        self._consumed_buffered_jump: bool = False  # set True for one frame when buffer auto-fires on land
 
     def update(self, dt: float, keys: pygame.key.ScancodeWrapper,
                platforms: pygame.sprite.Group) -> None:
         if self.dead:
             return
+
+        # Clear one-frame buffered-jump-consumed flag each frame
+        self._consumed_buffered_jump = False
 
         # Coyote-time countdown (refreshed on every ground contact below)
         if self.coyote_timer > 0:
@@ -717,17 +745,52 @@ class Player(pygame.sprite.Sprite):
             if no_input and abs(self.velocity_x) < 0.5:
                 self.velocity_x = 0.0
         else:
-            self.velocity_x = 0.0
+            # Non-ice ground/air movement
+            # On ground: instant full speed (snappy)
+            # In air: partial control for floaty but responsive feel
+            desired = 0.0
             if keys[pygame.K_LEFT] or keys[pygame.K_a]:
-                self.velocity_x = -PLAYER_SPEED
+                desired = -PLAYER_SPEED
                 self.facing_right = False
             if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
-                self.velocity_x = PLAYER_SPEED
+                desired = PLAYER_SPEED
                 self.facing_right = True
+            if self.is_on_ground:
+                self.velocity_x = desired
+            else:
+                # Air control: proper acceleration (dt-based) for floaty but responsive feel
+                # Ground is instant snap; air has momentum but you can steer
+                AIR_ACCEL = 1350.0  # px/s^2 -- how fast you can change horizontal speed in air
+                if desired != 0:
+                    # Accelerate toward input; allow turning around with a bit more "bite"
+                    if (desired > 0) != (self.velocity_x > 0) and abs(self.velocity_x) > 60:
+                        # Turning around: give a stronger kick so you don't feel stuck in old direction
+                        self.velocity_x += (desired - self.velocity_x) * 0.6
+                    else:
+                        # Normal accel toward desired direction, capped at desired speed
+                        step = AIR_ACCEL * dt
+                        if desired > 0:
+                            self.velocity_x = min(desired, self.velocity_x + step)
+                        else:
+                            self.velocity_x = max(desired, self.velocity_x - step)
+                else:
+                    # No input: gentle air friction so you eventually slow if you let go
+                    self.velocity_x *= 0.985
 
         # Glide: hold SPACE while airborne + falling
+        # Low threshold (10) makes glide forgiving -- catches you soon after apex
         jump_held = (keys[pygame.K_SPACE] or keys[pygame.K_UP] or keys[pygame.K_w])
-        self.set_gliding(jump_held and not self.is_on_ground and self.velocity_y > 80)
+        self.set_gliding(jump_held and not self.is_on_ground and self.velocity_y > 10)
+
+        # Jump buffer: allow pressing jump slightly before landing (JUMP_BUFFER_TIME window)
+        # Makes controls feel much more responsive and forgiving
+        if jump_held and not self._jump_buffered:
+            self._jump_buffered = True
+            self._jump_buffer_time = JUMP_BUFFER_TIME
+        if self._jump_buffer_time > 0:
+            self._jump_buffer_time -= dt
+            if self._jump_buffer_time <= 0:
+                self._jump_buffered = False
 
         # Weapon timer (limited duration) -- decrement if armed
         if self.has_bamboo_weapon and self.weapon_time_remaining > 0:
@@ -805,27 +868,47 @@ class Player(pygame.sprite.Sprite):
         self.is_on_ground = False
         self.is_wall_sliding = False
         for hit in pygame.sprite.spritecollide(self, platforms, False):
-            if dy > 0 or (dy == 0 and self.velocity_y >= 0):
-                # Landing / resting on platform top
-                self.rect.bottom = hit.rect.top
-                self.velocity_y = 0
-                self.is_on_ground = True
-                self.is_slamming = False  # slam ends on impact
-                self.jumps_remaining = 2 if self.has_double_jump else 1
-                # Refresh coyote time on every ground contact
-                self.coyote_timer = 0.12
-            elif dy < 0 and not (self.gravity_multiplier < 0 and self.velocity_y <= 0):
-                # Bonked head on underside
-                self.rect.top = hit.rect.bottom
-                self.velocity_y = 0
-            elif dy < 0 and self.gravity_multiplier < 0 and self.velocity_y <= 0:
-                # Reverse gravity: landing on ceiling undersides
-                self.rect.top = hit.rect.bottom
-                self.velocity_y = 0
-                self.is_on_ground = True
-                self.is_slamming = False
-                self.jumps_remaining = 2 if self.has_double_jump else 1
-                self.coyote_timer = 0.12
+            # Determine landing direction based on gravity
+            if self.gravity_multiplier < 0:
+                # Reverse gravity: "ground" is above (ceiling contact)
+                # Landing when moving up (velocity_y <= 0) or resting (dy==0, vy<=0)
+                if dy < 0 or (dy == 0 and self.velocity_y <= 0):
+                    self.rect.top = hit.rect.bottom
+                    self.velocity_y = 0
+                    self.is_on_ground = True
+                    self.is_slamming = False
+                    self.jumps_remaining = 2 if self.has_double_jump else 1
+                    self.coyote_timer = 0.12
+                elif dy > 0:
+                    # Bonked feet on top of platform while falling down in reverse grav
+                    self.rect.bottom = hit.rect.top
+                    self.velocity_y = 0
+            else:
+                # Normal gravity: ground is below
+                if dy > 0 or (dy == 0 and self.velocity_y >= 0):
+                    # Landing / resting on platform top
+                    self.rect.bottom = hit.rect.top
+                    self.velocity_y = 0
+                    self.is_on_ground = True
+                    self.is_slamming = False  # slam ends on impact
+                    self.jumps_remaining = 2 if self.has_double_jump else 1
+                    # Refresh coyote time on every ground contact
+                    self.coyote_timer = 0.12
+                    # Consume jump buffer: if player pressed slightly before landing, auto-jump now
+                    if self._jump_buffered and self.jumps_remaining > 0:
+                        kick = PLAYER_JUMP
+                        if getattr(self, 'gravity_multiplier', 1.0) < 0:
+                            kick = -PLAYER_JUMP
+                        self.velocity_y = kick
+                        self.jumps_remaining -= 1
+                        self.is_on_ground = False
+                        self._jump_buffered = False
+                        self._jump_buffer_time = 0.0
+                        self._consumed_buffered_jump = True
+                elif dy < 0:
+                    # Bonked head on underside
+                    self.rect.top = hit.rect.bottom
+                    self.velocity_y = 0
 
         # Knockback timer decrement (lets knockback velocity ride out)
         if self.knockback_timer > 0:
@@ -833,26 +916,46 @@ class Player(pygame.sprite.Sprite):
             if self.knockback_timer <= 0 and not self.is_dashing:
                 self.input_locked = False
 
+        # input lock safety timeout
+        if self.input_locked:
+            if self.input_lock_timer > 0:
+                self.input_lock_timer -= dt
+            if self.input_lock_timer <= 0:
+                self.input_locked = False
+                self.input_lock_timer = 0.0
+
         self._update_animation(dt)
 
     def jump(self) -> bool:
-        """Jump the player. Honors coyote time (0.12s window after leaving
-        ground) so platform-separation jitter doesn't silently eat jumps."""
-        # If we just walked off a ledge / a moving platform just dropped
-        # away, jumps_remaining may have been decremented to 0 by an earlier
-        # mid-air double-jump even though we're technically still "groundable".
-        # Coyote time rescues us by restoring a ground-jump.
-        if self.coyote_timer > 0 and self.jumps_remaining < (
-                2 if self.has_double_jump else 1):
-            # Consume coyote to give back the ground-jump
+        """Jump the player. Honors coyote time + jump buffer (press slightly early) for ultra snappy controls.
+
+        If jump cannot fire now (mid-air, no coyote), the jump is buffered so the
+        NEXT landing within JUMP_BUFFER_TIME will auto-jump. This makes timing
+        forgiving: press slightly before you land and it still fires.
+        """
+        from config import JUMP_BUFFER_TIME as _JBT
+        # Coyote or recent buffer press allows restoring a ground jump
+        can_ground = (self.coyote_timer > 0 or self._jump_buffered) and self.jumps_remaining < (2 if self.has_double_jump else 1)
+        if can_ground:
             self.jumps_remaining = 2 if self.has_double_jump else 1
             self.coyote_timer = 0.0
+            self._jump_buffered = False
+            self._jump_buffer_time = 0.0
+
         if self.jumps_remaining > 0:
-            self.velocity_y = PLAYER_JUMP
+            kick = PLAYER_JUMP
+            if getattr(self, 'gravity_multiplier', 1.0) < 0:
+                kick = -PLAYER_JUMP
+            self.velocity_y = kick
             self.jumps_remaining -= 1
             if self.is_on_ground:
                 self.is_on_ground = False
+            self._jump_buffered = False
+            self._jump_buffer_time = 0.0
             return True
+        # Could not jump now -- queue it so landing will trigger
+        self._jump_buffered = True
+        self._jump_buffer_time = _JBT
         return False
 
     def take_damage(self, amount: int = PLAYER_DAMAGE,
@@ -880,7 +983,8 @@ class Player(pygame.sprite.Sprite):
         self.is_dashing = False
         self.is_slamming = False
         self.is_gliding = False
-        self.input_locked = True  # brief loss of control
+        self.input_locked = True
+        self.input_lock_timer = 0.3  # brief loss of control with timeout guard
         if self.health <= 0:
             self.health = 0
             self.dead = True
@@ -926,6 +1030,7 @@ class Player(pygame.sprite.Sprite):
         self.dash_timer = 0.18
         self.dash_cooldown = 0.7
         self.input_locked = True
+        self.input_lock_timer = 0.25
         self.invincible_timer = max(self.invincible_timer, 0.2)
         self.dash_direction = 1.0 if self.facing_right else -1.0
         self.velocity_x = 900.0 * self.dash_direction
@@ -1018,6 +1123,10 @@ class Player(pygame.sprite.Sprite):
         # Ice magic: reset cooldown + pending cast list, keep has_ice_magic
         self.ice_cast_cooldown = 0.0
         self.pending_ice_casts = []
+        # Clear jump buffering state so respawn doesn't carry phantom queued jumps
+        self._jump_buffered = False
+        self._jump_buffer_time = 0.0
+        self._consumed_buffered_jump = False
 
     def get_attack_rect(self) -> pygame.Rect:
         """Stab hitbox: fast out, hold, quick retract."""
@@ -1050,7 +1159,9 @@ class Player(pygame.sprite.Sprite):
             frame = lst[0]
             # Spinning frantic animation
             angle = (self.fall_anim_timer * 540) % 360
-            self.image = pygame.transform.rotate(frame, angle)
+            new_image = pygame.transform.rotate(frame, angle)
+            self.image = new_image
+            self.rect = new_image.get_rect(center=self.rect.center)
             return
         if self.is_victory_dancing:
             self.dance_timer += dt
@@ -1064,15 +1175,17 @@ class Player(pygame.sprite.Sprite):
                 frame = pygame.transform.flip(frame, True, False)
             # Add gentle tilt
             angle = math.sin(self.dance_timer * 8) * 15
-            self.image = pygame.transform.rotate(frame, angle)
+            new_image = pygame.transform.rotate(frame, angle)
+            self.image = new_image
+            self.rect = new_image.get_rect(center=self.rect.center)
             return
 
         if self.is_dashing:
-            self.anim_state = "run"
+            self.anim_state = "dash"
         elif self.is_slamming:
             self.anim_state = "fall"
         elif self.is_gliding:
-            self.anim_state = "fall"
+            self.anim_state = "glide"
         elif not self.is_on_ground:
             self.anim_state = "jump" if self.velocity_y < 0 else "fall"
         elif abs(self.velocity_x) > 10:
@@ -1084,7 +1197,7 @@ class Player(pygame.sprite.Sprite):
             self.anim_frame = 0
             self.anim_timer = 0.0
 
-        speed = 0.08 if (self.anim_state == "run" and self.is_dashing) else (
+        speed = 0.06 if self.anim_state == "dash" else (
             0.1 if self.anim_state == "run" else 0.5)
         self.anim_timer += dt
         if self.anim_timer >= speed:
@@ -1093,9 +1206,6 @@ class Player(pygame.sprite.Sprite):
 
         lst = self.frames[self.anim_state]
         frame = lst[self.anim_frame % len(lst)]
-        # Glide: arms spread wider (use fall with slight rotation for 'hover')
-        if self.is_gliding:
-            frame = pygame.transform.rotate(frame, -3 if self.facing_right else 3)
         # Attack pose: subtle forward lean for stab (less than before)
         if self.is_attacking:
             atk_t = 1.0 - (self.attack_timer / 0.25)
@@ -1863,9 +1973,9 @@ class SafeZone(pygame.sprite.Sprite):
     """Forest clearing that acts as the level goal (replaces the old flag)."""
     def __init__(self, x: int, y: int) -> None:
         super().__init__()
-        height = FLOOR_Y - y + (540 - FLOOR_Y)
+        height = FLOOR_Y - y + (SCREEN_HEIGHT - FLOOR_Y)
         self.image = generate_safe_zone(max(80, height))
-        self.rect = self.image.get_rect(bottomleft=(x, 540))
+        self.rect = self.image.get_rect(bottomleft=(x, SCREEN_HEIGHT))
 
 
 def _generate_checkpoint_surface(activated: bool = False) -> pygame.Surface:

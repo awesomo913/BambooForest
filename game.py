@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import random
 import sys
 
 import pygame
@@ -16,6 +17,7 @@ from config import (
     SULFUR_TRAIL_DMG, THERMAL_FORCE, TITLE, BOSS_KILL_SCORE,
     # Levels 14-18
     MUSHROOM_BOUNCE, DRONE_RANGE, DRONE_PULL,
+    JUMP_CUT_MULTIPLIER,
 )
 from audio import AudioManager
 from backgrounds import BiomeBackground
@@ -80,6 +82,7 @@ class Game:
         self._carry_score: int = 0
         self._carry_health: int = 0
         self._was_on_ground: bool = False
+        self._was_slamming: bool = False
         self._is_high_score: bool = False
         self._jump_pressed: bool = False
         self._boss_warning_timer: float = 0.0
@@ -138,13 +141,18 @@ class Game:
             if event.type == pygame.KEYUP:
                 if event.key in (pygame.K_SPACE, pygame.K_UP, pygame.K_w):
                     self._jump_pressed = False
+                    # Variable jump height: release jump early while rising = shorter hop
+                    # Only cut if still moving up fast (not near apex)
+                    if (self.state == ST_PLAYING and self.player
+                            and self.player.velocity_y < -120):
+                        self.player.velocity_y *= JUMP_CUT_MULTIPLIER
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1 and self.state == ST_MENU:
                     # Clicking a character card opens the detail popup
                     self.title_screen.handle_click(event.pos)
                 elif event.button == 1 and self.state == ST_PLAYING:
                     if self.player and self.player.attack():
-                        self.audio.play("stomp")
+                        self.audio.play("attack")
                         self._weapon_used = True
                         self._weapon_tutorial_timer = 0.0
 
@@ -212,27 +220,38 @@ class Game:
                 if not self._jump_pressed and self.player:
                     if self.player.jump():
                         self.audio.play("jump")
+                    # jump() auto-buffers on failure, so "press slightly before land" works.
                     self._jump_pressed = True
             elif key in (pygame.K_e, pygame.K_x):
                 if self.player and self.player.attack():
-                    self.audio.play("stomp")
+                    self.audio.play("attack")
                     self._weapon_used = True
                     self._weapon_tutorial_timer = 0.0
             elif key in (pygame.K_LSHIFT, pygame.K_RSHIFT):
                 if self.player and self.player.dash():
-                    self.audio.play("jump")
+                    self.audio.play("dash")
+                    # Strong launch puff + small shake for "snappy" lock feel
                     self.particles.emit_dust(
                         self.player.rect.centerx, self.player.rect.bottom)
+                    self.shake.trigger(3, 0.08)
+                    # Initial dash burst in direction of travel
+                    dash_dir = 1.0 if self.player.facing_right else -1.0
+                    for _ in range(6):
+                        self.particles.emit_dash_trail(
+                            self.player.rect.centerx - dash_dir * 10,
+                            self.player.rect.centery,
+                            -dash_dir
+                        )
             elif key == pygame.K_DOWN or key == pygame.K_s:
                 if self.player and self.player.slam():
-                    self.audio.play("stomp")
+                    self.audio.play("slam")
             elif key in (pygame.K_LCTRL, pygame.K_RCTRL, pygame.K_q):
                 if self.player and self.player.throw_bamboo():
-                    self.audio.play("stomp")
+                    self.audio.play("attack")
             elif key == pygame.K_r:
                 # Cast ice spell (requires boss-kill unlock + full mana)
                 if self.player and self.player.cast_ice_spell():
-                    self.audio.play("crystal")
+                    self.audio.play("ice")
                     self._ice_used = True
                     self._ice_tutorial_timer = 0.0
                     # Cast burst particles at player
@@ -293,6 +312,7 @@ class Game:
         self.hud.lives = self.lives
         self.death_anim = None
         self._was_on_ground = False
+        self._was_slamming = False
         self._jump_pressed = False
         self._outro_active = False
         self._outro_timer = 0.0
@@ -342,6 +362,7 @@ class Game:
         self.hud.lives = self.lives
         self.death_anim = None
         self._was_on_ground = False
+        self._was_slamming = False
         self._jump_pressed = False
         self.state = ST_PLAYING
 
@@ -436,15 +457,51 @@ class Game:
         keys = pygame.key.get_pressed()
         self.player.update(effective_dt, keys, self.level.platforms)
 
+        # Dash trail particles (snappy visual lock + speed lines)
+        if self.player.is_dashing:
+            # Emit a few particles behind the player each frame for "whoosh"
+            # Direction opposite to dash so they trail behind
+            trail_dir = -1.0 if self.player.dash_direction > 0 else 1.0
+            for _ in range(2):
+                ox = self.player.rect.centerx + trail_dir * 8
+                oy = self.player.rect.centery + (self.player.rect.height * 0.1)
+                self.particles.emit_dash_trail(ox, oy, trail_dir)
+
+        # Glide visuals: soft rising air wisps while actively gliding
+        if self.player.is_gliding:
+            # Gentle upward particles from feet, very light
+            for _ in range(1):
+                gx = self.player.rect.centerx + random.uniform(-6, 6)
+                gy = self.player.rect.bottom - 2
+                self.particles.emit_glide_wisp(gx, gy)
+
         # Detect glide use to dismiss tutorial
         if self.player.is_gliding and not self._glide_used:
             self._glide_used = True
             self._glide_tutorial_timer = 0.0
 
-        # Landing dust
-        if self.player.is_on_ground and not self._was_on_ground:
+        # Buffered jump auto-fired on landing: give audio feedback
+        if getattr(self.player, '_consumed_buffered_jump', False):
+            self.audio.play("jump")
+
+        # Landing dust + slam impact juice
+        landed = self.player.is_on_ground and not self._was_on_ground
+        if landed:
             self.particles.emit_dust(self.player.rect.centerx, self.player.rect.bottom)
+            if self._was_slamming:
+                self.audio.play("slam")
+                self.shake.trigger(7, 0.18)
+                self.particles.emit_dust(self.player.rect.centerx, self.player.rect.bottom, count=10)
+                for _ in range(5):
+                    self.particles.emit_sparkle(
+                        self.player.rect.centerx + random.uniform(-8, 8),
+                        self.player.rect.bottom - 2, 1)
         self._was_on_ground = self.player.is_on_ground
+        self._was_slamming = self.player.is_slamming
+
+        # Ice slide audio cue (occasional, only when sliding on ice biome)
+        if self.player.friction_mode == "ice" and abs(self.player.velocity_x) > 80 and random.random() < 0.035:
+            self.audio.play("ice_slide")
 
         # Enemies
         for enemy in list(self.level.enemies):
@@ -465,8 +522,12 @@ class Game:
                 self.player.velocity_y = GEYSER_LAUNCH
                 self.player.is_on_ground = False
                 self.player.jumps_remaining = 0
-                self.particles.emit_sparkle(geyser.rect.centerx, geyser.rect.top)
+                self.particles.emit_geyser_burst(geyser.rect.centerx, geyser.rect.top, 14)
+                self.shake.trigger(6, 0.15)
                 self.audio.play("geyser")
+                # Fun scoring incentive: reward riding the geyser
+                self.player.score += 30
+                self.hud.add_floating_text("RIDE!", geyser.rect.centerx, geyser.rect.top - 18, (255, 140, 40))
 
         # --- Toxic trails (Level 4: SulfurSlime) ---
         for enemy in self.level.enemies:
@@ -485,22 +546,33 @@ class Game:
         for cp in self.level.crumbling:
             if cp.solid and self.player.is_on_ground:
                 feet = self.player.get_stomp_rect()
-                test = pygame.Rect(cp.rect.x - 2, cp.rect.y - 4, cp.rect.w + 4, 8)
-                if feet.colliderect(test):
+                # Tightened tolerance + only trigger on downward or standing (no false from upward jump)
+                test = pygame.Rect(cp.rect.x - 1, cp.rect.y - 2, cp.rect.w + 2, 6)
+                if feet.colliderect(test) and self.player.velocity_y >= 0:
                     cp.touch()
             cp.update(effective_dt)
 
         # --- Wind zones (Level 6: Desert) ---
+        in_wind = False
         for wz in self.level.wind_zones:
             if pygame.sprite.collide_rect(self.player, wz):
                 self.player.velocity_x += wz.get_push() * effective_dt
+                in_wind = True
+            # Always emit light drift particles inside wind for juicy feel (even ambient)
+            if random.random() < 0.35:
+                self.particles.emit_wind_drift(wz.rect.centerx, wz.rect.centery, wz.direction, 2)
+        if in_wind and random.random() < 0.06:
+            self.audio.play("wind")
 
         # --- Thermal updrafts (Level 6: Desert) ---
         for tu in self.level.updrafts:
             if pygame.sprite.collide_rect(self.player, tu):
-                self.player.velocity_y = max(
+                # min() so upward force actually caps the rise (negative vel)
+                self.player.velocity_y = min(
                     self.player.velocity_y + THERMAL_FORCE * effective_dt,
                     THERMAL_FORCE)
+            if random.random() < 0.5:
+                self.particles.emit_updraft_lift(tu.rect.centerx, tu.rect.top + 30, 2)
 
         # --- Projectiles (Level 6: CactusScorpion) ---
         for enemy in self.level.enemies:
@@ -563,6 +635,11 @@ class Game:
         # --- Rising lava (Level 15) ---
         if self.level.rising_lava is not None:
             self.level.rising_lava.update(effective_dt)
+            # Juice: during pauses, gentle steam so player feels the "safe window"
+            if getattr(self.level.rising_lava, "paused", False) and random.random() < 0.25:
+                self.particles.emit_updraft_lift(
+                    self.level.rising_lava.rect.centerx + random.uniform(-80, 80),
+                    self.level.rising_lava.rect.top - 10, 1)
             # Instant death if player's feet dip into lava
             if (self.player.rect.bottom > self.level.rising_lava.rect.top + 4
                     and self.player.invincible_timer <= 0
@@ -595,6 +672,11 @@ class Game:
                 self.player.rect.midbottom = target.rect.midbottom
                 self.player.velocity_x = 0.0
                 self.player.velocity_y = 0.0
+                # Critical: clear transient control/animation locks so player is not stuck after teleport
+                self.player.input_locked = False
+                self.player.is_gliding = self.player.is_dashing = self.player.is_slamming = False
+                self.player.knockback_timer = 0.0
+                self.player._sub_x = 0.0
                 portal.teleport()
                 target.teleport()
                 self.player.invincible_timer = max(
@@ -603,6 +685,10 @@ class Game:
                     portal.rect.centerx, portal.rect.centery, 12)
                 self.particles.emit_sparkle(
                     target.rect.centerx, target.rect.centery, 12)
+                # Extra portal juice + small score incentive
+                self.particles.emit_death(portal.rect.centerx, portal.rect.centery - 10, 5)
+                self.player.score += 20
+                self.hud.add_floating_text("WARP!", portal.rect.centerx, portal.rect.top - 14, (140, 220, 255))
                 self.audio.play("crystal")
                 break  # one teleport per frame
 
@@ -625,9 +711,13 @@ class Game:
         # --- Gravity zones (Level 18) ---
         # Determine which zone the player is in (if any)
         active_multiplier = 1.0
+        in_grav_zone = False
         for gz in self.level.gravity_zones:
             if pygame.sprite.collide_rect(self.player, gz):
                 active_multiplier = gz.get_multiplier()
+                in_grav_zone = True
+                if random.random() < 0.4:
+                    self.particles.emit_gravity_motes(gz.rect.centerx, gz.rect.centery, 3)
                 break
         self.player.gravity_multiplier = active_multiplier
 
@@ -691,11 +781,20 @@ class Game:
                 self.player, self.level.bamboos, True):
             points = self.player.collect_bamboo()
             self.hud.on_bamboo_collected()
-            suffix = f" x{self.player.combo_count}!" if self.player.combo_count > 1 else ""
+            combo = self.player.combo_count
+            suffix = f" x{combo}!" if combo > 1 else ""
             self.hud.add_floating_text(
                 f"+{points}{suffix}", bamboo.rect.centerx, bamboo.rect.top, COL_GOLD)
-            self.particles.emit_sparkle(bamboo.rect.centerx, bamboo.rect.centery)
-            self.audio.play("collect")
+            # Pitch shift + extra juice on higher combos (satisfying feedback loop)
+            pitch = 1.0 + 0.085 * max(0, combo - 1)
+            self.audio.play("collect", pitch=pitch)
+            spark_count = 10 if combo >= 3 else 6
+            self.particles.emit_sparkle(bamboo.rect.centerx, bamboo.rect.centery, spark_count)
+            if combo >= 3:
+                self.shake.trigger(2, 0.07)
+            # Small incentive: collecting bamboo while staff is active refreshes it a bit (makes weapon feel more alive)
+            if getattr(self.player, "has_bamboo_weapon", False) and getattr(self.player, "weapon_time_remaining", 0) > 0:
+                self.player.weapon_time_remaining = min(45.0, self.player.weapon_time_remaining + 0.7)
 
         # Bamboo staff weapon pickup (limited duration)
         for weapon in pygame.sprite.spritecollide(
@@ -834,7 +933,7 @@ class Game:
                             enemy.rect.top, COL_GOLD)
                         self.particles.emit_death(
                             enemy.rect.centerx, enemy.rect.centery)
-                        self.audio.play("stomp")
+                        self.audio.play("attack")
                         # Hitstop: freeze 60ms for impact punch
                         self._hitstop_timer = max(self._hitstop_timer, 0.06)
                         self.shake.trigger(5, 0.08)
@@ -1103,6 +1202,14 @@ class Game:
         if self.player.is_attacking:
             self._draw_sword_arc(cam_x, cam_y)
 
+        # Bamboo leaf parasol while gliding
+        if self.player.is_gliding:
+            self._draw_glide_leaf(cam_x, cam_y)
+
+        # Dash afterimage trail
+        if self.player.is_dashing:
+            self._draw_dash_trail(cam_x, cam_y)
+
         # --- Darkness overlay (Level 7, 9, 13, 17: dark biomes) ---
         # Single-pass: build one dark layer with transparent "holes" around
         # the player + each lit crystal. Crystals fade smoothly during their
@@ -1312,10 +1419,65 @@ class Game:
                 tip_x = sx + 6
             tip_y = sy + sh // 2
             for _ in range(3):
-                import random as _r
-                px = tip_x + _r.randint(-4, 4)
-                py = tip_y + _r.randint(-4, 4)
+                px = tip_x + random.randint(-4, 4)
+                py = tip_y + random.randint(-4, 4)
                 pygame.draw.circle(self.screen, (255, 255, 180), (px, py), 2)
+
+    def _draw_glide_leaf(self, cam_x: int, cam_y: int) -> None:
+        """Draw a large bamboo leaf parasol above the panda while gliding."""
+        px = self.player.rect.centerx + cam_x
+        py = self.player.rect.top + cam_y - 6
+        t = pygame.time.get_ticks() / 400.0
+        sway = math.sin(t) * 8
+        # Leaf shape: wide ellipse with stem
+        LW, LH = 52, 18
+        leaf = pygame.Surface((LW, LH + 6), pygame.SRCALPHA)
+        # Main leaf body
+        pygame.draw.ellipse(leaf, (70, 160, 50), (0, 0, LW, LH))
+        pygame.draw.ellipse(leaf, (90, 190, 65), (4, 2, LW - 8, LH - 4))
+        # Central vein
+        pygame.draw.line(leaf, (50, 120, 35), (LW // 2, 2), (LW // 2, LH - 2), 2)
+        # Side veins
+        for i in range(3):
+            vx = 10 + i * 10
+            pygame.draw.line(leaf, (55, 130, 40),
+                             (LW // 2, 4 + i * 4), (vx, LH - 4), 1)
+            pygame.draw.line(leaf, (55, 130, 40),
+                             (LW // 2, 4 + i * 4), (LW - vx, LH - 4), 1)
+        # Stem connecting to panda
+        pygame.draw.line(leaf, (80, 130, 40),
+                         (LW // 2, LH), (LW // 2, LH + 6), 2)
+        # Sway rotation
+        angle = sway * 0.6
+        rotated = pygame.transform.rotate(leaf, angle)
+        rw, rh = rotated.get_size()
+        self.screen.blit(rotated, (int(px - rw // 2 + sway * 0.5),
+                                   int(py - rh)))
+
+    def _draw_dash_trail(self, cam_x: int, cam_y: int) -> None:
+        """Draw speed afterimages behind the panda while dashing."""
+        if not self.player.image:
+            return
+        direction = self.player.dash_direction
+        for i in range(3):
+            offset_x = int(-direction * (16 + i * 14))
+            alpha = 120 - i * 40
+            ghost = self.player.image.copy()
+            # Tint green for bamboo-chi feel
+            tint = pygame.Surface(ghost.get_size(), pygame.SRCALPHA)
+            tint.fill((80, 200, 80, alpha))
+            ghost.blit(tint, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+            gx = self.player.rect.x + cam_x + offset_x
+            gy = self.player.rect.y + cam_y
+            self.screen.blit(ghost, (gx, gy))
+        # Speed lines
+        for i in range(4):
+            ly = self.player.rect.centery + cam_y + random.randint(-12, 12)
+            lx = self.player.rect.centerx + cam_x - int(direction * 20)
+            llen = random.randint(10, 25)
+            streak = pygame.Surface((llen, 2), pygame.SRCALPHA)
+            streak.fill((180, 255, 140, 140))
+            self.screen.blit(streak, (lx - int(direction * llen), ly))
 
     def _draw_weapon_hint(self) -> None:
         """Persistent banner teaching the player how to attack."""

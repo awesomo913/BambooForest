@@ -217,6 +217,73 @@ class ParticleSystem:
             ))
             leaf_count += 1
 
+    def emit_geyser_burst(self, x: float, y: float, count: int = 12) -> None:
+        """Strong upward volcanic launch juice for geyser rides."""
+        for _ in range(count):
+            angle = random.uniform(-0.6, 0.6)
+            speed = random.uniform(120, 320)
+            vx = math.sin(angle) * speed * 0.3
+            vy = -abs(math.cos(angle) * speed)
+            self.particles.append(Particle(
+                x + random.uniform(-8, 8), y,
+                vx, vy,
+                random.uniform(0.35, 0.65),
+                (255, 160 + random.randint(0, 60), 40),
+                random.uniform(2, 5), "circle", gravity=False,
+            ))
+
+    def emit_updraft_lift(self, x: float, y: float, count: int = 3) -> None:
+        """Gentle rising bubbles/leaves for thermal columns."""
+        for _ in range(count):
+            vx = random.uniform(-25, 25)
+            vy = random.uniform(-140, -60)
+            self.particles.append(Particle(
+                x + random.uniform(-18, 18), y + random.uniform(0, 30),
+                vx, vy,
+                random.uniform(0.5, 1.0),
+                (255, 230, 160),
+                random.uniform(2, 4), "circle", gravity=False,
+            ))
+
+    def emit_wind_drift(self, x: float, y: float, direction: float, count: int = 4) -> None:
+        """Horizontal sand/dust for wind zones."""
+        for _ in range(count):
+            vx = direction * random.uniform(80, 160)
+            vy = random.uniform(-30, 30)
+            self.particles.append(Particle(
+                x + random.uniform(-10, 10), y + random.uniform(-40, 40),
+                vx, vy,
+                random.uniform(0.25, 0.55),
+                (210, 180, 130),
+                random.uniform(1.5, 3.5), "circle", gravity=True,
+            ))
+
+    def emit_gravity_motes(self, x: float, y: float, count: int = 5) -> None:
+        """Subtle floating particles inside altered gravity zones."""
+        for _ in range(count):
+            vx = random.uniform(-35, 35)
+            vy = random.uniform(-60, 60)
+            self.particles.append(Particle(
+                x + random.uniform(-20, 20), y + random.uniform(-15, 15),
+                vx, vy,
+                random.uniform(0.6, 1.2),
+                (200, 160, 255),
+                random.uniform(1, 3), "circle", gravity=False,
+            ))
+
+    def emit_mushroom_puff(self, x: float, y: float, count: int = 8) -> None:
+        """Bouncy puff when mushroom launches player."""
+        for _ in range(count):
+            angle = random.uniform(0, 2 * math.pi)
+            speed = random.uniform(40, 110)
+            self.particles.append(Particle(
+                x, y,
+                math.cos(angle) * speed, math.sin(angle) * speed - 60,
+                random.uniform(0.3, 0.55),
+                (220, 140, 200),
+                random.uniform(2, 4), "circle", gravity=True,
+            ))
+
 
 # ---------------------------------------------------------------------------
 # Parallax Background -- fully opaque layers, no SRCALPHA artifacts

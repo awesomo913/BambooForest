@@ -265,14 +265,19 @@
       " ": "Space", "ArrowLeft": "ArrowLeft", "ArrowRight": "ArrowRight",
       "e": "KeyE", "Shift": "ShiftLeft", "Enter": "Enter"
     };
+    // Ensure Shift key event has proper key for pygame mapping
+    if (key === "Shift") { key = "Shift"; }
     var activeKeys = {};
 
     function dispatchKey(type, key, code) {
       if (type === "keydown" && activeKeys[code]) return;
       if (type === "keydown") activeKeys[code] = true;
       if (type === "keyup") delete activeKeys[code];
+      var k = key;
+      var c = CODE_MAP[key] || key;
+      if (key === "Shift") { k = "Shift"; c = "ShiftLeft"; }
       var opts = {
-        key: key, code: CODE_MAP[key] || key,
+        key: k, code: c,
         keyCode: code, which: code,
         bubbles: true, cancelable: true
       };

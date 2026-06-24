@@ -29,7 +29,7 @@ ENEMY_PATROL_SPEED: float = 120.0
 ENEMY_CHASE_SPEED: float = 180.0
 ENEMY_CHASE_RANGE: float = 500.0
 ENEMY_CHASE_Y_RANGE: float = 250.0
-ENEMY_STOMP_BOUNCE: float = -500.0
+ENEMY_STOMP_BOUNCE: float = -400.0
 FLYING_ENEMY_AMP: float = 60.0
 FLYING_ENEMY_FREQ: float = 2.0
 SLIME_BOUNCE_SPEED: float = 150.0
@@ -82,11 +82,11 @@ GOLEM_COOLDOWN: float = 2.0
 WIND_PUSH: float = 200.0
 THERMAL_FORCE: float = -500.0
 DUST_DEVIL_SPEED: float = 150.0
-SCORPION_FIRE_RATE: float = 1.2
+SCORPION_FIRE_RATE: float = 2.0
 SCORPION_PROJ_SPEED: float = 250.0
 
 # --- Level 7: Karst Caves (Darkness) ---
-DARK_RADIUS: int = 140
+DARK_RADIUS: int = 120
 CRYSTAL_RADIUS: int = 250
 CRYSTAL_LIGHT_TIME: float = 8.0
 SPIDER_DROP_RANGE: float = 100.0
@@ -101,8 +101,12 @@ BRINE_DMG_RADIUS: float = 40.0
 PHANTOM_SPEED: float = 100.0
 
 # --- Power-up Durations ---
-GLIDE_DURATION_SEC: float = 8.0
-DASH_DURATION_SEC: float = 8.0
+GLIDE_DURATION_SEC: float = 10.0
+DASH_DURATION_SEC: float = 30.0
+
+# --- Controls (jump feel) ---
+JUMP_BUFFER_TIME: float = 0.10   # seconds to queue a jump before landing
+JUMP_CUT_MULTIPLIER: float = 0.55  # velocity multiplier when releasing jump early (variable height)
 
 # --- Level 14: Fungal Hollows ---
 MUSHROOM_BOUNCE: float = -1100.0

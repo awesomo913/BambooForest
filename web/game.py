@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import math
+import random
 import sys
 
 import pygame
@@ -17,6 +18,7 @@ from config import (
     SULFUR_TRAIL_DMG, THERMAL_FORCE, TITLE, BOSS_KILL_SCORE,
     # Levels 14-18
     MUSHROOM_BOUNCE, DRONE_RANGE, DRONE_PULL,
+    JUMP_CUT_MULTIPLIER,
 )
 from audio import AudioManager
 from backgrounds import BiomeBackground
@@ -210,24 +212,24 @@ class Game:
                     self._jump_pressed = True
             elif key in (pygame.K_e, pygame.K_x):
                 if self.player and self.player.attack():
-                    self.audio.play("stomp")
+                    self.audio.play("attack")
                     self._weapon_used = True
                     self._weapon_tutorial_timer = 0.0
             elif key in (pygame.K_LSHIFT, pygame.K_RSHIFT):
                 if self.player and self.player.dash():
-                    self.audio.play("jump")
+                    self.audio.play("dash")
                     self.particles.emit_dust(
                         self.player.rect.centerx, self.player.rect.bottom)
             elif key == pygame.K_DOWN or key == pygame.K_s:
                 if self.player and self.player.slam():
-                    self.audio.play("stomp")
+                    self.audio.play("slam")
             elif key in (pygame.K_LCTRL, pygame.K_RCTRL, pygame.K_q):
                 if self.player and self.player.throw_bamboo():
-                    self.audio.play("stomp")
+                    self.audio.play("attack")
             elif key == pygame.K_r:
                 # Cast ice spell (requires boss-kill unlock + full mana)
                 if self.player and self.player.cast_ice_spell():
-                    self.audio.play("crystal")
+                    self.audio.play("ice")
                     self._ice_used = True
                     self._ice_tutorial_timer = 0.0
                     # Cast burst particles at player
@@ -447,6 +449,10 @@ class Game:
             self.particles.emit_dust(self.player.rect.centerx, self.player.rect.bottom)
         self._was_on_ground = self.player.is_on_ground
 
+        # Ice slide audio cue (occasional, only when sliding on ice biome)
+        if getattr(self.player, 'friction_mode', '') == "ice" and abs(self.player.velocity_x) > 80 and random.random() < 0.035:
+            self.audio.play("ice_slide")
+
         # Enemies
         for enemy in list(self.level.enemies):
             enemy.update(effective_dt, self.level.platforms, self.player)
@@ -466,8 +472,11 @@ class Game:
                 self.player.velocity_y = GEYSER_LAUNCH
                 self.player.is_on_ground = False
                 self.player.jumps_remaining = 0
-                self.particles.emit_sparkle(geyser.rect.centerx, geyser.rect.top)
+                self.particles.emit_geyser_burst(geyser.rect.centerx, geyser.rect.top, 14)
+                self.shake.trigger(4, 0.12)
                 self.audio.play("geyser")
+                self.player.score += 30
+                self.hud.add_floating_text("RIDE!", geyser.rect.centerx, geyser.rect.top - 18, (255, 140, 40))
 
         # --- Toxic trails (Level 4: SulfurSlime) ---
         for enemy in self.level.enemies:
@@ -486,22 +495,31 @@ class Game:
         for cp in self.level.crumbling:
             if cp.solid and self.player.is_on_ground:
                 feet = self.player.get_stomp_rect()
-                test = pygame.Rect(cp.rect.x - 2, cp.rect.y - 4, cp.rect.w + 4, 8)
-                if feet.colliderect(test):
+                test = pygame.Rect(cp.rect.x - 1, cp.rect.y - 2, cp.rect.w + 2, 6)
+                if feet.colliderect(test) and self.player.velocity_y >= 0:
                     cp.touch()
             cp.update(effective_dt)
 
         # --- Wind zones (Level 6: Desert) ---
+        in_wind = False
         for wz in self.level.wind_zones:
             if pygame.sprite.collide_rect(self.player, wz):
                 self.player.velocity_x += wz.get_push() * effective_dt
+                in_wind = True
+            if random.random() < 0.35:
+                self.particles.emit_wind_drift(wz.rect.centerx, wz.rect.centery, wz.direction, 2)
+        if in_wind and random.random() < 0.06:
+            self.audio.play("wind")
 
         # --- Thermal updrafts (Level 6: Desert) ---
         for tu in self.level.updrafts:
             if pygame.sprite.collide_rect(self.player, tu):
-                self.player.velocity_y = max(
+                # min() so upward force actually caps the rise (negative vel)
+                self.player.velocity_y = min(
                     self.player.velocity_y + THERMAL_FORCE * effective_dt,
                     THERMAL_FORCE)
+            if random.random() < 0.5:
+                self.particles.emit_updraft_lift(tu.rect.centerx, tu.rect.top + 30, 2)
 
         # --- Projectiles (Level 6: CactusScorpion) ---
         for enemy in self.level.enemies:
@@ -543,9 +561,11 @@ class Game:
                 # Reset jumps so double-jump is available mid-bounce
                 self.player.jumps_remaining = 2 if self.player.has_double_jump else 1
                 mush.compress()
-                self.particles.emit_sparkle(
-                    mush.rect.centerx, mush.rect.top, 10)
+                self.particles.emit_mushroom_puff(mush.rect.centerx, mush.rect.top, 9)
+                self.particles.emit_sparkle(mush.rect.centerx, mush.rect.top, 6)
                 self.audio.play("jump")
+                self.player.score += 25
+                self.hud.add_floating_text("BOUNCE!", mush.rect.centerx, mush.rect.top - 16, (220, 120, 200))
 
         # --- Poison spores from SporePuffers (Level 14) ---
         for enemy in self.level.enemies:
@@ -564,6 +584,10 @@ class Game:
         # --- Rising lava (Level 15) ---
         if self.level.rising_lava is not None:
             self.level.rising_lava.update(effective_dt)
+            if getattr(self.level.rising_lava, "paused", False) and random.random() < 0.25:
+                self.particles.emit_updraft_lift(
+                    self.level.rising_lava.rect.centerx + random.uniform(-80, 80),
+                    self.level.rising_lava.rect.top - 10, 1)
             # Instant death if player's feet dip into lava
             if (self.player.rect.bottom > self.level.rising_lava.rect.top + 4
                     and self.player.invincible_timer <= 0
@@ -596,6 +620,11 @@ class Game:
                 self.player.rect.midbottom = target.rect.midbottom
                 self.player.velocity_x = 0.0
                 self.player.velocity_y = 0.0
+                # Critical: clear transient control/animation locks so player is not stuck after teleport
+                self.player.input_locked = False
+                self.player.is_gliding = self.player.is_dashing = self.player.is_slamming = False
+                self.player.knockback_timer = 0.0
+                self.player._sub_x = 0.0
                 portal.teleport()
                 target.teleport()
                 self.player.invincible_timer = max(
@@ -604,6 +633,9 @@ class Game:
                     portal.rect.centerx, portal.rect.centery, 12)
                 self.particles.emit_sparkle(
                     target.rect.centerx, target.rect.centery, 12)
+                self.particles.emit_death(portal.rect.centerx, portal.rect.centery - 10, 5)
+                self.player.score += 20
+                self.hud.add_floating_text("WARP!", portal.rect.centerx, portal.rect.top - 14, (140, 220, 255))
                 self.audio.play("crystal")
                 break  # one teleport per frame
 
@@ -632,6 +664,8 @@ class Game:
         for gz in self.level.gravity_zones:
             if pygame.sprite.collide_rect(self.player, gz):
                 active_multiplier = gz.get_multiplier()
+                if random.random() < 0.4:
+                    self.particles.emit_gravity_motes(gz.rect.centerx, gz.rect.centery, 3)
                 break
         self.player.gravity_multiplier = active_multiplier
 
@@ -695,11 +729,18 @@ class Game:
                 self.player, self.level.bamboos, True):
             points = self.player.collect_bamboo()
             self.hud.on_bamboo_collected()
-            suffix = f" x{self.player.combo_count}!" if self.player.combo_count > 1 else ""
+            combo = self.player.combo_count
+            suffix = f" x{combo}!" if combo > 1 else ""
             self.hud.add_floating_text(
                 f"+{points}{suffix}", bamboo.rect.centerx, bamboo.rect.top, COL_GOLD)
-            self.particles.emit_sparkle(bamboo.rect.centerx, bamboo.rect.centery)
-            self.audio.play("collect")
+            pitch = 1.0 + 0.085 * max(0, combo - 1)
+            self.audio.play("collect", pitch=pitch)
+            spark_count = 10 if combo >= 3 else 6
+            self.particles.emit_sparkle(bamboo.rect.centerx, bamboo.rect.centery, spark_count)
+            if combo >= 3:
+                self.shake.trigger(2, 0.07)
+            if getattr(self.player, "has_bamboo_weapon", False) and getattr(self.player, "weapon_time_remaining", 0) > 0:
+                self.player.weapon_time_remaining = min(45.0, self.player.weapon_time_remaining + 0.7)
 
         # Bamboo staff weapon pickup (limited duration)
         for weapon in pygame.sprite.spritecollide(
@@ -722,8 +763,8 @@ class Game:
             self._glide_tutorial_timer = 999.0
             self._glide_used = False
             self.hud.add_floating_text(
-                f"BAMBOO LEAF! {int(GLIDE_DURATION_SEC)}s",
-                feather.rect.centerx, feather.rect.top - 10, (100, 210, 100))
+                f"GLIDE! {int(GLIDE_DURATION_SEC)}s",
+                feather.rect.centerx, feather.rect.top - 10, (140, 220, 255))
             self.particles.emit_sparkle(feather.rect.centerx,
                                         feather.rect.centery, 16)
             self.audio.play("collect")
@@ -733,8 +774,8 @@ class Game:
                 self.player, self.level.dash_pickups, True):
             self.player.dash_time_remaining = DASH_DURATION_SEC
             self.hud.add_floating_text(
-                f"BAMBOO WIND! {int(DASH_DURATION_SEC)}s",
-                boots.rect.centerx, boots.rect.top - 10, (120, 210, 100))
+                f"DASH! {int(DASH_DURATION_SEC)}s",
+                boots.rect.centerx, boots.rect.top - 10, (255, 180, 100))
             self.particles.emit_sparkle(boots.rect.centerx,
                                         boots.rect.centery, 16)
             self.audio.play("collect")
@@ -1127,34 +1168,51 @@ class Game:
         if self.player.is_attacking:
             self._draw_sword_arc(cam_x, cam_y)
 
-        # --- Darkness overlay (Level 7: Karst Caves) ---
+        # --- Darkness overlay (Level 7, 9, 13, 17: dark biomes) ---
         if self.level.is_dark:
-            darkness = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
-            darkness.fill((0, 0, 0))
-            # Player light circle
+            from config import CRYSTAL_LIGHT_TIME
+            # Single-pass: build one dark layer with transparent "holes" around
+            # the player + each lit crystal. Crystals fade smoothly during their
+            # last 1.5s of life so the transition isn't a hard pop.
+            dark_overlay = pygame.Surface(
+                (SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+            dark_overlay.fill((0, 0, 0, 230))
+            # Player light hole -- always full strength
             px = self.player.rect.centerx + cam_x
             py = self.player.rect.centery + cam_y
-            pygame.draw.circle(darkness, (0, 0, 0), (px, py), DARK_RADIUS)
-            # Lit crystal circles
+            pygame.draw.circle(
+                dark_overlay, (0, 0, 0, 0), (px, py), DARK_RADIUS)
+            # Crystal holes -- radius AND alpha scale with light_timer
+            # so the edge of expiring light fades in instead of popping.
+            FADE_SECONDS = 1.5
             for crystal in self.level.crystals:
-                if crystal.is_lit():
-                    cx = crystal.rect.centerx + cam_x
-                    cy = crystal.rect.centery + cam_y
-                    pygame.draw.circle(darkness, (0, 0, 0), (cx, cy), CRYSTAL_RADIUS)
-            darkness.set_colorkey((0, 0, 0))
-            # Invert: fill screen-sized black, cut holes, then overlay
-            dark_overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
-            dark_overlay.fill((0, 0, 0, 230))
-            # Cut light holes by blitting the mask
-            light_mask = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
-            light_mask.fill((0, 0, 0, 0))
-            pygame.draw.circle(light_mask, (0, 0, 0, 230), (px, py), DARK_RADIUS)
-            for crystal in self.level.crystals:
-                if crystal.is_lit():
-                    cx = crystal.rect.centerx + cam_x
-                    cy = crystal.rect.centery + cam_y
-                    pygame.draw.circle(light_mask, (0, 0, 0, 230), (cx, cy), CRYSTAL_RADIUS)
-            dark_overlay.blit(light_mask, (0, 0), special_flags=pygame.BLEND_RGBA_SUB)
+                if not crystal.is_lit():
+                    continue
+                if crystal.light_timer < FADE_SECONDS:
+                    frac = max(0.0, crystal.light_timer / FADE_SECONDS)
+                else:
+                    frac = 1.0
+                cx = crystal.rect.centerx + cam_x
+                cy = crystal.rect.centery + cam_y
+                radius = int(CRYSTAL_RADIUS * (0.5 + 0.5 * frac))
+                # Full transparency in centre, partial at edges during fade.
+                # Draw as two concentric rings for smooth falloff.
+                inner_r = int(radius * 0.7)
+                pygame.draw.circle(
+                    dark_overlay, (0, 0, 0, 0), (cx, cy), inner_r)
+                # Half-strength outer ring = partial light (soft edge)
+                if radius > inner_r:
+                    ring = pygame.Surface(
+                        (radius * 2 + 4, radius * 2 + 4), pygame.SRCALPHA)
+                    pygame.draw.circle(
+                        ring, (0, 0, 0, int(115 * frac)),
+                        (radius + 2, radius + 2), radius)
+                    pygame.draw.circle(
+                        ring, (0, 0, 0, 0),
+                        (radius + 2, radius + 2), inner_r)
+                    dark_overlay.blit(
+                        ring, (cx - radius - 2, cy - radius - 2),
+                        special_flags=pygame.BLEND_RGBA_SUB)
             self.screen.blit(dark_overlay, (0, 0))
 
         # --- Boss HP bar (above boss, world-space) ---
@@ -1278,10 +1336,9 @@ class Game:
             self.screen.blit(ghost, (gx, gy))
         # Speed lines
         for i in range(4):
-            import random as _r
-            ly = self.player.rect.centery + cam_y + _r.randint(-12, 12)
+            ly = self.player.rect.centery + cam_y + random.randint(-12, 12)
             lx = self.player.rect.centerx + cam_x - int(direction * 20)
-            llen = _r.randint(10, 25)
+            llen = random.randint(10, 25)
             streak = pygame.Surface((llen, 2), pygame.SRCALPHA)
             streak.fill((180, 255, 140, 140))
             self.screen.blit(streak, (lx - int(direction * llen), ly))
@@ -1376,9 +1433,8 @@ class Game:
                 tip_x = sx + 6
             tip_y = sy + sh // 2
             for _ in range(3):
-                import random as _r
-                px = tip_x + _r.randint(-4, 4)
-                py = tip_y + _r.randint(-4, 4)
+                px = tip_x + random.randint(-4, 4)
+                py = tip_y + random.randint(-4, 4)
                 pygame.draw.circle(self.screen, (255, 255, 180), (px, py), 2)
 
     def _draw_weapon_hint(self) -> None:
@@ -1408,7 +1464,7 @@ class Game:
         alpha = int(180 + 55 * math.sin(t))
         font_big = pygame.font.SysFont("consolas", 22, bold=True)
         font_small = pygame.font.SysFont("consolas", 14)
-        title = font_big.render("BAMBOO LEAF!", True, (100, 210, 100))
+        title = font_big.render("GLIDE UNLOCKED!", True, (140, 220, 255))
         hint = font_small.render(
             "Hold  [ JUMP ]  while falling to glide!", True, (230, 230, 230))
         w = max(title.get_width(), hint.get_width()) + 32

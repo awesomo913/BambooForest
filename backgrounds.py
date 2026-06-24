@@ -561,14 +561,12 @@ class TidalBackground(_BaseBackground):
         # Stormy gray-blue gradient
         self._sky_gradient(surf, (70, 90, 110), (120, 140, 160))
         random.seed(242)
-        # Distant rain / mist streaks
-        rain_layer = pygame.Surface((self.w, 220), pygame.SRCALPHA)
+        # Distant rain / mist streaks (on alpha surface so alpha is respected)
         for _ in range(50):
             sx = random.randint(0, self.w)
             sy = random.randint(0, 200)
-            pygame.draw.line(rain_layer, (180, 200, 220, 100),
+            pygame.draw.line(surf, (180, 200, 220, 100),
                             (sx, sy), (sx - 2, sy + 8), 1)
-        surf.blit(rain_layer, (0, 0))
         # Coastal rocks (dark silhouettes)
         for i in range(5):
             cx = int(i * self.w / 4) + random.randint(-40, 40)
@@ -745,11 +743,11 @@ class MutantLairBackground(_BaseBackground):
     """Dark red-purple lair. Throbbing corruption, boss epicenter."""
 
     def _build(self) -> pygame.Surface:
-        surf = pygame.Surface((self.w, SCREEN_HEIGHT))
+        surf = pygame.Surface((self.w, SCREEN_HEIGHT), pygame.SRCALPHA)
         # Blood-purple sky gradient
         self._sky_gradient(surf, (60, 20, 45), (120, 40, 70))
         random.seed(1111)
-        # Throbbing corruption clouds
+        # Throbbing corruption clouds (alpha respected on SRCALPHA surface)
         for _ in range(8):
             cx = random.randint(50, self.w - 50)
             cy = random.randint(30, 180)
@@ -896,7 +894,7 @@ class VoidBackground(_BaseBackground):
             pygame.draw.line(surf, (140, 100, 180),
                              (ix - iw + 5, iy - 2),
                              (ix + iw - 5, iy - 2), 2)
-        # Drifting soul orbs (translucent circles)
+        # Drifting soul orbs (translucent circles) -- draw on alpha layer
         orb_layer = pygame.Surface((self.w, SCREEN_HEIGHT), pygame.SRCALPHA)
         random.seed(1919)
         for _ in range(50):

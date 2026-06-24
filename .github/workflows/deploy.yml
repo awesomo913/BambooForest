@@ -25,8 +25,11 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
       - name: Install pygbag
-        run: pip install pygbag==0.9.3
+        run: uv pip install pygbag==0.9.3 --system
 
       - name: Build WASM bundle
         working-directory: web
@@ -93,8 +96,8 @@ jobs:
           cp web/build/web/index.html \
              web/build/web/web.apk \
              web/build/web/web.tar.gz \
-             web/build/web/favicon.png \
              deploy/game/
+          cp web/build/web/favicon.png deploy/game/ 2>/dev/null || echo "No favicon.png emitted by pygbag -- skipping"
           # Serve game at root (awesomo913.github.io/BambooForest/)
           if [ ! -f deploy/index.html ]; then
             cp web/build/web/index.html deploy/

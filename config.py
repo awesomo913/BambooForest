@@ -104,6 +104,10 @@ PHANTOM_SPEED: float = 100.0
 GLIDE_DURATION_SEC: float = 10.0
 DASH_DURATION_SEC: float = 30.0
 
+# --- Controls (jump feel) ---
+JUMP_BUFFER_TIME: float = 0.10   # seconds to queue a jump before landing
+JUMP_CUT_MULTIPLIER: float = 0.55  # velocity multiplier when releasing jump early (variable height)
+
 # --- Level 14: Fungal Hollows ---
 MUSHROOM_BOUNCE: float = -1100.0
 MUSHROOM_COMPRESS_SEC: float = 0.15

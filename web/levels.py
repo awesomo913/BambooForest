@@ -488,7 +488,7 @@ def _build_level_4() -> LevelDef:
             EnemyDef(440, 400, "sulfur_slime", 180),
             EnemyDef(1640, 390, "sulfur_slime", 200),
             EnemyDef(2840, 380, "sulfur_slime", 160),
-            EnemyDef(800, 280, "ash_bat"), EnemyDef(2500, 260, "ash_bat"),
+            EnemyDef(1350, 220, "ash_bat"), EnemyDef(2600, 200, "ash_bat"),  # bats positioned to swoop over geyser lanes for timing challenge
         ],
         bamboo_positions=_scatter_bamboos(plats, LEVEL_WIDTHS[3], FLOOR_Y, 14),
         heal_positions=[(1020, 360), (3420, 360), (4650, 380)],
@@ -737,6 +737,7 @@ def _build_level_10() -> LevelDef:
         weapon_positions=[(1000, FLOOR_Y)],
         glide_positions=[(2200, FLOOR_Y)],
         dash_positions=[(3800, FLOOR_Y)],
+        glide_positions=[(1850, 290)],
         trenches=[(680, 760), (1840, 1950), (3380, 3490)],
         npc_defs=[(5100, FLOOR_Y, "Kora",
                    ["The mountain tests your endurance.",
@@ -914,9 +915,9 @@ def _build_level_14() -> LevelDef:
         glide_positions=[(2600, FLOOR_Y), (5400, 300)],
         dash_positions=[(4000, FLOOR_Y)],
         mushroom_positions=[
-            (2800, FLOOR_Y), (3350, FLOOR_Y), (3850, FLOOR_Y),
+            (2800, FLOOR_Y), (2950, FLOOR_Y), (3350, FLOOR_Y), (3850, FLOOR_Y),
             (4400, FLOOR_Y), (5000, FLOOR_Y),
-        ],
+        ],  # 2950 recovery bounce after missing the 3350 crumble platform
         crumbling_defs=[
             PlatformDef(1750, 380, 120),
             PlatformDef(3350, 280, 100),  # crumbles after bounce
@@ -971,7 +972,7 @@ def _build_level_15() -> LevelDef:
         heal_positions=[(1520, 410), (3570, 300), (5570, 280)],
         goal_x=6400, checkpoint_positions=[2200, 4300],
         rising_lava=True,
-        lava_pause_ys=[460, 410, 360, 310],
+        lava_pause_ys=[425, 385, 345, 305],  # first pause now threatens the reachable low platforms (was below everything)
         geyser_positions=[(800, FLOOR_Y), (2800, 400), (4300, 360)],
         glide_positions=[(1500, 380), (4500, 290)],
         dash_positions=[(400, 420), (3200, 360)],
