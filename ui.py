@@ -58,11 +58,14 @@ def draw_text_left(screen: pygame.Surface, text: str, size: int,
 
 def _draw_bamboo_icon(screen: pygame.Surface, x: int, y: int,
                       checked: bool = False) -> None:
-    """Small 10x16 bamboo with optional checkmark."""
-    c = COL_BAMBOO if not checked else (180, 180, 180)
-    pygame.draw.rect(screen, c, (x + 3, y, 4, 16))
-    pygame.draw.rect(screen, (50, 120, 0), (x + 2, y + 5, 6, 2))
-    pygame.draw.rect(screen, (50, 120, 0), (x + 2, y + 11, 6, 2))
+    """Small 10x16 bamboo pip: dim/hollow when uncollected, bright + check when collected."""
+    if checked:
+        stalk, node = COL_BAMBOO, (50, 120, 0)           # collected = bright green
+    else:
+        stalk, node = (74, 84, 74), (52, 60, 52)         # uncollected = dim/hollow
+    pygame.draw.rect(screen, stalk, (x + 3, y, 4, 16))
+    pygame.draw.rect(screen, node, (x + 2, y + 5, 6, 2))
+    pygame.draw.rect(screen, node, (x + 2, y + 11, 6, 2))
     if checked:
         # Green checkmark overlay
         pygame.draw.line(screen, (50, 220, 50), (x + 1, y + 8), (x + 4, y + 12), 2)
@@ -186,19 +189,26 @@ class HUD:
             draw_text(screen, f"{self.collected_bamboos}/{self.total_bamboos}",
                       14, (150, 220, 150), bx + self.total_bamboos * 14 + 15, by + 8)
 
-        # Level indicator
+        # Level indicator (kept clear of the right edge)
         draw_text_shadow(screen, f"LEVEL {level_num}", 20, COL_WHITE,
-                         SCREEN_WIDTH - 60, 25)
+                         SCREEN_WIDTH - 64, 24)
 
-        # Lives display (panda head icons)
-        lives_x = SCREEN_WIDTH - 100
-        lives_y = 45
-        draw_text(screen, "LIVES:", 14, (180, 180, 180), lives_x - 5, lives_y)
-        for li in range(self.lives):
-            lx = lives_x + 28 + li * 20
-            pygame.draw.circle(screen, (240, 240, 235), (lx, lives_y), 7)
+        # Lives display (panda heads) — right-anchored so the row never clips the
+        # screen edge, even with extra lives; heads grow leftward from the margin.
+        lives_y = 46
+        head_r = 7
+        head_gap = 20
+        right_margin = 14
+        n = max(0, self.lives)
+        leftmost_cx = SCREEN_WIDTH - right_margin - head_r - max(0, n - 1) * head_gap
+        for li in range(n):
+            lx = leftmost_cx + li * head_gap
+            pygame.draw.circle(screen, (240, 240, 235), (lx, lives_y), head_r)
             pygame.draw.circle(screen, (30, 30, 30), (lx - 2, lives_y - 1), 2)
             pygame.draw.circle(screen, (30, 30, 30), (lx + 2, lives_y - 1), 2)
+        # "LIVES:" label, right-aligned just left of the leftmost head
+        lbl = get_font(14).render("LIVES:", True, (190, 190, 190))
+        screen.blit(lbl, lbl.get_rect(midright=(leftmost_cx - head_r - 8, lives_y)))
 
         # Power-up indicators (below lives) -- stack vertically to avoid overflow
         pwr_x = SCREEN_WIDTH - 100
