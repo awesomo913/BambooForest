@@ -925,6 +925,7 @@ _BIOME_MAP = {
     "mushroom": MushroomBackground,
     "tidal": TidalBackground,
     "gravity": GravityBackground,
+    "overgrown": GravityBackground,  # reuse for post-game overgrown gravity (foliage particles add lushness)
     "corrupted": CorruptedForestBackground,
     "lair": MutantLairBackground,
     "forge": ForgeBackground,

@@ -1,55 +1,62 @@
 # Bamboo Forest
 
-A lush 2D platformer adventure starring a panda exploring magical bamboo forests and wildly varied biomes.
+A lush 2D platformer. Play as a panda collecting bamboo across 18 themed levels with changing rules, enemies, and power-ups. Distinct biomes, power-ups (glide, dash, staff, ice), scoring, and high scores.
 
-## Quick Start (Desktop)
+**Last updated:** 2026-06-24
 
+## Zero-Friction Run (Desktop)
 ```powershell
-cd Desktop\AI\BambooForest
+# From the BambooForest folder (clone the repo)
+uv pip install -r requirements.txt
 python game.py
 ```
 
-Controls:
-- Left/Right (or A/D): move
-- Space / Up / W: jump (with coyote time + jump buffer + variable height on release)
-- Shift: dash (when Dash Boots equipped)
-- E / X: attack with bamboo staff (when collected)
-- Down / S: ground slam
-- Ctrl / Q: throw shuriken (when staff)
-- R: ice spell (unlocked after first boss, uses mana)
-- Esc: pause / menu
+That's it. No other setup. Game uses only pygame + stdlib.
+
+## Controls
+- Arrow keys or A/D + W or Space/Up: move and jump (variable height on release, coyote time + jump buffer).
+- SHIFT: dash (with Dash Boots).
+- E or X or mouse click: attack with staff (with Bamboo Staff).
+- Down/S: ground slam.
+- Ctrl/Q: throw bamboo shuriken.
+- R: cast ice spell (unlocked after first boss).
+- F11: fullscreen. ESC: pause/menu. G: The Grove (from title or pause). TAB: debug (dev).
 
 ## Web Version
+See `web/README.md` for pygbag build and local test. Live at the GitHub Pages link in the repo (https://awesomo913.github.io/BambooForest/ or equivalent).
 
-Built with pygbag. Open `web/build/web/index.html` in a modern browser (or use the hosted build).
+Local web test after build:
+```powershell
+cd web
+python -m http.server 8000 -d build/web
+# open http://localhost:8000
+```
 
-Touch controls supported via overlay.
+## Packaging & Sharing
+- `requirements.txt` + `pyproject.toml` for modern `uv` / pip workflows.
+- Desktop run as above.
+- For exe (PyInstaller): use existing .spec if present, or `pyinstaller game.py`.
+- High scores persist locally (desktop file + browser localStorage on web).
+- Clean tree: run `git status` — no __pycache__, build/, *.exe, highscores, or web/build artifacts should be tracked.
 
-## Current State & Polish In Progress
+## Current State & Polish
+- 18 levels, biome-specific mechanics (geysers, crumbling, wind, ice friction, rising lava, gravity flip, portals, darkness crystals, etc.).
+- Power-ups, permanent unlocks (ice after boss), combo scoring, lives, checkpoints.
+- Desktop + web builds with ongoing parity work.
+- Recent agent-driven improvements: smoother controls (jump buffer, variable height, reverse-grav support), juicy feedback, UI polish (icons, pills, touch targets), better persistence, docs, packaging.
 
-- Many biomes with unique mechanics (reverse gravity, rising lava, ice, darkness, wind, geysers, spores, etc.)
-- Power-ups: glide, dash, staff, ice magic
-- Full featured: combo scoring, lives, checkpoints, bosses, saves
-- Desktop + web builds kept in sync
+See:
+- `BREAKDOWN.md` for architecture.
+- `TUTORIAL.md` for play guide + recipes.
+- `HANDOFF.md`, `PROOF.md` for full context.
+- Bug reports (MASTER_GLITCH, PHYSICS, etc.) for tracked issues being fixed by the swarm.
 
-A fleet of specialized agents are actively:
-- Exploring the full system
-- Fixing physics/collision (including reverse grav)
-- Smoothing controls (added jump buffer + variable jump height in both builds)
-- Improving gameplay, levels, visuals, audio, web parity, performance, UI
-- Consolidating and closing the long list of documented bugs
+High scores saved locally. Collect bamboo to earn biome essences; visit The Grove (G) from title/pause to combine 2 into passive grafts (glide, dash, lava tweaks) that persist in your profile.
 
-See the various *BUGS_REPORT.md files for history and remaining items.
+## Dev Notes
+- Main entry: `python game.py` (or `game:main` via packaging).
+- Web entry: `web/main.py` (pygbag).
+- All changes keep desktop/web in sync where possible.
+- `.gitignore` keeps build junk out of git.
 
-## Development
-
-- Main: `game.py` + `sprites.py` (Player), `levels.py`, `biomes.py`, `engine.py`, `ui.py`
-- Web copy lives in `web/`
-- Config/tuning: `config.py`
-- Procedural audio/sprites
-
-Run smoke tests with python -c importing game/sprites after `uv pip install pygame`.
-
-Enjoy the panda's journey through the bamboo! 
-
-(Agents actively driving fixes and next-level upgrades as of 2026-06-24)
+First-time experience: clone → uv pip install -r requirements.txt → python game.py. Done.

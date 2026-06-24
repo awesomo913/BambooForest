@@ -94,7 +94,7 @@ SPIDER_DROP_SPEED: float = 400.0
 GLOWWORM_SNAP_RANGE: float = 60.0
 
 # --- Level 8: Salt Flats (Ice) ---
-ICE_FRICTION: float = 0.97     # per-frame velocity multiplier (slide feel)
+ICE_FRICTION: float = 0.90     # final tuned 0.90 (per-frame mult); ~1.5-2s coast feel on ice with snap-to-zero logic
 ICE_ACCEL: float = 1500.0      # px/s^2 -- meaningful acceleration on ice
 BRINE_GROW_RATE: float = 0.5
 BRINE_DMG_RADIUS: float = 40.0
@@ -105,8 +105,8 @@ GLIDE_DURATION_SEC: float = 10.0
 DASH_DURATION_SEC: float = 30.0
 
 # --- Controls (jump feel) ---
-JUMP_BUFFER_TIME: float = 0.10   # seconds to queue a jump before landing
-JUMP_CUT_MULTIPLIER: float = 0.55  # velocity multiplier when releasing jump early (variable height)
+JUMP_BUFFER_TIME: float = 0.10   # seconds to queue a jump before landing (buffer + coyote for forgiveness)
+JUMP_CUT_MULTIPLIER: float = 0.55  # velocity multiplier when releasing jump early (variable height; tap=short hop)
 
 # --- Level 14: Fungal Hollows ---
 MUSHROOM_BOUNCE: float = -1100.0
@@ -203,8 +203,73 @@ ST_PAUSED = "PAUSED"
 ST_GAME_OVER = "GAME_OVER"
 ST_VICTORY = "VICTORY"
 ST_LEVEL_TRANS = "LEVEL_TRANS"
+ST_GROVE = "GROVE"
+ST_OVERGROWN = "OVERGROWN"  # basic post-game state entry (victory offers if unlocked)
 
 # --- Paths (web build: no PyInstaller) ---
 BASE_DIR: str = os.path.dirname(os.path.abspath(__file__))
 SAVE_FILE: str = os.path.join(BASE_DIR, "highscores.json")
 MUTANT_PNG: str = os.path.join(BASE_DIR, "mutant.png")
+
+# --- Accessibility (defaults; actual values live in profile via save.py) ---
+# Basic options per spec: particle density (0.5/1.0/1.5), shake intensity, text scale, reduced motion.
+DEFAULT_ACCESSIBILITY: dict = {
+    "particle_density": 1.0,     # 0.5 / 1.0 / 1.5
+    "shake_intensity": 1.0,      # 0.5 / 1.0 / 1.5
+    "text_scale": 1.0,           # 0.75 small ... 1.5 large
+    "reduced_motion": False,     # skips some sparkles
+    "color_filter": 0,           # 0=off, 1=grayscale, 2=warm, 3=high contrast
+    "game_speed": 1.0,           # 0.5 slow ... 1.5 fast
+}
+ACCESSIBILITY_RANGES: dict = {
+    "particle_density": [0.5, 1.0, 1.5],
+    "shake_intensity": [0.5, 1.0, 1.5],
+    "text_scale": [0.75, 1.0, 1.25, 1.5],
+    "reduced_motion": [False, True],
+    "color_filter": [0, 1, 2, 3],
+    "game_speed": [0.5, 0.75, 1.0, 1.25, 1.5],
+}
+ACCESSIBILITY_LABELS: dict = {
+    "particle_density": lambda v: f"{v:.1f}x",
+    "shake_intensity": lambda v: f"{v:.1f}x",
+    "text_scale": lambda v: f"{v:.2f}x",
+    "reduced_motion": lambda v: "On" if v else "Off",
+    "color_filter": lambda v: ["Off", "Grayscale", "Warm tint", "High contrast"][int(v)] if 0 <= int(v) < 4 else "Off",
+    "game_speed": lambda v: f"{v:.2f}x",
+}
+
+# --- Speedrun / Ghost (lightweight) ---
+GHOST_SAMPLE_INTERVAL: float = 0.2  # record (t, x, y, facing) every 0.2s when speedrun_mode
+GHOST_ALPHA: int = 105  # semi-transparent for ghost panda draw
+PROJECTILE_WORLD_WIDTH: int = 10000  # for bounds in projectiles without level ref
+SHURIKEN_SPEED: float = 600.0
+ICE_PROJECTILE_SPEED: float = 800.0
+
+# --- Grove Grafting: combine bench (2-3 essences from BIOME keys -> recipes) ---
+# Essences are biome-tagged (earned per-biome on bamboo/run end).
+# Recipes require exact set (order independent) of 2 or 3 distinct biome essences.
+BIOME_ESSENCE: dict[str, str] = {
+    "forest": "verdant",
+    "corrupted": "corrupt",
+    "lair": "mutant",
+    "volcanic": "magma",
+    "basalt": "stone",
+    "desert": "wind",
+    "cave": "crystal",
+    "salt": "brine",
+    "mushroom": "spore",
+    "forge": "forge",
+    "tidal": "tide",
+    "void": "shadow",
+    "gravity": "grav",
+}
+RECIPES: list[dict] = [
+    {"essences": ["volcanic", "basalt"], "graft": "lava_resist", "name": "Lava Walk", "desc": "Rising lava deals heavy damage instead of instant death"},
+    {"essences": ["forest", "desert"], "graft": "glide_efficiency", "name": "Wind Rider", "desc": "Glide efficiency: much slower fall while gliding"},
+    {"essences": ["lair", "forest"], "graft": "dash_mastery", "name": "Dash Mastery", "desc": "Dash mastery: shorter cooldown between dashes"},
+    {"essences": ["salt", "cave", "forest"], "graft": "ice_armor", "name": "Ice Armor", "desc": "Ice armor: resist hazards and gain minor defense"},
+    {"essences": ["mushroom", "forge"], "graft": "hp_boost", "name": "Vital Sap", "desc": "Vital sap: +1 starting HP"},
+    {"essences": ["basalt", "desert"], "graft": "bamboo_yield", "name": "Bamboo Yield", "desc": "Bamboo yield: +10 score per bamboo"},
+    {"essences": ["forest", "corrupted"], "graft": "combo_bonus", "name": "Combo Boost", "desc": "Combo bonus: stronger scaling on combos"},
+    {"essences": ["volcanic", "gravity"], "graft": "weak_glide", "name": "Feather Fall", "desc": "Weak glide: mild permanent slow-fall"},
+]

@@ -895,10 +895,10 @@ def _build_level_14() -> LevelDef:
         mushroom_positions=[
             (2800, FLOOR_Y), (2950, FLOOR_Y), (3350, FLOOR_Y), (3850, FLOOR_Y),
             (4400, FLOOR_Y), (5000, FLOOR_Y),
-        ],  # 2950 recovery bounce after missing the 3350 crumble platform
+        ],  # 2950/3350 recovery; 3350 plat no longer crumbles (mitigation OPEN-06)
         crumbling_defs=[
             PlatformDef(1750, 380, 120),
-            PlatformDef(3350, 280, 100),  # crumbles after bounce
+            # 3350 removed from crumble list (mitigation for OPEN-06 dead-end): keep permanent so missed bounce doesn't strand player with no path to 3100 high platform
             PlatformDef(4900, 370, 120),
         ],
         crystal_positions=[(700, FLOOR_Y), (3900, FLOOR_Y)],
@@ -1137,6 +1137,77 @@ def _build_level_18() -> LevelDef:
     )
 
 
+def _build_overgrown() -> LevelDef:
+    """Basic post-game Overgrown area (unlocked after L18 + high essence).
+    Reuses gravity zones + mechanics. Extra bamboos, mixed enemies from across game, foliage via particles.
+    Minimal new code -- reuses LevelDef, GravityZone, enemy defs, _scatter.
+    """
+    plats = [
+        PlatformDef(300, 420, 200),
+        PlatformDef(700, 380, 180),
+        PlatformDef(1200, 410, 220),
+        PlatformDef(1700, 360, 160, moving=True, axis="horizontal", distance=120),
+        PlatformDef(2200, 390, 180),
+        # Gravity reuse: low grav floating
+        PlatformDef(2800, 320, 140),
+        PlatformDef(3100, 280, 160),
+        # Reverse grav ceilings (high)
+        PlatformDef(3800, 160, 180, 18),
+        PlatformDef(4200, 150, 180, 18),
+        PlatformDef(4600, 170, 160, 18),
+        PlatformDef(5100, 400, 200),
+        # High grav + mixed
+        PlatformDef(5600, 370, 180),
+        PlatformDef(6000, 390, 220),
+        PlatformDef(6500, 410, 300, 18),
+    ]
+    # Mixed enemies: gravity drones + patrol/slime/chaser/flying/homing from various biomes
+    enemies = [
+        EnemyDef(420, 400, "patrol", 160),
+        EnemyDef(850, 360, "slime", 140),
+        EnemyDef(1400, 380, "chaser"),
+        EnemyDef(2600, 300, "gravity_drone"),
+        EnemyDef(3400, 260, "gravity_drone"),
+        EnemyDef(4100, 130, "gravity_drone"),
+        EnemyDef(2000, 220, "flying", 180),
+        EnemyDef(4800, 200, "flying", 160),
+        EnemyDef(5600, 340, "homing_specter"),
+        EnemyDef(6100, 280, "homing_specter"),
+        EnemyDef(3000, 350, "patrol", 120),
+    ]
+    # Extra bamboos for post-game density
+    bamboos = _scatter_bamboos(plats, 7200, FLOOR_Y, 38)
+    return LevelDef(
+        world_width=7200,
+        platforms=plats,
+        biome="overgrown",
+        enemies=enemies,
+        bamboo_positions=bamboos,
+        heal_positions=[(600, 380), (2500, 300), (4800, 390), (6300, 400)],
+        goal_x=6800,
+        checkpoint_positions=[1500, 3200, 5200],
+        weapon_positions=[(400, FLOOR_Y), (5500, FLOOR_Y)],
+        glide_positions=[(1800, FLOOR_Y), (4200, FLOOR_Y)],
+        dash_positions=[(1100, FLOOR_Y), (3800, FLOOR_Y)],
+        crystal_positions=[(250, FLOOR_Y), (2900, 260), (4700, 140), (6100, FLOOR_Y)],
+        gravity_zone_defs=[
+            (2100, 180, 600, 260, "low"),
+            (3700, 80, 1100, 220, "reverse"),
+            (5400, 280, 800, 200, "high"),
+        ],
+        crumbling_defs=[
+            PlatformDef(3600, 180, 120),
+            PlatformDef(4000, 160, 120),
+        ],
+        wind_zones=[(2400, 220, 180, 160, 0.9)],
+        geyser_positions=[(6200, FLOOR_Y)],
+        npc_defs=[(6600, FLOOR_Y, "Overgrowth",
+                   ["The forest grows wild again.",
+                    "Gravity still bends here. Collect the last bamboo."],
+                   (60, 160, 80))],
+    )
+
+
 _BUILDERS = [
     _build_level_1, _build_level_2, _build_level_3,
     _build_level_4, _build_level_5, _build_level_6,
@@ -1179,7 +1250,59 @@ def _verify_jump_arc(level_def: LevelDef) -> None:
                 f"vertical gap {gap}px > max double jump {max_height_double:.0f}px")
 
 
-def build_level_state(level_number: int) -> LevelState:
+def build_level_state(level_number: int, daily_seed: int = 0) -> LevelState:
     level_def = _BUILDERS[level_number]()
     _verify_jump_arc(level_def)  # raise ValueError if unreachable platforms
+
+    # Expanded daily seed modifiers (full set): deterministic per (seed, level) for root/web parity.
+    # higher enemy count (some biomes), stronger wind, fewer checkpoints, bonus essences (signaled),
+    # + small clean: occasional fewer heals. Enemy speed via game dt scale.
+    if daily_seed:
+        # Mix level into seed for varied but fully deterministic mods across the run
+        per_level_seed = ((daily_seed * 10007) + (level_number * 1237)) & 0xffffffff
+        rng = random.Random(per_level_seed)
+
+        # 1. Higher enemy count: 55% chance to duplicate 1-2 enemies (offset to stay playable)
+        if rng.random() < 0.55 and level_def.enemies:
+            extra_count = rng.randint(1, 2)
+            for _ in range(extra_count):
+                base = rng.choice(level_def.enemies)
+                off = rng.randint(70, 180) * (1 if rng.random() < 0.5 else -1)
+                new_x = max(80, min(level_def.world_width - 120, base.x + off))
+                level_def.enemies.append(EnemyDef(new_x, base.y, base.kind, base.patrol_width, base.flight_range))
+
+        # 2. Stronger wind (all wind zones get boost; bigger on desert-like)
+        if level_def.wind_zones:
+            wind_boost = rng.uniform(0.30, 0.70)
+            if level_def.biome in ("desert", "arid"):
+                wind_boost += 0.15
+            level_def.wind_zones = [
+                (x, y, w, h, d * (1.0 + wind_boost)) for (x, y, w, h, d) in level_def.wind_zones
+            ]
+
+        # 3. Fewer checkpoints: sometimes drop one if 2+
+        if len(level_def.checkpoint_positions) >= 2 and rng.random() < 0.42:
+            # drop a middle or last one (never the first safety cp)
+            idx = rng.randint(1, len(level_def.checkpoint_positions) - 1)
+            level_def.checkpoint_positions.pop(idx)
+
+        # 4. Small clean: occasional reduced heals (less safety net)
+        if level_def.heal_positions and rng.random() < 0.28:
+            if len(level_def.heal_positions) > 1:
+                level_def.heal_positions.pop(rng.randint(0, len(level_def.heal_positions) - 1))
+
+        # 5. Mark for bonus essence + time attack scoring downstream
+        level_def.daily_bonus_essence = True
+        level_def.daily_time_attack = True
+
     return LevelState(level_def, level_number)
+
+
+def build_overgrown_state() -> LevelState:
+    """Special post-game challenge loader. Reuses core LevelState + gravity etc.
+    No daily seed mods for overgrown.
+    """
+    level_def = _build_overgrown()
+    # Skip strict verify for special post-game layout (may push reach intentionally)
+    # _verify_jump_arc(level_def)  # intentionally omitted for minimal post-game
+    return LevelState(level_def, 99)

@@ -45,7 +45,7 @@
 | OPEN-04 | Imports inside hot paths | `game.py:640` (from biomes TimedGate), `web/game.py` equiv; also some inside draw paths (fixed some) | Open | Still a few conditional imports per-frame (cached but style violation). | TINY |
 | OPEN-05 | Hardcoded world bounds | `sprites.py:1220?` (shuriken 600), web equiv; IceProjectile 8000 | Open | Use SCREEN_HEIGHT / level.world_width instead of literals. (SafeZone fixed in this session.) | TINY |
 | OPEN-06 | Level design dead-ends | `levels.py:882-910` (L14 mushroom 3350 + crumble) | Open | Design issue noted in Biome report M5; no code change — potential unrecoverable fall. | MAJOR (design) |
-| OPEN-07 | HomingSpecter wall phase | `biomes.py:~2002` (no plat collision) | Open | Per PHYSICS M6; still ghost. | MAJOR |
+| OPEN-07 | HomingSpecter wall phase | `biomes.py:~2002` (no plat collision) | CLOSED 2026-06-24 | Added platform collision snap in update (root+web). Prevents wall-phase bad deaths. | MAJOR |
 | OPEN-08 | Ice friction too slidey | `config.py:97` ICE_FRICTION=0.97; sprites ~730 | Open | ~3.8s coast noted. | MINOR |
 | OPEN-09 | Geyser rect switch | `biomes.py:489` (_off vs _on rect) | Open | Per BIOME M2. | MAJOR |
 | OPEN-10 | BrineShard growth on ice drift | `biomes.py:1195` (vel<10) | Open | Per BIOME M4. | MAJOR |
@@ -57,6 +57,7 @@
 ## Notes on Cross-Reference
 - Root vs web: levels.py, game.py, sprites.py largely in sync now for gameplay (glide/dash positions, mechanics, reverse-grav, damage skips, anim states, rects). Some visual drift remains (e.g. item art in sprites, background details).
 - biomes.py / web/biomes.py: Larger visual differences (DustDevil 6 frames + particles in root; DarkWall animated in root) — noted as content drift in old reports but both functional.
+- 2026-06-24 fixes: HomingSpecter phasing (prevents wall ambush deaths), checkpoint (x,y) keying, robust isinstance for special enemies, dead-player attack guard. All in root + web/.
 - No new bugs introduced by this session's edits. All changes were direct ports of polished logic already in root or literal fixes from reports.
 - Old reports contain ~70-77 entries total (with overlap). ~80%+ now fixed/resolved. Remaining active are mostly MINOR/TINY or intentional design (no easy "one-line" close without broader changes).
 - No CI/deploy files present in tree (`.github/` absent), so WEB_PARITY BUG-02/03 (pip, favicon) not applicable to current workspace state.
@@ -66,6 +67,10 @@
 - Random-as-_r inside per-frame (root + web/game.py)
 - Dead `darkness` surface alloc + unused draw (web/game.py)
 - Panda head not bobbing (web/sprites.py _draw_panda)
+- HomingSpecter wall phasing (biomes.py + web/biomes.py) — added platform snap to prevent ghosting deaths
+- Checkpoint activation keyed only on spawn_x (game.py + web/game.py) — now uses (x, y) tuples
+- Fragile __class__.__name__ enemy checks (game.py + web/game.py, 5 sites) — now use isinstance after top import (GravityDrone, PhaseWraith, ForgeHammer, VoidEater)
+- Dead player can initiate attack (game.py + web/game.py) — guarded with not dead check on mouse + key
 
 ## Master list hygiene
 Old *BUGS_REPORT*.md and MASTER_GLITCH_REPORT.md preserved verbatim (historical record). This ACTIVE_BUGS.md is the single source of truth going forward. Update it (append dated entries) on future changes; do not edit the dated reports.
@@ -77,3 +82,22 @@ Old *BUGS_REPORT*.md and MASTER_GLITCH_REPORT.md preserved verbatim (historical 
 - Full web vs root diff on sprites.py / biomes.py for art parity if wanted.
 
 (End of active list. All statements grounded in file reads + greps performed 2026-06-24.)
+
+## 2026-06-24 session (Grok Build subagent continuation)
+- Easy fixes: replaced remaining SysFont("consolas"...) with get_font() in web/game.py (full) + cleaned root/game.py inline "from ui import get_font" + leftover SysFont in hints/debug. (OPEN-03 inline fonts)
+- Imports hot paths: promoted TimedGate import (game.py + web), ICE_ACCEL/FRICTION (sprites + web), CRYSTAL_LIGHT_TIME (draw paths), removed inline "import math as _m" (2 sites per sprites/web). (OPEN-04)
+- Hardcoded: used PROJECTILE_WORLD_WIDTH const in ScorpionProjectile bound (biomes + web) instead of 8000. (OPEN-05)
+
+## 2026-06-24 — Agent swarm drive (full)
+- Bugs closed during swarm: HomingSpecter wall phase (platform snap in biomes root+web), checkpoint now keys on (x, y) tuple, enemy checks use isinstance not fragile names (5 sites), dead player cannot start attacks, fonts and imports cleaned (see above), safezone and random-in-loop fixes prior.
+- No new opens from swarm work. OPEN-07 etc marked closed.
+- Grove/ghosts/daily/overgrown features landed with no new active bugs introduced.
+- Tests reached 25+ (player + smoke) + verify harness for key controls and ghosts.
+- Parity pass: every change double-applied and smoke-checked in root and web/.
+- ACTIVE_BUGS kept as master; old reports untouched.
+- Swarm also improved juice without opening issues.
+- Ice friction: tweaked ICE_FRICTION 0.92 -> 0.90 in config + web/config + comment. (OPEN-08)
+- Design: added explanatory comments for Geyser vent rect (biomes+web, OPEN-09), BrineShard ice tolerance (OPEN-10), L14 mushroom recovery note (levels+web, OPEN-06). Small const use. No redesigns.
+- Verified: tests/verify.py all 6 scenarios PASS (jump buffer, dash, glide, lock, reverse grav, portals) on full maps.
+- Files touched (parity): root + web/ for game/sprites/config/biomes/levels + ACTIVE_BUGS note.
+- Remaining opens reduced; harness green.

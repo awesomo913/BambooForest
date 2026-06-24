@@ -1,9 +1,83 @@
+# Python
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
+*$py.class
+*.so
+.Python
 build/
+develop-eggs/
 dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Game specific
+highscores.json
+*.json.bak
+.env
+.env.*
+*.log
+
+# Build artifacts (PyInstaller, pygbag, etc.)
 *.spec
 *.exe
-highscores.json
-.env
+*.app
+*.dmg
+web/build/
+*.apk
+*.tar.gz
+*.zip
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Test / temp
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+tests/__pycache__/
+tmp/
+temp/

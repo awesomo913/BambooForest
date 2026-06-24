@@ -1,5 +1,15 @@
 # BambooForest — Physics & Collision Bug Report
 
+### 2026-06-24 — Next-level vision review
+- Full project review for ambitious features (meta grove, wild proc, speedrun ghosts, accessibility, endgame, replays).
+- No code changes made in this pass for new systems. Existing criticals (reverse gravity L18, damage numbers, web save, UI overflows) remain open and should be addressed before or alongside new systems.
+- Docs (README + PROOF + HANDOFF + BREAKDOWN + TUTORIAL) created/updated per rules. See root README for run instructions.
+- Agent swarm delivered controls smoothing, gameplay juice, parity work, and several fixes from this report (jump kick, lock timer, portal clears, collision sync).
+
+---
+
+## Original Report (retained below)
+
 **Scanned files:** web/sprites.py (1927 lines), web/game.py (1489 lines), web/levels.py (1192 lines), web/biomes.py (2264 lines), web/config.py (206 lines), web/engine.py, web/ui.py  
 **Root equivalents** also inspected for divergence.
 

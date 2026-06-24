@@ -7,6 +7,7 @@ import random
 from math import floor as _fl
 
 import pygame
+from engine import Camera
 
 from config import (
     BOSS_CHARGE_SPEED, BOSS_HP, BOSS_IDLE_SEC, BOSS_SIZE,
@@ -20,7 +21,10 @@ from config import (
     PLAYER_MAX_HP, PLAYER_SIZE, PLAYER_SPEED, TERMINAL_VELOCITY,
     HEAL_AMOUNT, SAFE_ZONE_WIDTH, SLIME_BOUNCE_SPEED, SLIME_HOP_POWER,
     FLOOR_Y, SCREEN_HEIGHT,
-    JUMP_BUFFER_TIME,
+    JUMP_BUFFER_TIME, GHOST_ALPHA, PROJECTILE_WORLD_WIDTH,
+    ICE_ACCEL, ICE_FRICTION,
+    JUMP_CUT_MULTIPLIER, GLIDE_DURATION_SEC,
+    SHURIKEN_SPEED, ICE_PROJECTILE_SPEED,
 )
 
 # ---------------------------------------------------------------------------
@@ -684,6 +688,10 @@ class Player(pygame.sprite.Sprite):
         self._jump_buffered: bool = False
         self._jump_buffer_time: float = 0.0
         self._consumed_buffered_jump: bool = False  # set True for one frame when buffer auto-fires on land
+        # Grafts from Grove meta (profile persisted modifiers, applied on spawn)
+        self.grafts: list[str] = []
+        # Hit flash juice (brief white pop on damage for feedback)
+        self.hit_flash_timer: float = 0.0
 
     def update(self, dt: float, keys: pygame.key.ScancodeWrapper,
                platforms: pygame.sprite.Group) -> None:
@@ -720,16 +728,16 @@ class Player(pygame.sprite.Sprite):
             if self.dash_timer <= 0:
                 self.is_dashing = False
                 self.input_locked = False
-                self.velocity_x *= 0.4  # gentle post-dash slowdown
+                self.velocity_x *= 0.4  # gentle post-dash slowdown (dash post-slow feel)
         if self.dash_cooldown > 0:
             self.dash_cooldown -= dt
 
         # Input lock safety: if locked (e.g. mid-dash), skip input.
         # ALWAYS clears after dash completes so player isn't stuck.
+        # Extra ground-clear lives in game.py; reset_state always forces False.
         if self.input_locked:
             pass  # velocity controlled externally (dash)
         elif self.friction_mode == "ice":
-            from config import ICE_ACCEL, ICE_FRICTION
             if keys[pygame.K_LEFT] or keys[pygame.K_a]:
                 self.velocity_x -= ICE_ACCEL * dt
                 self.facing_right = False
@@ -743,7 +751,7 @@ class Player(pygame.sprite.Sprite):
             no_input = not (keys[pygame.K_LEFT] or keys[pygame.K_a]
                            or keys[pygame.K_RIGHT] or keys[pygame.K_d])
             if no_input and abs(self.velocity_x) < 0.5:
-                self.velocity_x = 0.0
+                self.velocity_x = 0.0  # ice snap: stop cleanly only with zero input (prevents creep/softlock)
         else:
             # Non-ice ground/air movement
             # On ground: instant full speed (snappy)
@@ -765,6 +773,7 @@ class Player(pygame.sprite.Sprite):
                     # Accelerate toward input; allow turning around with a bit more "bite"
                     if (desired > 0) != (self.velocity_x > 0) and abs(self.velocity_x) > 60:
                         # Turning around: give a stronger kick so you don't feel stuck in old direction
+                        # (air accel turning kick)
                         self.velocity_x += (desired - self.velocity_x) * 0.6
                     else:
                         # Normal accel toward desired direction, capped at desired speed
@@ -778,9 +787,14 @@ class Player(pygame.sprite.Sprite):
                     self.velocity_x *= 0.985
 
         # Glide: hold SPACE while airborne + falling
-        # Low threshold (10) makes glide forgiving -- catches you soon after apex
+        # Low threshold (10) makes glide forgiving -- catches you soon after apex (glide forgiving threshold)
         jump_held = (keys[pygame.K_SPACE] or keys[pygame.K_UP] or keys[pygame.K_w])
         self.set_gliding(jump_held and not self.is_on_ground and self.velocity_y > 10)
+
+        # Variable jump cut: releasing jump while rising reduces height for premium responsive feel
+        # (JUMP_CUT) -- polled here for consistency; removed duplicate from game KEYUP to prevent double mul
+        if not jump_held and self.velocity_y < 0 and not self.is_gliding and not self.is_dashing:
+            self.velocity_y *= JUMP_CUT_MULTIPLIER
 
         # Jump buffer: allow pressing jump slightly before landing (JUMP_BUFFER_TIME window)
         # Makes controls feel much more responsive and forgiving
@@ -849,9 +863,23 @@ class Player(pygame.sprite.Sprite):
             self.velocity_y += effective_gravity * 1.3 * dt
         elif self.is_gliding and self.velocity_y >= 0 and g_mult > 0:
             # Slow fall while holding jump (only in normal/low gravity)
-            self.velocity_y = min(self.velocity_y + effective_gravity * 0.15 * dt, 120.0)
+            # Light meta: weak_glide is milder permanent; efficiency is stronger legacy
+            if "glide_efficiency" in self.grafts:
+                glide_mult = 0.08
+            elif "weak_glide" in self.grafts:
+                glide_mult = 0.12
+            else:
+                glide_mult = 0.15
+            self.velocity_y = min(self.velocity_y + effective_gravity * glide_mult * dt, 120.0)
         elif self.is_wall_sliding and self.velocity_y >= 0:
             self.velocity_y = min(self.velocity_y + effective_gravity * 0.3 * dt, 150.0)
+        elif (not self.is_on_ground and abs(self.velocity_y) < 80
+              and g_mult > 0 and not self.is_slamming):
+            # Apex hang: at the top of a jump arc (|vy| < 80 px/s) apply
+            # 40% gravity so the player lingers briefly at peak height.
+            # 80 px/s ≈ 5 frames of reduced gravity before full gravity resumes;
+            # 0.40 was tuned to feel floaty without making the jump feel slow.
+            self.velocity_y += effective_gravity * 0.40 * dt
         else:
             self.velocity_y += effective_gravity * dt
         # Clamp to terminal velocity (both directions for reverse gravity)
@@ -893,7 +921,7 @@ class Player(pygame.sprite.Sprite):
                     self.is_slamming = False  # slam ends on impact
                     self.jumps_remaining = 2 if self.has_double_jump else 1
                     # Refresh coyote time on every ground contact
-                    self.coyote_timer = 0.12
+                    self.coyote_timer = 0.12  # coyote time window (after leaving ground)
                     # Consume jump buffer: if player pressed slightly before landing, auto-jump now
                     if self._jump_buffered and self.jumps_remaining > 0:
                         kick = PLAYER_JUMP
@@ -915,6 +943,8 @@ class Player(pygame.sprite.Sprite):
             self.knockback_timer -= dt
             if self.knockback_timer <= 0 and not self.is_dashing:
                 self.input_locked = False
+        if self.hit_flash_timer > 0:
+            self.hit_flash_timer -= dt
 
         # input lock safety timeout
         if self.input_locked:
@@ -933,7 +963,6 @@ class Player(pygame.sprite.Sprite):
         NEXT landing within JUMP_BUFFER_TIME will auto-jump. This makes timing
         forgiving: press slightly before you land and it still fires.
         """
-        from config import JUMP_BUFFER_TIME as _JBT
         # Coyote or recent buffer press allows restoring a ground jump
         can_ground = (self.coyote_timer > 0 or self._jump_buffered) and self.jumps_remaining < (2 if self.has_double_jump else 1)
         if can_ground:
@@ -955,7 +984,7 @@ class Player(pygame.sprite.Sprite):
             return True
         # Could not jump now -- queue it so landing will trigger
         self._jump_buffered = True
-        self._jump_buffer_time = _JBT
+        self._jump_buffer_time = JUMP_BUFFER_TIME
         return False
 
     def take_damage(self, amount: int = PLAYER_DAMAGE,
@@ -969,6 +998,7 @@ class Player(pygame.sprite.Sprite):
             return False
         self.health -= amount
         self.invincible_timer = PLAYER_INVINCIBLE_SEC  # i-frames
+        self.hit_flash_timer = 0.12  # hit juice flash
         # Knockback: away from source, slight up-bounce
         if source_x is None:
             kb_dir = 1.0 if self.facing_right else -1.0
@@ -991,15 +1021,21 @@ class Player(pygame.sprite.Sprite):
         return True
 
     def collect_bamboo(self) -> int:
-        mult = COMBO_MULTIPLIERS[min(self.combo_count, len(COMBO_MULTIPLIERS) - 1)]
+        idx = min(self.combo_count, len(COMBO_MULTIPLIERS) - 1)
+        if "combo_bonus" in self.grafts:
+            idx = min(self.combo_count + 1, len(COMBO_MULTIPLIERS) - 1)
+        mult = COMBO_MULTIPLIERS[idx]
         self.combo_count = min(self.combo_count + 1, len(COMBO_MULTIPLIERS) - 1)
         self.combo_timer = COMBO_WINDOW
         points = BAMBOO_SCORE * mult
+        if "bamboo_yield" in self.grafts:
+            points += 10
         self.score += points
         return points
 
     def heal(self, amount: int = HEAL_AMOUNT) -> None:
-        self.health = min(PLAYER_MAX_HP, self.health + amount)
+        cap = PLAYER_MAX_HP + (1 if "hp_boost" in self.grafts else 0)
+        self.health = min(cap, self.health + amount)
 
     def get_stomp_rect(self) -> pygame.Rect:
         return pygame.Rect(self.rect.x + 4, self.rect.bottom - 8,
@@ -1028,7 +1064,8 @@ class Player(pygame.sprite.Sprite):
             return False
         self.is_dashing = True
         self.dash_timer = 0.18
-        self.dash_cooldown = 0.7
+        cd = 0.35 if "dash_mastery" in self.grafts else 0.7
+        self.dash_cooldown = cd
         self.input_locked = True
         self.input_lock_timer = 0.25
         self.invincible_timer = max(self.invincible_timer, 0.2)
@@ -1066,7 +1103,6 @@ class Player(pygame.sprite.Sprite):
     @has_glide.setter
     def has_glide(self, value: bool) -> None:
         """Legacy setter -- grants 10s of glide or clears timer."""
-        from config import GLIDE_DURATION_SEC
         if value:
             self.glide_time_remaining = GLIDE_DURATION_SEC
         else:
@@ -1128,6 +1164,21 @@ class Player(pygame.sprite.Sprite):
         self._jump_buffer_time = 0.0
         self._consumed_buffered_jump = False
 
+    def apply_grafts(self, grafts: list[str]) -> None:
+        """Apply profile grafts. Called by Game after player creation.
+        Grafts are permanent across levels/runs (small non-breaking tweaks).
+        Supports combine recipes: glide_efficiency, lava_resist, dash_mastery, ice_armor + legacy.
+        """
+        self.grafts = list(grafts) if grafts else []
+        # hp_boost: grant starting +1 HP (light meta)
+        if "hp_boost" in self.grafts:
+            if self.health <= PLAYER_MAX_HP:
+                self.health = PLAYER_MAX_HP + 1
+        if "ice_armor" in self.grafts:
+            # Ice armor grants a small starting buffer on apply
+            if self.health <= PLAYER_MAX_HP + 1:
+                self.health = max(self.health, PLAYER_MAX_HP + 2)
+
     def get_attack_rect(self) -> pygame.Rect:
         """Stab hitbox: fast out, hold, quick retract."""
         if not self.is_attacking:
@@ -1165,17 +1216,21 @@ class Player(pygame.sprite.Sprite):
             return
         if self.is_victory_dancing:
             self.dance_timer += dt
-            # Hop + bounce animation
-            idx = int(self.dance_timer * 6) % 4
+            # Hop + bounce animation -- juicier victory dance (bigger bounce, scale pulse, more tilt)
+            idx = int(self.dance_timer * 7) % 4
             bounce_frames = ["idle", "jump", "idle", "fall"]
             lst = self.frames[bounce_frames[idx]]
             frame = lst[0]
             # Flip between facing dirs for a "dance"
             if idx % 2 == 0:
                 frame = pygame.transform.flip(frame, True, False)
-            # Add gentle tilt
-            angle = math.sin(self.dance_timer * 8) * 15
+            # Bigger playful tilt + scale pulse
+            angle = math.sin(self.dance_timer * 9) * 18
+            bob_scale = 1.0 + math.sin(self.dance_timer * 11) * 0.07
             new_image = pygame.transform.rotate(frame, angle)
+            if abs(bob_scale - 1.0) > 0.01:
+                sw, sh = new_image.get_size()
+                new_image = pygame.transform.scale(new_image, (int(sw * bob_scale), int(sh * bob_scale)))
             self.image = new_image
             self.rect = new_image.get_rect(center=self.rect.center)
             return
@@ -1206,6 +1261,14 @@ class Player(pygame.sprite.Sprite):
 
         lst = self.frames[self.anim_state]
         frame = lst[self.anim_frame % len(lst)]
+        # Dash visual feedback: subtle forward lean + speed tint (procedural)
+        if self.anim_state == "dash":
+            lean = -5 if self.facing_right else 5
+            frame = pygame.transform.rotate(frame, lean)
+            tint = pygame.Surface(frame.get_size(), pygame.SRCALPHA)
+            tint.fill((100, 200, 255, 35))
+            frame.blit(tint, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+            self.rect = frame.get_rect(center=self.rect.center)
         # Attack pose: subtle forward lean for stab (less than before)
         if self.is_attacking:
             atk_t = 1.0 - (self.attack_timer / 0.25)
@@ -1215,7 +1278,70 @@ class Player(pygame.sprite.Sprite):
             frame = pygame.transform.rotate(frame, lean)
             # Keep physics rect centered after rotation
             self.rect = frame.get_rect(center=self.rect.center)
+        # Hit flash: bright white overlay tint for juice feedback (short, punchy)
+        if self.hit_flash_timer > 0:
+            flash = pygame.Surface(frame.get_size(), pygame.SRCALPHA)
+            a = int(160 * (self.hit_flash_timer / 0.12))
+            flash.fill((255, 255, 255, a))
+            frame.blit(flash, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
         self.image = frame if self.facing_right else pygame.transform.flip(frame, True, False)
+
+
+class GhostPanda(pygame.sprite.Sprite):
+    """Lightweight non-interacting replay ghost for speedrun best times.
+    Records (t, x, y, facing) samples. Draws semi-transparent using existing panda frames.
+    Never participates in collisions or level groups.
+    """
+    def __init__(self, replay: list[list]) -> None:
+        super().__init__()
+        self.replay = replay or []
+        self.play_t: float = 0.0
+        self.idx: int = 0
+        self._frames = generate_panda_frames()
+        self.image: pygame.Surface = self._frames.get("idle", [pygame.Surface((36, 44), pygame.SRCALPHA)])[0].copy()
+        self.rect: pygame.Rect = self.image.get_rect()
+
+    def update(self, dt: float, current_t: float) -> None:
+        if not self.replay:
+            return
+        self.play_t = current_t
+        # advance idx to latest sample whose t <= play_t
+        while self.idx + 1 < len(self.replay) and self.replay[self.idx + 1][0] <= self.play_t:
+            self.idx += 1
+        if self.idx >= len(self.replay):
+            self.idx = len(self.replay) - 1
+        if self.idx < 0:
+            self.idx = 0
+
+    def reset(self) -> None:
+        """Reset playback head for a fresh speedrun attempt (time-synced ghost replay)."""
+        self.play_t = 0.0
+        self.idx = 0
+
+    def draw(self, screen: pygame.Surface, camera: Camera | None = None, offset_x: float = 0.0, offset_y: float = 0.0) -> None:
+        if not self.replay or self.idx >= len(self.replay):
+            return
+        _, gx, gy, facing = self.replay[self.idx]
+        self.rect.center = (int(gx), int(gy))
+        # pick a sensible frame (prefer run for speedrun feel) + animate using play_t
+        frames = self._frames
+        key = "run" if len(self.replay) > 3 else "idle"
+        lst = frames.get(key) or frames.get("idle") or []
+        if not lst:
+            return
+        # Animate: cycle frames based on play time for premium ghost replay feel
+        speed = 0.08 if key == "run" else 0.45
+        fidx = int(self.play_t / speed) % len(lst)
+        frame = lst[fidx].copy()
+        if not facing:
+            frame = pygame.transform.flip(frame, True, False)
+        frame.set_alpha(GHOST_ALPHA)
+        if camera is not None:
+            sx, sy = camera.apply_pos(self.rect.x, self.rect.y)
+        else:
+            sx = self.rect.x + offset_x
+            sy = self.rect.y + offset_y
+        screen.blit(frame, (sx, sy))
 
 
 class Platform(pygame.sprite.Sprite):
@@ -1309,13 +1435,12 @@ class BambooShuriken(pygame.sprite.Sprite):
         # 4-point bamboo star
         cx = 10
         for angle in (0, 90, 180, 270):
-            import math as _m
-            dx = _m.cos(_m.radians(angle)) * 9
-            dy = _m.sin(_m.radians(angle)) * 9
+            dx = math.cos(math.radians(angle)) * 9
+            dy = math.sin(math.radians(angle)) * 9
             pygame.draw.polygon(self._base, (130, 200, 90),
                                 [(cx, cx), (cx + dx, cx + dy),
-                                 (cx + _m.cos(_m.radians(angle + 30)) * 4,
-                                  cx + _m.sin(_m.radians(angle + 30)) * 4)])
+                                 (cx + math.cos(math.radians(angle + 30)) * 4,
+                                  cx + math.sin(math.radians(angle + 30)) * 4)])
         pygame.draw.circle(self._base, (70, 140, 50), (cx, cx), 4)
         pygame.draw.circle(self._base, (180, 230, 120), (cx, cx), 2)
         self.image = self._base
@@ -1323,7 +1448,7 @@ class BambooShuriken(pygame.sprite.Sprite):
         self.direction = direction
         self.pos_x = float(x)
         self.pos_y = float(y)
-        self.vx = 600.0 * direction
+        self.vx = SHURIKEN_SPEED * direction
         self.vy = 0.0
         self.rotation: float = 0.0
         self.lifetime: float = 2.5
@@ -1337,7 +1462,7 @@ class BambooShuriken(pygame.sprite.Sprite):
         old_center = (_fl(self.pos_x), _fl(self.pos_y))
         self.rect = self.image.get_rect(center=old_center)
         self.lifetime -= dt
-        if self.lifetime <= 0 or self.pos_y > 600:
+        if self.lifetime <= 0 or self.pos_y > SCREEN_HEIGHT:
             self.kill()
 
 
@@ -1354,7 +1479,7 @@ class IceProjectile(pygame.sprite.Sprite):
         self.direction = direction
         self.pos_x = float(x)
         self.pos_y = float(y)
-        self.vx = 800.0 * direction  # faster than shuriken
+        self.vx = ICE_PROJECTILE_SPEED * direction  # faster than shuriken
         self.vy = 0.0  # travels straight (no gravity)
         self.rotation: float = 0.0
         self.lifetime: float = 1.5  # ~1200px travel range
@@ -1400,7 +1525,7 @@ class IceProjectile(pygame.sprite.Sprite):
         self.rect = self.image.get_rect(center=(_fl(self.pos_x),
                                                 _fl(self.pos_y)))
         self.lifetime -= dt
-        if self.lifetime <= 0 or self.pos_x < -50 or self.pos_x > 8000:
+        if self.lifetime <= 0 or self.pos_x < -50 or self.pos_x > PROJECTILE_WORLD_WIDTH:
             self.kill()
 
 
@@ -1552,10 +1677,9 @@ class BambooStaff(pygame.sprite.Sprite):
         pygame.draw.line(base, (180, 230, 120),
                          (p1[0] - 1, p1[1] - 1), (p2[0] - 1, p2[1] - 1), 2)
         # Joint segments along the pole
-        import math as _m
         dx = p2[0] - p1[0]
         dy = p2[1] - p1[1]
-        length = _m.hypot(dx, dy)
+        length = math.hypot(dx, dy)
         nx, ny = dx / length, dy / length
         perp_x, perp_y = -ny, nx
         for frac in (0.18, 0.42, 0.66, 0.88):

@@ -121,6 +121,9 @@ _MIN_INTERVAL: dict[str, float] = {
     "attack": 0.08,
     "slam": 0.12,
     "ice": 0.15,
+    "land": 0.10,
+    "graft": 0.25,
+    "essence": 0.15,
 }
 _DEFAULT_INTERVAL: float = 0.05
 
@@ -136,6 +139,7 @@ class AudioManager:
         self.sounds: dict = {}
         self.raw_bufs: dict = {}
         self._last_play_time: dict[str, float] = {}
+        self._master_volume = 0.8
         # Web build: mixer may be unavailable. Catch ANY failure and
         # disable audio gracefully instead of crashing the whole game.
         if not hasattr(pygame, "mixer"):
@@ -242,6 +246,27 @@ class AudioManager:
             0.008, 0.09,
         ))
 
+        # Juicier feedback (graft/essence/land for task)
+        _reg("land", _apply_envelope(
+            _concat(
+                _noise_samples(0.04, 0.25),
+                _sine_samples(120, 0.06, 0.22),
+            ),
+            0.003, 0.04,
+        ))
+        _reg("graft", _apply_envelope(
+            _concat(
+                _sine_samples(440, 0.06, 0.35),
+                _sine_samples(660, 0.08, 0.32),
+                _sine_samples(880, 0.12, 0.28),
+            ),
+            0.005, 0.05,
+        ))
+        _reg("essence", _apply_envelope(
+            _sweep_samples(900, 1400, 0.12, 0.25),
+            0.01, 0.06,
+        ))
+
     def play(self, name: str, pitch: float = 1.0) -> None:
         """Play a sound with 30% volume cap + rate limiting.
         pitch > 1.0 raises pitch (for combo juice etc). Light resample when needed.
@@ -269,10 +294,15 @@ class AudioManager:
             ch = self.sounds[name].play()
 
         if ch:
-            vol = _BASE_VOLUME * (0.7 if elapsed < 0.2 else 1.0)
+            master = getattr(self, '_master_volume', 0.8)
+            vol = master * _BASE_VOLUME * (0.7 if elapsed < 0.2 else 1.0)
             ch.set_volume(vol)
         self._last_play_time[name] = now
 
     def toggle(self) -> None:
         """Toggle sound on/off."""
         self.enabled = not self.enabled
+
+    def set_master_volume(self, vol: float) -> None:
+        """Set master volume 0.0-1.0. Affects future plays."""
+        self._master_volume = max(0.0, min(1.0, float(vol)))

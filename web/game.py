@@ -10,26 +10,36 @@ import sys
 import pygame
 
 from config import (
-    COL_GOLD, CRYSTAL_RADIUS, DARK_RADIUS, DOUBLE_JUMP_LEVEL,
+    COL_GOLD, CRYSTAL_RADIUS, CRYSTAL_LIGHT_TIME, DARK_RADIUS, DOUBLE_JUMP_LEVEL,
     ENEMY_STOMP_BOUNCE, FPS, FLOOR_Y, GEYSER_LAUNCH, HEAL_AMOUNT,
     LEVEL_COUNT, PLAYER_DAMAGE, PLAYER_MAX_HP, SCREEN_HEIGHT,
     SCREEN_WIDTH, STARTING_LIVES, STOMP_SCORE, ST_GAME_OVER,
-    ST_LEVEL_TRANS, ST_MENU, ST_PAUSED, ST_PLAYING, ST_VICTORY,
+    ST_LEVEL_TRANS, ST_MENU, ST_PAUSED, ST_PLAYING, ST_VICTORY, ST_GROVE,
     SULFUR_TRAIL_DMG, THERMAL_FORCE, TITLE, BOSS_KILL_SCORE,
     # Levels 14-18
     MUSHROOM_BOUNCE, DRONE_RANGE, DRONE_PULL,
     JUMP_CUT_MULTIPLIER,
+    GHOST_SAMPLE_INTERVAL, GHOST_ALPHA,
+    DEFAULT_ACCESSIBILITY, ACCESSIBILITY_RANGES, ACCESSIBILITY_LABELS,
+    GLIDE_DURATION_SEC, DASH_DURATION_SEC,
 )
 from audio import AudioManager
 from backgrounds import BiomeBackground
 from engine import Camera, ParticleSystem, ScreenShake
-from levels import build_level_state, LevelState
-from save import save_high_score
-from sprites import BambooShuriken, BambooStaff, DashBoots, GlideFeather, IceProjectile, Player
-from ui import (
-    DeathAnimation, GameOverScreen, HUD, LevelTransition,
-    PauseOverlay, TitleScreen, VictoryScreen,
+from levels import build_level_state, LevelState, build_overgrown_state
+from save import (
+    save_high_score, save_best_run, get_best_ghost, load_best_time,
+    add_essence, load_grafts, load_settings, save_settings,
+    load_unlocks, save_unlock, save_unlocks,
+    load_essences, unlock_overgrown,
 )
+from sprites import BambooShuriken, BambooStaff, DashBoots, GlideFeather, IceProjectile, Player, generate_panda_frames, GhostPanda
+from ui import (
+    DeathAnimation, GameOverScreen, GroveUI, HUD, LevelTransition,
+    PauseOverlay, TitleScreen, VictoryScreen, AccessibilityOptions, set_text_scale,
+    get_font,
+)
+from biomes import GravityDrone, PhaseWraith, ForgeHammer, VoidEater, TimedGate
 
 
 class Game:
@@ -46,10 +56,16 @@ class Game:
         self.background: BiomeBackground = BiomeBackground("forest")
         self.shake = ScreenShake()
 
+        # Preload panda frames once for ghost playback (reuses existing draw data)
+        self._panda_frames: dict = generate_panda_frames()
+
         self.title_screen = TitleScreen()
         self.pause_overlay = PauseOverlay()
         self.game_over_screen = GameOverScreen()
         self.victory_screen = VictoryScreen()
+        self.grove_ui = GroveUI()
+        self._grove_return_state: str = ST_MENU
+        self._grafts: list[str] = load_grafts()
 
         self.state: str = ST_MENU
         self.player: Player | None = None
@@ -80,10 +96,10 @@ class Game:
         self._weapon_used: bool = False
         self._glide_tutorial_timer: float = 0.0
         self._glide_used: bool = False
-        # Glide persists across levels once collected
-        self._has_glide_permanent: bool = False
-        # Ice magic: unlocked on first boss kill (Level 3), persists
-        self._has_ice_magic_permanent: bool = False
+        # Glide / Ice loaded from persistent save (survive deaths + level wins)
+        unlocks = load_unlocks()
+        self._has_glide_permanent: bool = bool(unlocks.get("glide", False))
+        self._has_ice_magic_permanent: bool = bool(unlocks.get("ice", False))
         self._ice_tutorial_timer: float = 0.0
         self._ice_used: bool = False
         # Hitstop: brief pause on enemy hit for impact feel
@@ -92,6 +108,83 @@ class Game:
         self._outro_active: bool = False
         self._outro_timer: float = 0.0
         self._outro_speed: float = 240.0
+
+        # Speedrun mode + lightweight ghosts
+        self.speedrun_mode: bool = False
+        self.run_timer: float = 0.0
+        self._last_ghost_sample: float = 0.0
+        self.ghost_record: list[list] = []
+        self.best_ghost: list[list] | None = None
+        self._pending_best_time: float | None = None
+        self._pending_best_ghost: list | None = None
+        self._victory_ghost: list | None = None
+        self.ghost_replay_timer: float = 0.0
+        self.ghost: GhostPanda | None = None
+        # _panda_frames preloaded at top of __init__
+
+        # Daily seed (Feature #3) -- compute always, use when daily_mode
+        try:
+            import datetime
+            self.daily_seed = int(datetime.date.today().strftime("%Y%m%d"))
+        except Exception:
+            self.daily_seed = 0
+        self.daily_mode: bool = False
+        self.daily_timer: float = 0.0  # full-run time attack for daily
+
+        # Accessibility (loaded from profile) -- basic per spec
+        self.settings: dict = load_settings()
+        self.options_overlay = AccessibilityOptions()
+        self.options_open: bool = False
+        if hasattr(self, 'particles'):
+            self.particles.set_intensity(self.settings.get('particle_density', 1.0))
+            self.particles.set_reduced_motion(self.settings.get('reduced_motion', False))
+        if hasattr(self, 'shake'):
+            self.shake.set_scale(self.settings.get('shake_intensity', 1.0))
+        try:
+            set_text_scale(self.settings.get('text_scale', 1.0))
+        except Exception:
+            pass
+
+    def _open_accessibility(self) -> None:
+        if self.state in (ST_MENU, ST_PAUSED):
+            self.options_open = True
+            self.options_overlay.selected = 0
+            self.audio.play("menu_select")
+
+    def _close_accessibility(self) -> None:
+        self.options_open = False
+        save_settings(self.settings)
+        if hasattr(self, 'particles'):
+            self.particles.set_intensity(self.settings.get('particle_density', 1.0))
+            self.particles.set_reduced_motion(self.settings.get('reduced_motion', False))
+        if hasattr(self, 'shake'):
+            self.shake.set_scale(self.settings.get('shake_intensity', 1.0))
+        try:
+            set_text_scale(self.settings.get('text_scale', 1.0))
+        except Exception:
+            pass
+
+    def _adjust_option(self, delta: int) -> None:
+        if not self.options_open:
+            return
+        from config import ACCESSIBILITY_RANGES
+        key = self.options_overlay.OPTION_KEYS[self.options_overlay.selected]
+        ranges = ACCESSIBILITY_RANGES.get(key, [1.0])
+        current = self.settings.get(key, ranges[0])
+        try:
+            idx = ranges.index(current) if current in ranges else 0
+        except Exception:
+            idx = 0
+        new_idx = max(0, min(len(ranges) - 1, idx + delta))
+        self.settings[key] = ranges[new_idx]
+        if key == "particle_density":
+            self.particles.set_intensity(self.settings[key])
+        elif key == "shake_intensity":
+            self.shake.set_scale(self.settings[key])
+        elif key == "text_scale":
+            set_text_scale(self.settings[key])
+        elif key == "reduced_motion":
+            self.particles.set_reduced_motion(self.settings[key])
 
     async def run(self) -> None:
         """Async main loop -- Pygbag/WASM requirement."""
@@ -129,14 +222,8 @@ class Game:
             if event.type == pygame.KEYUP:
                 if event.key in (pygame.K_SPACE, pygame.K_UP, pygame.K_w):
                     self._jump_pressed = False
-                    # Jump cut: releasing jump while still rising reduces jump height.
-                    # Tap for a short hop; hold for a full arc.
-                    # Threshold -120 px/s: only cut if rising fast enough (not near apex).
-                    # Multiplier 0.55: cuts ~45% of upward velocity, halving effective
-                    # height on a quick tap.
-                    if (self.state == ST_PLAYING and self.player
-                            and self.player.velocity_y < -120):
-                        self.player.velocity_y *= 0.55
+                    # NOTE: variable cut (JUMP_CUT) handled in Player.update via !jump_held (single source)
+                    # cleaned duplicates+thresholds here for parity + no double-mul with desktop logic
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 4:  # scroll wheel up
                     if self.state == ST_MENU:
@@ -154,7 +241,7 @@ class Game:
                 elif event.button == 1 and self.state == ST_PAUSED:
                     self.pause_overlay.handle_click(event.pos)
                 elif event.button == 1 and self.state == ST_PLAYING:
-                    if self.player and self.player.attack():
+                    if self.player and not getattr(self.player, "dead", False) and self.player.attack():
                         self.audio.play("stomp")
                         self._weapon_used = True
                         self._weapon_tutorial_timer = 0.0
@@ -177,6 +264,7 @@ class Game:
         self.player.mana = self.player.mana_max  # full mana as reward
         self._ice_tutorial_timer = 999.0
         self._ice_used = False
+        save_unlock("ice")
         self.hud.add_floating_text(
             "ICE MAGIC UNLOCKED!",
             self.player.rect.centerx, self.player.rect.top - 40,
@@ -189,6 +277,17 @@ class Game:
         self.audio.play("crystal")
 
     def _on_key_down(self, key: int) -> None:
+        # Global: allow saving a just-completed speedrun ghost for the level (Y after any level clear)
+        if key in (pygame.K_y, pygame.K_z) and self.speedrun_mode:
+            g = getattr(self, '_victory_ghost', None) or self._pending_best_ghost
+            t = self._pending_best_time
+            if g and t is not None:
+                saved = save_best_run(self.current_level, t, g)
+                if saved:
+                    self.hud.add_floating_text("GHOST SAVED", SCREEN_WIDTH // 2, 80, (255, 220, 120))
+                self._pending_best_time = None
+                self._pending_best_ghost = None
+                return
         if self.state == ST_MENU:
             # If title screen detail popup is open, ESC closes it (not app)
             if self.title_screen.handle_key(key):
@@ -198,6 +297,13 @@ class Game:
                 self.audio.play("menu_select")
             elif key == pygame.K_ESCAPE:
                 self.running = False
+            elif key == pygame.K_o:
+                self._open_accessibility()
+            elif key == pygame.K_g:
+                self._grove_return_state = ST_MENU
+                self.grove_ui.refresh()
+                self.state = ST_GROVE
+                self.audio.play("menu_select")
         elif self.state == ST_PLAYING:
             if key == pygame.K_ESCAPE:
                 # ESC in fullscreen drops to windowed first, THEN pauses
@@ -211,7 +317,7 @@ class Game:
                         self.audio.play("jump")
                     self._jump_pressed = True
             elif key in (pygame.K_e, pygame.K_x):
-                if self.player and self.player.attack():
+                if self.player and not getattr(self.player, "dead", False) and self.player.attack():
                     self.audio.play("attack")
                     self._weapon_used = True
                     self._weapon_tutorial_timer = 0.0
@@ -244,14 +350,61 @@ class Game:
             elif key == pygame.K_q:
                 self.state = ST_MENU
                 self.title_screen = TitleScreen()
+            elif key == pygame.K_o:
+                self._open_accessibility()
+            elif key == pygame.K_g:
+                self._grove_return_state = ST_PAUSED
+                self.grove_ui.refresh()
+                self.state = ST_GROVE
+                self.audio.play("menu_select")
             elif key in (pygame.K_UP, pygame.K_w, pygame.K_LEFT, pygame.K_a):
                 self.pause_overlay.scroll(-90)
             elif key in (pygame.K_DOWN, pygame.K_s, pygame.K_RIGHT, pygame.K_d):
                 self.pause_overlay.scroll(90)
+        elif self.state == ST_GROVE:
+            action = self.grove_ui.handle_key(key)
+            if action == "exit":
+                self.state = self._grove_return_state
+                self._grafts = load_grafts()
+            elif action == "crafted":
+                self._grafts = load_grafts()
+                if self.player:
+                    self.player.apply_grafts(self._grafts)
+                    if self.player:
+                        self.particles.emit_graft_leaves(self.player.rect.centerx, self.player.rect.centery - 8, 12)
+                        self.shake.trigger(3, 0.08)
         elif self.state in (ST_GAME_OVER, ST_VICTORY):
             if key == pygame.K_RETURN:
                 self.state = ST_MENU
                 self.title_screen = TitleScreen()
+            elif key == pygame.K_g and self.state == ST_VICTORY:
+                # Enter light Grove overlay from victory (Feature #2)
+                self._grove_return_state = ST_VICTORY
+                self.grove_ui.refresh()
+                self.state = ST_GROVE
+                self.audio.play("menu_select")
+            elif key == pygame.K_r and getattr(self, 'speedrun_mode', False) and self.state == ST_VICTORY:
+                # Replay best ghost on victory for premium speedrun feel
+                g = getattr(self, '_victory_ghost', None) or getattr(self, 'best_ghost', None)
+                if g:
+                    self.ghost_replay_timer = 0.0
+                    self.ghost = GhostPanda(g)
+                    self.audio.play("menu_select")
+
+            if self.options_open:
+                if key in (pygame.K_ESCAPE, pygame.K_o):
+                    self._close_accessibility()
+                    return
+                keys = self.options_overlay.OPTION_KEYS
+                n = len(keys)
+                if key == pygame.K_UP:
+                    self.options_overlay.selected = (self.options_overlay.selected - 1) % n
+                elif key == pygame.K_DOWN:
+                    self.options_overlay.selected = (self.options_overlay.selected + 1) % n
+                elif key in (pygame.K_LEFT, pygame.K_RIGHT):
+                    self._adjust_option(1 if key == pygame.K_RIGHT else -1)
+                return
+            # (ghost Y-save hoisted to top of _on_key_down)
 
     # ------------------------------------------------------------------
     # Level management
@@ -263,16 +416,34 @@ class Game:
         self._total_score = 0
         self.respawn_x = 100
         self.respawn_y = FLOOR_Y
+        # Pull speedrun mode choice from title (menu option / flag)
+        self.speedrun_mode = bool(getattr(self.title_screen, "speedrun_mode", False))
+        # Daily mode from title 'Daily' button (Feature #3)
+        self.daily_mode = bool(getattr(self.title_screen, "daily_mode", False))
+        # Overgrown post-game challenge from title if unlocked (plan vision)
+        self.overgrown_mode = bool(getattr(self.title_screen, "overgrown_mode", False))
+        # Seed RNG ONLY for daily (YYYYMMDD)
+        if self.daily_mode and getattr(self, 'daily_seed', 0):
+            import random as _r
+            _r.seed(self.daily_seed)
+        if self.daily_mode:
+            self.daily_timer = 0.0
         self._load_level(0)
 
     def _load_level(self, level_num: int) -> None:
-        self.level = build_level_state(level_num)
+        if getattr(self, 'overgrown_mode', False):
+            # Special post-game challenge (not a numbered level)
+            self.level = build_overgrown_state()
+            eff_level_num = 99
+        else:
+            self.level = build_level_state(level_num, daily_seed=(self.daily_seed if getattr(self, 'daily_mode', False) else 0))
+            eff_level_num = level_num
         self.camera = Camera(self.level.world_width, SCREEN_HEIGHT)
         self.background = BiomeBackground(self.level.biome)
         self.respawn_x = self.level.player_start[0]
         self.respawn_y = self.level.player_start[1]
         self.player = Player(self.respawn_x, self.respawn_y)
-        if level_num >= DOUBLE_JUMP_LEVEL:
+        if eff_level_num >= DOUBLE_JUMP_LEVEL:
             self.player.has_double_jump = True
         # Glide + Dash are per-level timed pickups (not permanent).
         # Player must collect them each level to use those abilities.
@@ -285,10 +456,16 @@ class Game:
         else:
             self.player.friction_mode = "normal"
         self.player.reset_state()  # clear input locks, dash, attack flags
+        self.player.apply_grafts(self._grafts)
+        if self.particles:
+            self.particles.emit_graft_leaves(self.player.rect.centerx, self.player.rect.centery - 10, 8)
         self.player.score = self._total_score
         self.level.all_sprites.add(self.player)
-        self.current_level = level_num
+        self.current_level = eff_level_num
         self.particles = ParticleSystem()
+        if hasattr(self, 'settings'):
+            self.particles.set_intensity(self.settings.get("particle_density", 1.0))
+            self.particles.set_reduced_motion(self.settings.get("reduced_motion", False))
         self.hud = HUD()
         self.hud.set_bamboo_count(len(self.level.bamboos))
         self.hud.lives = self.lives
@@ -296,6 +473,25 @@ class Game:
         self._was_on_ground = False
         self._jump_pressed = False
         self._outro_active = False
+
+        # Speedrun reset + load best ghost for this level (per-biome best via level key)
+        if self.speedrun_mode:
+            self.run_timer = 0.0
+            self._last_ghost_sample = 0.0
+            self.ghost_record = []
+            self._pending_best_time = None
+            self._pending_best_ghost = None
+            self._victory_ghost = None
+            self.ghost_replay_timer = 0.0
+            best_data = get_best_ghost(level_num)
+            self.best_ghost = best_data
+            self.ghost = GhostPanda(best_data) if best_data else None
+            if self.ghost:
+                self.ghost.reset()
+            # seed first sample immediately for clean replay start
+            if self.player:
+                self.ghost_record.append([0.0, self.player.rect.x, self.player.rect.y, self.player.facing_right])
+                self._last_ghost_sample = 0.0
         self._outro_timer = 0.0
         # If player already has weapon from previous level, keep tutorial hidden
         if self.player.has_bamboo_weapon:
@@ -306,23 +502,32 @@ class Game:
         self.lives -= 1
         if self.lives <= 0:
             save_high_score(self._total_score, self.current_level + 1)
+            save_unlocks({"ice": self._has_ice_magic_permanent, "glide": self._has_glide_permanent})
+            # Extend essence: award for current biome on run end (game over)
+            if self.level:
+                add_essence(getattr(self.level, "biome", "forest"))
             self.game_over_screen = GameOverScreen()
             self.state = ST_GAME_OVER
             self.death_anim = None
             return
-        activated_xs = set()
+        activated = set()
         if self.level:
             for cp in self.level.checkpoints:
                 if cp.activated:
-                    activated_xs.add(cp.spawn_x)
-        self.level = build_level_state(self.current_level)
+                    activated.add((cp.spawn_x, cp.spawn_y))
+        if getattr(self, 'overgrown_mode', False):
+            self.level = build_overgrown_state()
+            eff_lv = 99
+        else:
+            self.level = build_level_state(self.current_level, daily_seed=(self.daily_seed if getattr(self, 'daily_mode', False) else 0))
+            eff_lv = self.current_level
         self.camera = Camera(self.level.world_width, SCREEN_HEIGHT)
         self.background = BiomeBackground(self.level.biome)
         for cp in self.level.checkpoints:
-            if cp.spawn_x in activated_xs:
+            if (cp.spawn_x, cp.spawn_y) in activated:
                 cp.activate()
         self.player = Player(self.respawn_x, self.respawn_y)
-        if self.current_level >= DOUBLE_JUMP_LEVEL:
+        if eff_lv >= DOUBLE_JUMP_LEVEL:
             self.player.has_double_jump = True
         # Glide + Dash are per-level timed pickups (not permanent).
         # Player must collect them each level to use those abilities.
@@ -338,12 +543,19 @@ class Game:
         self.player.score = self._total_score
         self.level.all_sprites.add(self.player)
         self.particles = ParticleSystem()
+        if hasattr(self, 'settings'):
+            self.particles.set_intensity(self.settings.get("particle_density", 1.0))
+            self.particles.set_reduced_motion(self.settings.get("reduced_motion", False))
         self.hud = HUD()
         self.hud.set_bamboo_count(len(self.level.bamboos))
         self.hud.lives = self.lives
         self.death_anim = None
         self._was_on_ground = False
         self._jump_pressed = False
+        if getattr(self, 'speedrun_mode', False):
+            self.run_timer = 0.0
+            self._last_ghost_sample = 0.0
+            self.ghost_record = []
         self.state = ST_PLAYING
 
     def _advance_level(self) -> None:
@@ -352,9 +564,34 @@ class Game:
         if next_lv >= LEVEL_COUNT:
             self._is_high_score = save_high_score(
                 self.player.score, self.current_level + 1)
+            save_unlocks({"ice": self._has_ice_magic_permanent, "glide": self._has_glide_permanent})
             self.victory_screen = VictoryScreen()
             self.state = ST_VICTORY
             self.audio.play("victory")
+            # Mark daily complete if in daily mode (Feature #3)
+            if getattr(self, "daily_mode", False) and getattr(self, "daily_seed", 0):
+                try:
+                    from save import mark_daily_complete
+                    mark_daily_complete(self.daily_seed)
+                except Exception:
+                    pass
+            # Overgrown post-game unlock on L18 victory + high essence (per plan)
+            if getattr(self, "current_level", -1) == 17:
+                try:
+                    ess = load_essences()
+                    total = sum(ess.values()) if ess else 0
+                    if total >= 9:
+                        unlock_overgrown()
+                        self.hud.add_floating_text("OVERGROWN UNLOCKED!", SCREEN_WIDTH // 2, 90, (80, 200, 120))
+                except Exception:
+                    pass
+            # Full lightweight ghost: already saved on outro if better. Show feedback using pending.
+            if self.speedrun_mode and self._pending_best_time is not None:
+                bt = load_best_time(self.current_level)
+                if bt is not None and abs(self._pending_best_time - bt) < 0.01:
+                    self.hud.add_floating_text("GHOST MATCHED!", SCREEN_WIDTH // 2, 70, (200, 220, 200))
+                self._pending_best_time = None
+                self._pending_best_ghost = None
         else:
             self._carry_score = self.player.score
             self._carry_health = self.player.health
@@ -369,6 +606,8 @@ class Game:
     def _update(self, dt: float) -> None:
         if self.state == ST_MENU:
             self.title_screen.update(dt)
+        elif self.state == ST_GROVE:
+            self.grove_ui.update(dt)
         elif self.state == ST_LEVEL_TRANS:
             if self.level_transition and self.level_transition.update(dt):
                 next_num = self.current_level + 1
@@ -383,10 +622,18 @@ class Game:
             self.particles.update(dt)
         elif self.state == ST_VICTORY:
             self.victory_screen.update(dt)
+            # Advance ghost replay timer for R-replay in speedrun mode (premium feel)
+            if getattr(self, 'speedrun_mode', False) and getattr(self, 'ghost', None):
+                self.ghost_replay_timer += dt
+                self.ghost.update(dt, self.ghost_replay_timer)
 
     def _update_gameplay(self, dt: float) -> None:
         if not self.player or not self.level or not self.camera:
             return
+
+        # Game speed multiplier (accessibility)
+        speed_mult = self.settings.get("game_speed", 1.0)
+        dt = dt * speed_mult
 
         # Hitstop freezes game briefly on impact for weight/juice
         if self._hitstop_timer > 0:
@@ -438,6 +685,56 @@ class Game:
         # Player
         keys = pygame.key.get_pressed()
         self.player.update(effective_dt, keys, self.level.platforms)
+        if self.ghost:
+            self.ghost.update(effective_dt, self.run_timer)
+
+        # --- Speedrun timer + lightweight ghost sampling ---
+        if self.speedrun_mode:
+            self.run_timer += effective_dt
+            if (self.run_timer - self._last_ghost_sample) >= GHOST_SAMPLE_INTERVAL:
+                self.ghost_record.append([
+                    self.run_timer,
+                    self.player.rect.x,
+                    self.player.rect.y,
+                    self.player.facing_right,
+                ])
+                self._last_ghost_sample = self.run_timer
+
+        # Daily full-run time attack timer (accumulates across all levels in the daily seed run)
+        if getattr(self, 'daily_mode', False):
+            self.daily_timer += effective_dt
+
+        # Dash trail particles (snappy visual lock + speed lines) -- juicy whoosh
+        if self.player.is_dashing:
+            trail_dir = -1.0 if self.player.dash_direction > 0 else 1.0
+            for _ in range(2):
+                ox = self.player.rect.centerx + trail_dir * 8
+                oy = self.player.rect.centery + (self.player.rect.height * 0.1)
+                self.particles.emit_dash_trail(ox, oy, trail_dir)
+            # Ice dash gets frost too
+            if getattr(self.player, "friction_mode", "") == "ice":
+                for _ in range(1):
+                    self.particles.emit_ice_trail(ox, oy, trail_dir)
+
+        # Glide visuals: soft rising air wisps + leaf flecks while actively gliding
+        if self.player.is_gliding:
+            for _ in range(1):
+                gx = self.player.rect.centerx + random.uniform(-6, 6)
+                gy = self.player.rect.bottom - 2
+                self.particles.emit_glide_wisp(gx, gy)
+            # Extra leaf pop on glide for forest juice
+            if self.level and self.level.biome in ("forest", "corrupted", "mushroom"):
+                if random.random() < 0.5:
+                    self.particles.emit_graft_leaves(gx, gy - 8, 1)
+
+        # Ice slide trail motes (visual feedback on ice biome)
+        if getattr(self.player, "friction_mode", "") == "ice" and abs(self.player.velocity_x) > 60:
+            if random.random() < 0.45:
+                self.particles.emit_ice_trail(
+                    self.player.rect.centerx - (self.player.velocity_x * 0.03),
+                    self.player.rect.bottom - 4,
+                    -1.0 if self.player.velocity_x > 0 else 1.0
+                )
 
         # Detect glide use to dismiss tutorial
         if self.player.is_gliding and not self._glide_used:
@@ -454,12 +751,18 @@ class Game:
             self.audio.play("ice_slide")
 
         # Enemies
+        ed = effective_dt
+        if getattr(self, "daily_mode", False):
+            ed *= 1.18  # higher enemy speed (or count) modifier for daily challenge
         for enemy in list(self.level.enemies):
-            enemy.update(effective_dt, self.level.platforms, self.player)
+            enemy.update(ed, self.level.platforms, self.player)
 
-        # Boss
+        # Boss (also faster in daily for pressure)
+        bd = effective_dt
+        if getattr(self, "daily_mode", False):
+            bd *= 1.12
         if self.level.boss and self.level.boss.alive():
-            self.level.boss.update(effective_dt, self.player, self.level.platforms)
+            self.level.boss.update(bd, self.player, self.level.platforms)
 
         # =============================================================
         # BIOME MECHANICS
@@ -501,6 +804,7 @@ class Game:
             cp.update(effective_dt)
 
         # --- Wind zones (Level 6: Desert) ---
+        # Velocity-based: let player collision resolver handle walls/ice
         in_wind = False
         for wz in self.level.wind_zones:
             if pygame.sprite.collide_rect(self.player, wz):
@@ -588,21 +892,26 @@ class Game:
                 self.particles.emit_updraft_lift(
                     self.level.rising_lava.rect.centerx + random.uniform(-80, 80),
                     self.level.rising_lava.rect.top - 10, 1)
-            # Instant death if player's feet dip into lava
+            # Instant death if player's feet dip into lava (lava_resist graft turns into heavy damage)
             if (self.player.rect.bottom > self.level.rising_lava.rect.top + 4
                     and self.player.invincible_timer <= 0
                     and not self.player.dead):
-                self.player.health = 0
-                self.player.dead = True
-                self.player.invincible_timer = 0.5
-                self.audio.play("death")
-                self.shake.trigger(12, 0.4)
+                if "lava_resist" in getattr(self.player, 'grafts', []):
+                    if self.player.take_damage(PLAYER_MAX_HP // 2 + 10):
+                        self.shake.trigger(6, 0.2)
+                        self.audio.play("hit")
+                        self.player.invincible_timer = max(self.player.invincible_timer, 0.8)
+                else:
+                    self.player.health = 0
+                    self.player.dead = True
+                    self.player.invincible_timer = 0.5
+                    self.audio.play("death")
+                    self.shake.trigger(12, 0.4)
 
         # --- Magma leaper projectiles handled in standard enemy update ---
 
         # --- Timed gates (Level 16) ---
         if len(self.level.timed_gates) > 0:
-            from biomes import TimedGate
             TimedGate.tick_global(effective_dt)
             for gate in self.level.timed_gates:
                 gate.update(effective_dt)
@@ -644,7 +953,7 @@ class Game:
         # Uses the existing teleport_to() / teleport_cooldown machinery that was
         # wired in the enemy class but never triggered from the game loop.
         for enemy in self.level.enemies:
-            if (enemy.__class__.__name__ == "PhaseWraith"
+            if (isinstance(enemy, PhaseWraith)
                     and getattr(enemy, "alive_flag", True)
                     and getattr(enemy, "teleport_cooldown", 1.0) <= 0):
                 for portal in self.level.portals:
@@ -671,7 +980,7 @@ class Game:
 
         # --- Gravity drones: pull player toward them ---
         for enemy in self.level.enemies:
-            if enemy.__class__.__name__ == "GravityDrone" and enemy.alive():
+            if isinstance(enemy, GravityDrone) and enemy.alive():
                 dx = enemy.rect.centerx - self.player.rect.centerx
                 dy = enemy.rect.centery - self.player.rect.centery
                 dist = math.hypot(dx, dy)
@@ -683,7 +992,7 @@ class Game:
 
         # --- ForgeHammer lethality check ---
         for enemy in self.level.enemies:
-            if (enemy.__class__.__name__ == "ForgeHammer"
+            if (isinstance(enemy, ForgeHammer)
                     and getattr(enemy, "is_lethal", lambda: False)()):
                 if pygame.sprite.collide_rect(self.player, enemy):
                     if self.player.take_damage(PLAYER_DAMAGE * 2):
@@ -692,7 +1001,7 @@ class Game:
 
         # --- VoidEater contact damage while open ---
         for enemy in self.level.enemies:
-            if (enemy.__class__.__name__ == "VoidEater"
+            if (isinstance(enemy, VoidEater)
                     and getattr(enemy, "is_dangerous", lambda: False)()):
                 if pygame.sprite.collide_rect(self.player, enemy):
                     if self.player.take_damage(PLAYER_DAMAGE):
@@ -723,6 +1032,9 @@ class Game:
                         (100, 255, 100))
                     self.particles.emit_sparkle(cp.rect.centerx, cp.rect.centery)
                     self.audio.play("collect")
+                    if self.speedrun_mode:
+                        # record split at checkpoint
+                        self.ghost_record.append([self.run_timer, cp.spawn_x, cp.spawn_y, self.player.facing_right])
 
         # Bamboo
         for bamboo in pygame.sprite.spritecollide(
@@ -737,10 +1049,22 @@ class Game:
             self.audio.play("collect", pitch=pitch)
             spark_count = 10 if combo >= 3 else 6
             self.particles.emit_sparkle(bamboo.rect.centerx, bamboo.rect.centery, spark_count)
+            # Extra essence pop sparkle for graft meta juice
+            for _ in range(3):
+                self.particles.emit_sparkle(
+                    bamboo.rect.centerx + random.uniform(-6, 6),
+                    bamboo.rect.top - 4, 2)
             if combo >= 3:
                 self.shake.trigger(2, 0.07)
             if getattr(self.player, "has_bamboo_weapon", False) and getattr(self.player, "weapon_time_remaining", 0) > 0:
                 self.player.weapon_time_remaining = min(45.0, self.player.weapon_time_remaining + 0.7)
+            # Grove meta: collect essence per-biome tag on bamboo
+            biome = getattr(self.level, "biome", "forest") if self.level else "forest"
+            add_essence(biome)
+            if getattr(self, "daily_mode", False):
+                import random as _r
+                if _r.random() < 0.2:
+                    add_essence(biome)  # +20% essence light modifier (daily)
 
         # Bamboo staff weapon pickup (limited duration)
         for weapon in pygame.sprite.spritecollide(
@@ -756,12 +1080,15 @@ class Game:
             self.audio.play("collect")
 
         # Bamboo leaf pickup (10-second timed glide buff)
-        from config import GLIDE_DURATION_SEC, DASH_DURATION_SEC
         for feather in pygame.sprite.spritecollide(
                 self.player, self.level.glide_pickups, True):
             self.player.glide_time_remaining = GLIDE_DURATION_SEC
             self._glide_tutorial_timer = 999.0
             self._glide_used = False
+            # Make glide permanent on first collection (as documented)
+            if not self._has_glide_permanent:
+                self._has_glide_permanent = True
+                save_unlock("glide")
             self.hud.add_floating_text(
                 f"GLIDE! {int(GLIDE_DURATION_SEC)}s",
                 feather.rect.centerx, feather.rect.top - 10, (140, 220, 255))
@@ -814,7 +1141,8 @@ class Game:
                     if type(enemy).__name__ in ("BrineShard", "DustDevil"):
                         continue
                     enemy.die()
-                    self.player.score += STOMP_SCORE
+                    mult = getattr(self, '_daily_score_mult', 1.0)
+                    self.player.score += int(STOMP_SCORE * mult)
                     self.particles.emit_death(enemy.rect.centerx, enemy.rect.centery)
                     self.audio.play("stomp")
                     shur.kill()
@@ -837,7 +1165,8 @@ class Game:
                         and ice.rect.colliderect(enemy.rect)):
                     # Ice CAN kill invincibles -- it freezes them
                     enemy.die()
-                    self.player.score += STOMP_SCORE
+                    mult = getattr(self, '_daily_score_mult', 1.0)
+                    self.player.score += int(STOMP_SCORE * mult)
                     # Big ice-shatter burst
                     for _ in range(8):
                         self.particles.emit_sparkle(
@@ -873,7 +1202,8 @@ class Game:
                         if type(enemy).__name__ in ("BrineShard", "DustDevil"):
                             continue
                         enemy.die()
-                        self.player.score += STOMP_SCORE
+                        mult = getattr(self, '_daily_score_mult', 1.0)
+                        self.player.score += int(STOMP_SCORE * mult)
                         self.hud.add_floating_text(
                             f"+{STOMP_SCORE}", enemy.rect.centerx,
                             enemy.rect.top, COL_GOLD)
@@ -902,8 +1232,8 @@ class Game:
                 self.player, self.level.enemies, False):
             if not getattr(enemy, "alive_flag", True):
                 continue
-            # Skip enemies with dedicated collision handlers
-            if enemy.__class__.__name__ in ("ForgeHammer", "VoidEater"):
+            # Skip enemies with dedicated collision handlers (they deal damage via their own paths)
+            if getattr(enemy, "has_custom_collision", False):
                 continue
             stomp_rect = self.player.get_stomp_rect()
             is_stompable = getattr(enemy, "is_stompable", True)
@@ -1030,6 +1360,10 @@ class Game:
         if self.player.dead and self.death_anim is None:
             self.death_anim = DeathAnimation()
             self.audio.play("death")
+            # Extra death juice burst (leaves + death particles for pop)
+            self.particles.emit_death(self.player.rect.centerx, self.player.rect.centery, 22)
+            if self.level and self.level.biome in ("forest", "corrupted"):
+                self.particles.emit_graft_leaves(self.player.rect.centerx, self.player.rect.centery, 6)
 
         # --- Level end outro: victory dance then advance ---
         # Player is LOCKED in place during dance -- no walking off screen.
@@ -1041,13 +1375,20 @@ class Game:
                 self._outro_anchor_x = self.player.rect.x
             self._outro_timer -= effective_dt
             if self._outro_timer > 1.4:
-                # Active dance: lock player in place, play anim, NO sparkles
+                # Active dance: lock player in place, play anim + JUICY sparkles/leaves (make dance as fun as gameplay)
                 self.player.is_victory_dancing = True
                 self.player.velocity_x = 0
                 self.player.velocity_y = min(self.player.velocity_y, 0)
                 # Snap back to anchor to prevent sliding
                 if hasattr(self, '_outro_anchor_x'):
                     self.player.rect.x = self._outro_anchor_x
+                if random.random() < 0.6:
+                    self.particles.emit_sparkle(
+                        self.player.rect.centerx + random.uniform(-8, 8),
+                        self.player.rect.centery - 12, 4
+                    )
+                if random.random() < 0.4:
+                    self.particles.emit_ambient_leaves(self.camera.get_visible_rect())
             else:
                 # Dance done -- small triumphant bounce in place, then advance
                 self.player.is_victory_dancing = False
@@ -1057,6 +1398,17 @@ class Game:
             if self._outro_timer <= 0:
                 self._outro_active = False
                 self.player.is_victory_dancing = False
+                if self.speedrun_mode:
+                    # Save best time + ghost on victory (per level / biome). Only persists if better.
+                    if self.ghost_record:
+                        saved = save_best_run(self.current_level, self.run_timer, list(self.ghost_record))
+                        if saved:
+                            self.best_ghost = get_best_ghost(self.current_level)
+                            self.ghost = GhostPanda(self.best_ghost) if self.best_ghost else None
+                    final_t = self.run_timer
+                    self._pending_best_time = final_t
+                    self._pending_best_ghost = list(self.ghost_record)
+                    self._victory_ghost = list(self.ghost_record)
                 self._advance_level()
 
         # Tutorial hint timer decrement (when not persistent)
@@ -1069,6 +1421,10 @@ class Game:
         self.camera.update(self.player, effective_dt)
         self.shake.tick(effective_dt)
         self.particles.emit_ambient_leaves(self.camera.get_visible_rect())
+        # Extra foliage for overgrown post-game (reuse + density)
+        if getattr(self, 'overgrown_mode', False) or getattr(self.level, 'biome', '') == "overgrown":
+            if random.random() < 0.7:
+                self.particles.emit_ambient_leaves(self.camera.get_visible_rect())
         self.particles.update(effective_dt)
 
         self.level.bamboos.update(effective_dt)
@@ -1085,13 +1441,42 @@ class Game:
         if self.state == ST_MENU:
             self.title_screen.draw(self.screen)
             return
+        if self.state == ST_GROVE:
+            self.grove_ui.draw(self.screen)
+            return
         if self.state == ST_LEVEL_TRANS:
             if self.level_transition:
                 self.level_transition.draw(self.screen)
             return
         if self.state == ST_VICTORY:
             score = self.player.score if self.player else 0
-            self.victory_screen.draw(self.screen, score, self._is_high_score)
+            bt = load_best_time(self.current_level) if self.speedrun_mode else None
+            self.victory_screen.draw(self.screen, score, self._is_high_score,
+                                     speedrun_time=getattr(self, '_pending_best_time', None),
+                                     best_time=bt,
+                                     has_ghost=bool(getattr(self, '_victory_ghost', None) or getattr(self, 'best_ghost', None)))
+            # Replay ghost visually using GhostPanda (semi-transparent following path) when R pressed in speedrun
+            if getattr(self, 'speedrun_mode', False) and getattr(self, 'ghost', None):
+                g = getattr(self, '_victory_ghost', None) or getattr(self, 'best_ghost', None)
+                if g and len(g) > 1:
+                    t = getattr(self, 'ghost_replay_timer', 0.0)
+                    sample = None
+                    for s in g:
+                        if s[0] <= t:
+                            sample = s
+                        else:
+                            break
+                    if sample is None:
+                        sample = g[0]
+                    _, gx, gy, _ = sample
+                    off_x = int(gx) - int(SCREEN_WIDTH * 0.38)
+                    off_y = -40
+                    self.ghost.draw(self.screen, camera=None, offset_x=off_x, offset_y=off_y)
+                    try:
+                        from ui import draw_text
+                        draw_text(self.screen, "GHOST REPLAY (R)", 12, (170, 190, 210), SCREEN_WIDTH // 2, SCREEN_HEIGHT - 38)
+                    except Exception:
+                        pass
             return
         if not self.player or not self.level or not self.camera:
             return
@@ -1136,6 +1521,20 @@ class Game:
                 continue
             self.screen.blit(sprite.image, sprite.rect.move(cam_x, cam_y))
 
+        # Draw best ghost (non-interacting GhostPanda sprite, semi-transparent panda frames)
+        if getattr(self, 'ghost', None):
+            self.ghost.draw(self.screen, self.camera)
+        elif self.speedrun_mode and self.best_ghost:
+            # fallback: instantiate so GhostPanda is authoritative
+            self.ghost = GhostPanda(self.best_ghost)
+            self.ghost.draw(self.screen, self.camera)
+        if self.speedrun_mode and getattr(self, 'ghost', None):
+            try:
+                from ui import draw_text
+                draw_text(self.screen, "GHOST", 10, (160, 180, 200), SCREEN_WIDTH // 2 + 72, 26)
+            except Exception:
+                pass
+
         self.particles.draw(self.screen, self.camera)
 
         # NPC friendly-indicator: bouncing "?" above head (universal UI affordance)
@@ -1152,9 +1551,13 @@ class Game:
             pygame.draw.circle(bubble, (255, 180, 40), (10, 12), 10, 2)
             self.screen.blit(bubble, (int(sx) - 10, int(sy) - 12))
             # "?" glyph
-            font = pygame.font.SysFont("consolas", 18, bold=True)
+            font = get_font(18, bold=True)
             q = font.render("?", True, (70, 45, 0))
             self.screen.blit(q, q.get_rect(center=(int(sx), int(sy))))
+
+        # Sword swing arc (rotational visual + hitbox glow)
+        if self.player.is_attacking:
+            self._draw_sword_arc(cam_x, cam_y)
 
         # Bamboo leaf parasol while gliding
         if self.player.is_gliding:
@@ -1164,13 +1567,8 @@ class Game:
         if self.player.is_dashing:
             self._draw_dash_trail(cam_x, cam_y)
 
-        # Sword swing arc (rotational visual + hitbox glow)
-        if self.player.is_attacking:
-            self._draw_sword_arc(cam_x, cam_y)
-
         # --- Darkness overlay (Level 7, 9, 13, 17: dark biomes) ---
         if self.level.is_dark:
-            from config import CRYSTAL_LIGHT_TIME
             # Single-pass: build one dark layer with transparent "holes" around
             # the player + each lit crystal. Crystals fade smoothly during their
             # last 1.5s of life so the transition isn't a hard pop.
@@ -1231,7 +1629,7 @@ class Game:
                 pygame.draw.rect(self.screen, (220, 40, 40), (bx, by, fill, bar_h))
             pygame.draw.rect(self.screen, (255, 255, 255), (bx, by, bar_w, bar_h), 1)
             # "BOSS" label
-            font = pygame.font.SysFont("consolas", 12, bold=True)
+            font = get_font(12, bold=True)
             label = font.render(f"BOSS  {boss.hp}/{boss.max_hp}", True, (255, 200, 200))
             self.screen.blit(label, (bx, by - 14))
             # STATE INDICATOR above boss head
@@ -1247,7 +1645,7 @@ class Game:
                 state_label = "STUN -- STOMP!"
                 state_color = (80, 180, 255)
             if state_label:
-                big_font = pygame.font.SysFont("consolas", 16, bold=True)
+                big_font = get_font(16, bold=True)
                 surf = big_font.render(state_label, True, state_color)
                 t_ms = pygame.time.get_ticks()
                 bob = math.sin(t_ms / 150.0) * 3
@@ -1259,7 +1657,23 @@ class Game:
         if self._debug_mode:
             self._draw_debug_hitboxes(cam_x, cam_y)
 
-        self.hud.draw(self.screen, self.player, self.current_level + 1, self.camera)
+        self.hud.draw(self.screen, self.player, self.current_level + 1, self.camera, getattr(self, 'run_timer', 0.0),
+                      daily_seed=(getattr(self, 'daily_seed', 0) if getattr(self, 'daily_mode', False) else 0))
+
+        # Speedrun timer (top-center) + best (if speedrun active)
+        if getattr(self, 'speedrun_mode', False):
+            from ui import draw_text_shadow, draw_text
+            t = getattr(self, 'run_timer', 0.0)
+            m = int(t // 60)
+            s = t % 60
+            txt = f"{m}:{s:05.2f}" if m else f"{s:05.2f}"
+            draw_text_shadow(self.screen, txt, 28, COL_GOLD, SCREEN_WIDTH // 2, 28, bold=True)
+            bt = load_best_time(self.current_level)
+            if bt is not None:
+                bm = int(bt // 60)
+                bs = bt % 60
+                btxt = f"best {bm}:{bs:05.2f}" if bm else f"best {bs:05.2f}"
+                draw_text(self.screen, btxt, 14, (200, 200, 160), SCREEN_WIDTH // 2, 46)
 
         # Weapon tutorial hint -- persistent banner until first use
         if (self.player.has_bamboo_weapon and not self._weapon_used):
@@ -1286,6 +1700,11 @@ class Game:
             self.pause_overlay.draw(self.screen)
         elif self.state == ST_GAME_OVER:
             self.game_over_screen.draw(self.screen, self.player.score)
+
+        if self.options_open:
+            self.options_overlay.draw(self.screen, self.settings)
+
+        self._apply_color_filter()
 
     def _draw_glide_leaf(self, cam_x: int, cam_y: int) -> None:
         """Draw a large bamboo leaf parasol above the panda while gliding."""
@@ -1342,6 +1761,45 @@ class Game:
             streak = pygame.Surface((llen, 2), pygame.SRCALPHA)
             streak.fill((180, 255, 140, 140))
             self.screen.blit(streak, (lx - int(direction * llen), ly))
+
+    def _draw_ghost(self, cam_x: int, cam_y: int) -> None:
+        """Playback best ghost as semi-transparent panda. Step sampling. Uses frames from generate_panda_frames."""
+        if not getattr(self, 'best_ghost', None) or not getattr(self, '_panda_frames', None):
+            return
+        t = getattr(self, 'run_timer', 0.0)
+        sample = None
+        for s in self.best_ghost:
+            if s[0] <= t:
+                sample = s
+            else:
+                break
+        if sample is None:
+            sample = self.best_ghost[0]
+        _, gx, gy, facing = sample
+        frames = self._panda_frames
+        state = "run" if len(self.best_ghost) > 3 and abs(self.best_ghost[-1][1] - self.best_ghost[0][1]) > 25 else "idle"
+        lst = frames.get(state, frames.get("idle", []))
+        if not lst:
+            return
+        # Light animation from Player frames (use time for frame index) -- reuses Player art exactly
+        frame_idx = int(t * (10 if state == "run" else 2)) % len(lst)
+        frame = lst[frame_idx]
+        if not facing:
+            frame = pygame.transform.flip(frame, True, False)
+        ghost = frame.copy()
+        ghost.set_alpha(GHOST_ALPHA)
+        self.screen.blit(ghost, (int(gx + cam_x), int(gy + cam_y)))
+
+    def _make_dummy_ghost(self) -> list[list]:
+        """Generate a simple straight-line dummy ghost for testing the feature without a prior saved run."""
+        dummy: list[list] = []
+        start_x = 80
+        y = FLOOR_Y - 4
+        for i in range(16):
+            t = i * 0.2
+            x = start_x + i * 55
+            dummy.append([t, float(x), float(y), True])
+        return dummy
 
     def _draw_sword_arc(self, cam_x: int, cam_y: int) -> None:
         """Bamboo sword STAB: horizontal thrust forward then retract."""
@@ -1442,8 +1900,8 @@ class Game:
         # Pulsing alpha to draw attention
         t = pygame.time.get_ticks() / 200.0
         alpha = int(180 + 55 * math.sin(t))
-        font_big = pygame.font.SysFont("consolas", 22, bold=True)
-        font_small = pygame.font.SysFont("consolas", 14)
+        font_big = get_font(22, bold=True)
+        font_small = get_font(14)
         title = font_big.render("BAMBOO STAFF EQUIPPED!", True, (255, 230, 120))
         hint = font_small.render("Press  [ E ]  or  LEFT CLICK  to swing",
                                  True, (230, 230, 230))
@@ -1462,8 +1920,8 @@ class Game:
         """Persistent banner teaching the player how to glide."""
         t = pygame.time.get_ticks() / 200.0
         alpha = int(180 + 55 * math.sin(t))
-        font_big = pygame.font.SysFont("consolas", 22, bold=True)
-        font_small = pygame.font.SysFont("consolas", 14)
+        font_big = get_font(22, bold=True)
+        font_small = get_font(14)
         title = font_big.render("GLIDE UNLOCKED!", True, (140, 220, 255))
         hint = font_small.render(
             "Hold  [ JUMP ]  while falling to glide!", True, (230, 230, 230))
@@ -1484,8 +1942,8 @@ class Game:
         """Persistent banner teaching the player how to cast ice."""
         t = pygame.time.get_ticks() / 200.0
         alpha = int(180 + 55 * math.sin(t))
-        font_big = pygame.font.SysFont("consolas", 22, bold=True)
-        font_small = pygame.font.SysFont("consolas", 14)
+        font_big = get_font(22, bold=True)
+        font_small = get_font(14)
         title = font_big.render("ICE MAGIC UNLOCKED!", True, (140, 220, 255))
         hint = font_small.render(
             "Press  [ R ]  to cast Ice Shard  (10s cooldown)",
@@ -1520,7 +1978,7 @@ class Game:
                          border_radius=8)
         self.screen.blit(bg, (box_x, box_y))
         # Name tab in corner
-        name_font = pygame.font.SysFont("consolas", 18, bold=True)
+        name_font = get_font(18, bold=True)
         name_surf = name_font.render(npc.name, True, (255, 220, 120))
         name_bg = pygame.Surface((name_surf.get_width() + 20, 24), pygame.SRCALPHA)
         name_bg.fill((40, 30, 20, 240))
@@ -1529,7 +1987,7 @@ class Game:
         self.screen.blit(name_bg, (box_x + 12, box_y - 12))
         self.screen.blit(name_surf, (box_x + 22, box_y - 8))
         # Dialog text (render all lines stacked)
-        text_font = pygame.font.SysFont("consolas", 16)
+        text_font = get_font(16)
         for i, line in enumerate(npc.dialog_lines):
             line_surf = text_font.render(line, True, (235, 235, 235))
             self.screen.blit(line_surf, (box_x + 24, box_y + 22 + i * 22))
@@ -1595,7 +2053,7 @@ class Game:
             pygame.draw.rect(self.screen, (100, 255, 255),
                              np_.rect.move(cam_x, cam_y), 2)
         # Debug overlay text
-        font = pygame.font.SysFont("consolas", 14, bold=True)
+        font = get_font(14, bold=True)
         info = font.render("DEBUG [TAB] | RED=hitbox GREEN=player CYAN=goal YELLOW=pickup",
                            True, (255, 255, 255))
         info_bg = pygame.Surface((info.get_width() + 10, info.get_height() + 4),
@@ -1603,6 +2061,26 @@ class Game:
         info_bg.fill((0, 0, 0, 180))
         self.screen.blit(info_bg, (4, SCREEN_HEIGHT - 22))
         self.screen.blit(info, (8, SCREEN_HEIGHT - 20))
+
+    def _apply_color_filter(self) -> None:
+        """Simple post-draw color filter for accessibility (low risk blend)."""
+        if self.options_open:
+            return
+        filt = self.settings.get("color_filter", 0)
+        if filt == 0:
+            return
+        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+        if filt == 1:
+            overlay.fill((180, 180, 180, 45))
+            self.screen.blit(overlay, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+        elif filt == 2:
+            overlay.fill((255, 210, 160, 35))
+            self.screen.blit(overlay, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+        elif filt == 3:
+            overlay.fill((0, 0, 0, 20))
+            self.screen.blit(overlay, (0, 0), special_flags=pygame.BLEND_RGBA_SUB)
+            overlay.fill((255, 255, 255, 25))
+            self.screen.blit(overlay, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
 
 
 async def main() -> None:

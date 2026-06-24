@@ -36,11 +36,14 @@ class Camera:
         self.world_height = world_height
 
     def update(self, target: pygame.sprite.Sprite, dt: float) -> None:
-        # Lock camera directly to player -- no lerp, no float drift.
-        # Player rect is always integer, so goal is always integer,
-        # which means offset is always integer. Zero sub-pixel jitter.
+        # Direct lock for no jitter + tiny velocity lead for juicy anticipation.
+        # Lead makes camera peek ahead when running, feels responsive without laggy lerp.
         goal_x = -target.rect.centerx + SCREEN_WIDTH // 2
         goal_y = -target.rect.centery + SCREEN_HEIGHT // 2
+        # Small forward lead (tuned low so platforming precision stays perfect)
+        vx = getattr(target, "velocity_x", 0.0)
+        lead = vx * 0.11
+        goal_x -= lead
         self.offset_x = float(max(-(self.world_width - SCREEN_WIDTH), min(0, goal_x)))
         self.offset_y = float(max(-(self.world_height - SCREEN_HEIGHT), min(0, goal_y)))
         self.render_x = math.floor(self.offset_x)
@@ -64,6 +67,10 @@ class ScreenShake:
     def __init__(self) -> None:
         self.timer: float = 0.0
         self.intensity: int = 0
+        self.scale: float = 1.0
+
+    def set_scale(self, v: float) -> None:
+        self.scale = max(0.0, min(2.0, float(v)))
 
     def trigger(self, intensity: int = SHAKE_INTENSITY,
                 duration: float = SHAKE_DURATION) -> None:
@@ -73,8 +80,8 @@ class ScreenShake:
     def update(self, dt: float) -> tuple[int, int]:
         if self.timer > 0:
             self.timer -= dt
-            return (random.randint(-self.intensity, self.intensity),
-                    random.randint(-self.intensity, self.intensity))
+            i = int(self.intensity * self.scale)
+            return (random.randint(-i, i), random.randint(-i, i))
         return (0, 0)
 
     def tick(self, dt: float) -> None:
@@ -85,8 +92,8 @@ class ScreenShake:
     def get_offset(self) -> tuple[int, int]:
         """Sample current shake offset. Use in draw loop."""
         if self.timer > 0:
-            return (random.randint(-self.intensity, self.intensity),
-                    random.randint(-self.intensity, self.intensity))
+            i = int(self.intensity * self.scale)
+            return (random.randint(-i, i), random.randint(-i, i))
         return (0, 0)
 
 
@@ -116,6 +123,21 @@ class Particle:
 class ParticleSystem:
     def __init__(self) -> None:
         self.particles: list[Particle] = []
+        self.intensity: float = 1.0
+        self.reduced_motion: bool = False
+
+    def set_intensity(self, v: float) -> None:
+        """Accessibility: scale emitted counts (0.0 = none, 1.0 = normal, 2.0 = lots)."""
+        self.intensity = max(0.0, min(2.0, float(v)))
+
+    def set_reduced_motion(self, v: bool) -> None:
+        """Accessibility: when true, skip some sparkles (e.g. decorative/ambient)."""
+        self.reduced_motion = bool(v)
+
+    def _count(self, n: int) -> int:
+        if self.intensity <= 0.01:
+            return 0
+        return max(0, int(n * self.intensity))
 
     def update(self, dt: float) -> None:
         alive: list[Particle] = []
@@ -158,7 +180,10 @@ class ParticleSystem:
                     screen.blit(s, (int(sx), int(sy)))
 
     def emit_sparkle(self, x: float, y: float, count: int = 8) -> None:
-        for _ in range(count):
+        n = self._count(count)
+        if self.reduced_motion:
+            n = max(0, n // 2)  # simple reduced motion: skip some sparkles
+        for _ in range(n):
             angle = random.uniform(0, 2 * math.pi)
             speed = random.uniform(60, 180)
             self.particles.append(Particle(
@@ -169,7 +194,7 @@ class ParticleSystem:
             ))
 
     def emit_dust(self, x: float, y: float, count: int = 5) -> None:
-        for _ in range(count):
+        for _ in range(self._count(count)):
             self.particles.append(Particle(
                 x + random.uniform(-10, 10), y,
                 random.uniform(-40, 40), random.uniform(-80, -20),
@@ -181,24 +206,34 @@ class ParticleSystem:
             ))
 
     def emit_dash_trail(self, x: float, y: float, direction: float = -1.0) -> None:
-        """Speed lines / afterimage particles for dash. Small, fast, short life."""
-        # Horizontal speed lines, slight vertical scatter
-        speed = random.uniform(180, 320)
-        vx = direction * speed + random.uniform(-30, 30)
-        vy = random.uniform(-40, 40)
-        life = random.uniform(0.08, 0.16)
-        # Cool blue-white streak color
-        color = (180 + random.randint(0, 40),
-                 200 + random.randint(0, 55),
-                 255)
-        self.particles.append(Particle(
-            x, y, vx, vy, life, color,
-            random.uniform(1.5, 3.0), "rect", gravity=False,
-        ))
+        """Speed lines / afterimage particles for dash. Small, fast, short life. Richer for juice."""
+        for _ in range(2):
+            # Horizontal speed lines, slight vertical scatter
+            speed = random.uniform(180, 320)
+            vx = direction * speed + random.uniform(-30, 30)
+            vy = random.uniform(-40, 40)
+            life = random.uniform(0.08, 0.16)
+            # Cool blue-white streak color
+            color = (180 + random.randint(0, 40),
+                     200 + random.randint(0, 55),
+                     255)
+            self.particles.append(Particle(
+                x, y, vx, vy, life, color,
+                random.uniform(1.5, 3.0), "rect", gravity=False,
+            ))
+            # Mix in tiny forward bamboo leaf flecks for theme
+            if random.random() < 0.6:
+                self.particles.append(Particle(
+                    x + random.uniform(-2, 2), y + random.uniform(-4, 4),
+                    direction * random.uniform(140, 220), random.uniform(-30, 30),
+                    random.uniform(0.09, 0.18),
+                    (70, 160, 55),
+                    random.uniform(2, 3.5), "leaf", gravity=False,
+                ))
 
     def emit_glide_wisp(self, x: float, y: float) -> None:
         """Soft rising wisp while gliding. Very gentle, almost decorative."""
-        # Slow upward drift, tiny horizontal wander
+        # Slow upward drift, tiny horizontal wander + occasional leaf for forest feel
         vx = random.uniform(-8, 8)
         vy = random.uniform(-35, -15)
         life = random.uniform(0.25, 0.45)
@@ -210,6 +245,48 @@ class ParticleSystem:
             x, y, vx, vy, life, color,
             random.uniform(1.0, 2.2), "circle", gravity=False,
         ))
+        if random.random() < 0.35:
+            # light leaf accent
+            self.particles.append(Particle(
+                x + random.uniform(-3, 3), y,
+                random.uniform(-12, 12), random.uniform(-28, -12),
+                random.uniform(0.35, 0.65),
+                random.choice([(60, 150, 50), (80, 170, 60)]),
+                random.uniform(2.5, 4.5), "leaf", gravity=False,
+            ))
+
+    def emit_graft_leaves(self, x: float, y: float, count: int = 10) -> None:
+        """Leaf burst + sparkle when grafts are applied (Grove meta juice)."""
+        n = self._count(count)
+        for _ in range(n):
+            angle = random.uniform(-1.0, 1.0)
+            speed = random.uniform(35, 95)
+            vx = math.sin(angle) * speed
+            vy = -abs(math.cos(angle) * speed) * 0.9 - random.uniform(20, 50)
+            greens = [(55, 145, 45), (75, 165, 55), (45, 125, 35), (90, 175, 70)]
+            self.particles.append(Particle(
+                x + random.uniform(-4, 4), y + random.uniform(-2, 2),
+                vx, vy,
+                random.uniform(0.55, 1.05),
+                random.choice(greens),
+                random.uniform(3, 6), "leaf", gravity=True,
+            ))
+        # Bonus sparkles for "applied" pop
+        for _ in range(max(2, n // 3)):
+            self.emit_sparkle(x + random.uniform(-6, 6), y - 4, 1)
+
+    def emit_ice_trail(self, x: float, y: float, direction: float = -1.0) -> None:
+        """Frosty motes / speed lines for ice sliding and ice magic. Cold blue-white."""
+        for _ in range(2):
+            vx = direction * random.uniform(90, 180) + random.uniform(-20, 20)
+            vy = random.uniform(-25, 35)
+            life = random.uniform(0.18, 0.32)
+            c = (170 + random.randint(0, 50), 210 + random.randint(0, 40), 255)
+            self.particles.append(Particle(
+                x + random.uniform(-3, 3), y + random.uniform(-2, 2),
+                vx, vy, life, c,
+                random.uniform(1.2, 2.8), "circle", gravity=False,
+            ))
 
     def emit_damage(self, x: float, y: float, count: int = 6) -> None:
         for _ in range(count):
@@ -222,7 +299,7 @@ class ParticleSystem:
             ))
 
     def emit_death(self, x: float, y: float, count: int = 15) -> None:
-        for _ in range(count):
+        for _ in range(self._count(count)):
             angle = random.uniform(0, 2 * math.pi)
             speed = random.uniform(100, 300)
             self.particles.append(Particle(
@@ -233,8 +310,9 @@ class ParticleSystem:
             ))
 
     def emit_ambient_leaves(self, visible_rect: pygame.Rect) -> None:
+        target = self._count(LEAF_COUNT)
         leaf_count = sum(1 for p in self.particles if p.shape == "leaf")
-        while leaf_count < LEAF_COUNT:
+        while leaf_count < target:
             x = visible_rect.x + random.uniform(0, visible_rect.width)
             y = visible_rect.y + random.uniform(-40, visible_rect.height * 0.4)
             greens = [(60, 140, 40), (40, 120, 30), (80, 160, 50), (50, 130, 20),
@@ -250,8 +328,8 @@ class ParticleSystem:
 
     def emit_geyser_burst(self, x: float, y: float, count: int = 12) -> None:
         """Strong upward volcanic launch juice for geyser rides."""
-        for _ in range(count):
-            angle = random.uniform(-0.6, 0.6)  # mostly straight up
+        for _ in range(self._count(count)):
+            angle = random.uniform(-0.6, 0.6)
             speed = random.uniform(120, 320)
             vx = math.sin(angle) * speed * 0.3
             vy = -abs(math.cos(angle) * speed)
@@ -314,160 +392,3 @@ class ParticleSystem:
                 (220, 140, 200),
                 random.uniform(2, 4), "circle", gravity=True,
             ))
-
-
-# ---------------------------------------------------------------------------
-# Parallax Background -- fully opaque layers, no SRCALPHA artifacts
-# ---------------------------------------------------------------------------
-
-class ParallaxBackground:
-    """Clean parallax with seamlessly-tileable layers.
-
-    Each layer is drawn on a surface exactly SCREEN_WIDTH wide.
-    Features that cross the right edge wrap to the left edge,
-    so two copies placed side-by-side have no visible seam.
-    """
-
-    def __init__(self) -> None:
-        self.w = SCREEN_WIDTH
-        self.combined = self._build_combined()
-        self.layers: list[tuple[pygame.Surface, float]] = [
-            (self.combined, 0.18),
-        ]
-        # Sky is drawn first (static, no scroll)
-        self.sky = self._build_sky()
-
-    def draw(self, screen: pygame.Surface, camera_x: float) -> None:
-        bg_w = self.combined.get_width()
-        for surface, factor in self.layers:
-            parallax_x = camera_x * factor
-            offset_x = -(parallax_x % bg_w)
-            draw_x = math.floor(offset_x)
-            screen.blit(surface, (draw_x, 0))
-            screen.blit(surface, (draw_x + bg_w, 0))
-
-    def _build_sky(self) -> pygame.Surface:
-        """Static sky gradient + clouds -- never scrolls so no tiling needed."""
-        surf = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
-        for y in range(SCREEN_HEIGHT):
-            t = y / SCREEN_HEIGHT
-            r = int(120 + 80 * t)
-            g = int(185 + 45 * t)
-            b = int(235 + 15 * t)
-            pygame.draw.line(surf, (min(255, r), min(255, g), min(255, b)),
-                             (0, y), (SCREEN_WIDTH, y))
-        # Clouds
-        random.seed(42)
-        for _ in range(5):
-            cx = random.randint(80, SCREEN_WIDTH - 80)
-            cy = random.randint(40, 140)
-            for _ in range(6):
-                pygame.draw.circle(surf, (215, 228, 242),
-                                   (cx + random.randint(-30, 30),
-                                    cy + random.randint(-4, 8) + 3),
-                                   random.randint(18, 30))
-            for _ in range(8):
-                pygame.draw.circle(surf, COL_WHITE,
-                                   (cx + random.randint(-30, 30),
-                                    cy + random.randint(-8, 5)),
-                                   random.randint(18, 30))
-        random.seed()
-        return surf
-
-    def _wrap_polygon(self, surf: pygame.Surface, color: tuple,
-                      pts: list[tuple[int, int]]) -> None:
-        """Draw a polygon that wraps seamlessly at x=0 and x=self.w."""
-        pygame.draw.polygon(surf, color, pts)
-        # Also draw shifted copies so edges wrap cleanly
-        shifted_left = [(x - self.w, y) for x, y in pts]
-        shifted_right = [(x + self.w, y) for x, y in pts]
-        pygame.draw.polygon(surf, color, shifted_left)
-        pygame.draw.polygon(surf, color, shifted_right)
-
-    def _build_combined(self) -> pygame.Surface:
-        """Opaque surface with sky + mountains + trees, tileable."""
-        surf = self._build_sky().copy()  # start with sky -- fully opaque
-
-        random.seed(101)
-        # Back mountains (blue-gray)
-        for i in range(8):
-            x = int(i * self.w / 6) + random.randint(-40, 40)
-            peak_h = random.randint(190, 290)
-            base_w = random.randint(250, 400)
-            top_y = SCREEN_HEIGHT - peak_h
-            shade = random.randint(-8, 8)
-            c = (105 + shade, 130 + shade, 160 + shade)
-            self._wrap_polygon(surf, c, [
-                (x - base_w // 2, SCREEN_HEIGHT),
-                (x, top_y),
-                (x + base_w // 2, SCREEN_HEIGHT)])
-            # Dark left face
-            c2 = (90 + shade, 115 + shade, 145 + shade)
-            self._wrap_polygon(surf, c2, [
-                (x - base_w // 2, SCREEN_HEIGHT),
-                (x, top_y),
-                (x - base_w // 8, SCREEN_HEIGHT)])
-            # Snow cap (part of the peak, not floating)
-            sw = base_w // 7
-            self._wrap_polygon(surf, (230, 238, 248), [
-                (x - sw, top_y + 18), (x, top_y), (x + sw, top_y + 18)])
-
-        # Front hills (green-gray, shorter)
-        for i in range(7):
-            x = int(i * self.w / 5) + random.randint(-30, 30)
-            peak_h = random.randint(100, 170)
-            base_w = random.randint(200, 340)
-            top_y = SCREEN_HEIGHT - peak_h
-            shade = random.randint(-6, 6)
-            c = (80 + shade, 110 + shade, 75 + shade)
-            self._wrap_polygon(surf, c, [
-                (x - base_w // 2, SCREEN_HEIGHT),
-                (x, top_y),
-                (x + base_w // 2, SCREEN_HEIGHT)])
-            c2 = (90 + shade, 120 + shade, 85 + shade)
-            self._wrap_polygon(surf, c2, [
-                (x + base_w // 8, SCREEN_HEIGHT),
-                (x, top_y),
-                (x + base_w // 2, SCREEN_HEIGHT)])
-
-        # Pine trees
-        for i in range(18):
-            tx = int(i * self.w / 14) + random.randint(-30, 30)
-            tree_h = random.randint(60, 110)
-            trunk_top = SCREEN_HEIGHT - tree_h
-            trunk_w = random.randint(4, 8)
-            trunk_c = (70 + random.randint(-8, 8),
-                       48 + random.randint(-8, 8),
-                       28 + random.randint(-5, 5))
-            # Trunk (simple rect, wraps fine without helper)
-            for dx in (-self.w, 0, self.w):
-                pygame.draw.rect(surf, trunk_c,
-                                 (tx - trunk_w // 2 + dx,
-                                  trunk_top + tree_h // 3,
-                                  trunk_w, tree_h * 2 // 3))
-            # Canopy layers
-            canopy_c = (32 + random.randint(-8, 12),
-                        105 + random.randint(-15, 15),
-                        32 + random.randint(-8, 12))
-            cw = random.randint(20, 34)
-            for li, (ly_f, lw_f) in enumerate(
-                    [(0.55, 1.0), (0.35, 0.8), (0.15, 0.6)]):
-                ly = trunk_top + int(tree_h * ly_f)
-                lw = int(cw * lw_f)
-                s = li * 8
-                lc = (min(255, canopy_c[0] + s),
-                      min(255, canopy_c[1] + s),
-                      min(255, canopy_c[2] + s))
-                self._wrap_polygon(surf, lc, [
-                    (tx - lw, ly),
-                    (tx, trunk_top + int(tree_h * 0.12 * (li + 1))),
-                    (tx + lw, ly)])
-
-        # Ground strip (dark green blending bar)
-        for y in range(SCREEN_HEIGHT - 12, SCREEN_HEIGHT):
-            t = (y - (SCREEN_HEIGHT - 12)) / 12
-            gc = (int(30 + 20 * t), int(85 + 30 * t), int(28 + 15 * t))
-            pygame.draw.line(surf, gc, (0, y), (self.w, y))
-
-        random.seed()
-        return surf

@@ -8,6 +8,8 @@ from math import floor as _fl
 
 import pygame
 
+from sprites import generate_platform_tile
+
 from config import (
     ASH_BAT_RANGE, ASH_BAT_SWOOP, BRINE_DMG_RADIUS, BRINE_GROW_RATE,
     COL_BASALT, COL_BLACK, COL_CRYSTAL, COL_ICE, COL_LAVA, COL_LIMESTONE,
@@ -17,7 +19,7 @@ from config import (
     GEYSER_DURATION, GEYSER_INTERVAL, GEYSER_LAUNCH, GOLEM_COOLDOWN,
     GOLEM_STRIKE_RANGE, GOLEM_STRIKE_SPEED, GRAVITY, ICE_ACCEL,
     ICE_FRICTION, KELP_CRAB_SPEED, NPC_RANGE, PHANTOM_SPEED,
-    PLAYER_SPEED, SCORPION_FIRE_RATE, SCORPION_PROJ_SPEED,
+    PLAYER_SPEED, SCORPION_FIRE_RATE, SCORPION_PROJ_SPEED, PROJECTILE_WORLD_WIDTH,
     SPIDER_DROP_RANGE, SPIDER_DROP_SPEED, SULFUR_SPEED,
     SULFUR_TRAIL_DMG, SULFUR_TRAIL_LIFE, TERMINAL_VELOCITY,
     WIND_PUSH,
@@ -30,6 +32,7 @@ from config import (
     PORTAL_COOLDOWN_SEC, WRAITH_SPEED,
     GRAVITY_LOW_MULT, GRAVITY_HIGH_MULT, GRAVITY_REVERSE_MULT,
     DRONE_RANGE, DRONE_PULL,
+    MOVING_PLAT_SPEED,
 )
 
 # ===================================================================
@@ -394,7 +397,6 @@ class BiomePlatform(pygame.sprite.Sprite):
         if gen:
             self.image = gen(w, h)
         else:
-            from sprites import generate_platform_tile
             self.image = generate_platform_tile(w, h)
         self.rect = self.image.get_rect(topleft=(x, y))
 
@@ -410,7 +412,6 @@ class BiomeMovingPlatform(pygame.sprite.Sprite):
         if gen:
             self.image = gen(w, h)
         else:
-            from sprites import generate_platform_tile
             self.image = generate_platform_tile(w, h)
         self.rect = self.image.get_rect(topleft=(x, y))
         self.origin_x = float(x)
@@ -422,7 +423,6 @@ class BiomeMovingPlatform(pygame.sprite.Sprite):
         self.pos_y = float(y)
 
     def update_moving(self, dt: float) -> tuple[float, float]:
-        from config import MOVING_PLAT_SPEED
         old_x, old_y = self.pos_x, self.pos_y
         step = MOVING_PLAT_SPEED * self.direction * dt
         if self.axis == "horizontal":
@@ -487,7 +487,8 @@ class Geyser(pygame.sprite.Sprite):
             pygame.draw.circle(self._img_on, (240, 230, 220, 180), (px, py),
                                random.randint(4, 8))
         self.image = self._img_off
-        # FIXED: always use the small vent rect for collision (prevents side-launches and dormant false-negatives)
+        # Geyser collision uses fixed small vent rect (OPEN-09). Tall _on image is VFX only;
+        # never swap rect or player gets side-launched by steam visual. _off/_on_rect kept for ref.
         self.rect = pygame.Rect(x + 8, y - 24, 28, 24)
         self._off_rect = self.rect.copy()
         self._on_rect = self._img_on.get_rect(bottomleft=(x, y))
@@ -696,7 +697,7 @@ class ScorpionProjectile(pygame.sprite.Sprite):
         self.vy += GRAVITY * 0.3 * dt  # slight arc
         self.rect.x = _fl(self.pos_x)
         self.rect.y = _fl(self.pos_y)
-        if self.rect.y > FLOOR_Y + 100 or self.rect.x < -50 or self.rect.x > 8000:
+        if self.rect.y > FLOOR_Y + 100 or self.rect.x < -50 or self.rect.x > PROJECTILE_WORLD_WIDTH:
             self.kill()
 
 
@@ -780,6 +781,7 @@ class AshBat(pygame.sprite.Sprite):
         self.swoop_ty: float = 0.0
         self.alive_flag = True
         self.hover_timer: float = 0.0
+        self._retarget_timer: float = 0.0  # periodic re-target during swoop
 
     def update(self, dt: float, platforms: pygame.sprite.Group,
                player=None) -> None:
@@ -798,6 +800,14 @@ class AshBat(pygame.sprite.Sprite):
                 self.swoop_ty = max(self.origin_y - 150,
                     min(float(player.rect.centery), self.origin_y + 150))
         elif self.state == "swoop":
+            # Periodic re-target so bat tracks moving player (clamped to origin range)
+            self._retarget_timer += dt
+            if self._retarget_timer >= 0.20:
+                self._retarget_timer = 0.0
+                self.swoop_tx = max(self.origin_x - 200,
+                    min(float(player.rect.centerx), self.origin_x + 200))
+                self.swoop_ty = max(self.origin_y - 150,
+                    min(float(player.rect.centery), self.origin_y + 150))
             dx = self.swoop_tx - self.rect.centerx
             dy = self.swoop_ty - self.rect.centery
             dist = math.hypot(dx, dy)
@@ -1202,7 +1212,8 @@ class BrineShard(pygame.sprite.Sprite):
             return
         dist = math.hypot(player.rect.centerx - self.rect.centerx,
                           player.rect.centery - self.rect.centery)
-        # Timer based "still" to tolerate ice slide deceleration (vel may linger <10 for ~1s)
+        # Timer based "still" to tolerate ice slide deceleration (OPEN-10 brine growth on drift).
+        # vel<12 + accum time (was strict vel<10); tolerant of ~1s coast on ice.
         player_still = abs(player.velocity_x) < 12
         if dist < BRINE_DMG_RADIUS * 2 and player_still:
             self._still_time += dt
@@ -2050,6 +2061,22 @@ class HomingSpecter(pygame.sprite.Sprite):
                 self._vx = self._vy = 0
         self._px += self._vx * dt
         self._py += self._vy * dt
+        # Minimal safe wall collision: prevent phasing (fixes bad deaths from wall-ghosting per reports)
+        if platforms:
+            for hit in pygame.sprite.spritecollide(self, platforms, False):
+                if abs(self._vx) > abs(self._vy) or abs(self._vx) > 0:
+                    if self._vx > 0:
+                        self._px = hit.rect.left - self.rect.width * 0.5
+                    else:
+                        self._px = hit.rect.right + self.rect.width * 0.5
+                else:
+                    if self._vy > 0:
+                        self._py = hit.rect.top - self.rect.height * 0.5
+                    else:
+                        self._py = hit.rect.bottom + self.rect.height * 0.5
+                self._vx = 0.0
+                self._vy = 0.0
+                break
         # Compute bob offset and apply in ONE rect.center assignment so the
         # collision rect always matches the final drawn position.
         bob = int(math.sin(pygame.time.get_ticks() / 180.0) * 2)
@@ -2077,6 +2104,7 @@ class ForgeHammer(pygame.sprite.Sprite):
     """Ceiling-mounted iron hammer. Periodically slams to floor."""
 
     is_stompable: bool = False
+    has_custom_collision: bool = True  # handled by dedicated lethality check; skip in standard loop
 
     def __init__(self, x, y, patrol_width=0.0):
         super().__init__()
@@ -2141,6 +2169,7 @@ class ForgeHammer(pygame.sprite.Sprite):
 
 class VoidEater(pygame.sprite.Sprite):
     is_stompable: bool = False
+    has_custom_collision: bool = True  # handled by dedicated danger check; skip in standard loop
 
     def __init__(self, x, y, patrol_width=0.0):
         super().__init__()

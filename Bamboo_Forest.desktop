@@ -1,8 +1,10 @@
 [Desktop Entry]
 Name=Bamboo Forest
-Comment=Hardware Accelerated Side-Scroller
-Exec=python3 /home/jacob/Desktop/bamboo_forest.py
-Icon=applications-games
+Comment=2D panda platformer across 18 magical biomes with power-ups and scoring
+Exec=python game.py
+Icon=favicon.png
 Terminal=false
 Type=Application
-Categories=Game;
+Categories=Game;ActionGame;
+# Trivial run: uv pip install -r requirements.txt && python game.py
+# From repo root (uses pyproject.toml + requirements.txt)

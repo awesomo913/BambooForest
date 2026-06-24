@@ -27,10 +27,11 @@ Custom domain: https://revolutionarydesigns.io/ (once DNS propagates)
 
 Everything else (sprites, levels, biomes, audio) is identical.
 
-## Local testing
+## Local testing (zero friction)
 
-```bash
-pip install pygbag
+Use uv (recommended):
+```powershell
+uv pip install pygbag==0.9.3
 cd web
 pygbag --build main.py
 cd build/web
@@ -38,5 +39,24 @@ python -m http.server 8000
 # Open http://localhost:8000
 ```
 
-First load in a fresh browser takes 15-30 seconds (downloading Pyodide +
-your game bundle). Subsequent loads are near-instant thanks to caching.
+Or with pip:
+```bash
+pip install pygbag==0.9.3
+cd web
+pygbag --build main.py
+cd build/web
+python -m http.server 8000
+# Open http://localhost:8000
+```
+
+First load in a fresh browser takes ~15-30s (Pyodide + bundle download). Subsequent are fast due to cache.
+
+See main `../README.md` for desktop run (`uv pip install -r ../requirements.txt; python ../game.py`) and full controls.
+
+## CI / Deploy notes
+See `.github/workflows/deploy.yml` in repo root. Pins pygbag, builds from `web/`, deploys `web/build/web/` contents + bundles (apk/tar.gz) to Pages.
+
+Live: https://awesomo913.github.io/BambooForest/
+(Or custom domain if configured.)
+
+Everything else (sprites, levels, biomes, audio, power-ups) is kept in sync with desktop via the agent swarm.

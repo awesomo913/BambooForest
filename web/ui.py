@@ -10,9 +10,10 @@ import pygame
 from config import (
     COL_BAMBOO, COL_BLACK, COL_GOLD, COL_HP_GREEN, COL_HP_RED, COL_HUD_BG,
     COL_MENU_BG, COL_RED, COL_WHITE, LEVEL_NAMES, PLAYER_MAX_HP,
-    SCREEN_HEIGHT, SCREEN_WIDTH,
+    SCREEN_HEIGHT, SCREEN_WIDTH, ACCESSIBILITY_LABELS, ACCESSIBILITY_RANGES,
 )
-from save import get_best_score
+from save import get_best_score, add_essence, load_essences, load_grafts, unlock_graft, ESSENCE_BIOME_KEYS, get_profile_essences_and_grafts, load_settings, save_settings, spend_essence, spend_specific_essences
+from config import BIOME_ESSENCE, RECIPES
 
 if TYPE_CHECKING:
     from engine import Camera
@@ -24,11 +25,24 @@ if TYPE_CHECKING:
 
 _font_cache: dict[tuple[int, bool], pygame.font.Font] = {}
 
+# Accessibility text scale (set from profile at load / change)
+_text_scale: float = 1.0
+
+
+def set_text_scale(scale: float) -> None:
+    global _text_scale
+    _text_scale = max(0.5, min(2.0, float(scale)))
+
+
+def get_text_scale() -> float:
+    return _text_scale
+
 
 def get_font(size: int, bold: bool = False) -> pygame.font.Font:
-    key = (size, bold)
+    scaled = max(8, int(size * _text_scale))
+    key = (scaled, bold)
     if key not in _font_cache:
-        _font_cache[key] = pygame.font.SysFont("consolas", size, bold=bold)
+        _font_cache[key] = pygame.font.SysFont("consolas", scaled, bold=bold)
     return _font_cache[key]
 
 
@@ -70,6 +84,29 @@ def _draw_bamboo_icon(screen: pygame.Surface, x: int, y: int,
         # Green checkmark overlay
         pygame.draw.line(screen, (50, 220, 50), (x + 1, y + 8), (x + 4, y + 12), 2)
         pygame.draw.line(screen, (50, 220, 50), (x + 4, y + 12), (x + 9, y + 3), 2)
+
+
+def _draw_mini_feather(screen: pygame.Surface, x: int, y: int, color: tuple) -> None:
+    """Tiny glide feather icon -- juicy with tiny sparkle."""
+    pygame.draw.polygon(screen, color, [(x, y+4), (x+6, y), (x+6, y+8)])
+    pygame.draw.line(screen, (255,255,255), (x+1, y+4), (x+5, y+4), 1)
+    # sparkle dot
+    pygame.draw.circle(screen, (255,255,255), (x+4, y+2), 1)
+
+
+def _draw_mini_boot(screen: pygame.Surface, x: int, y: int, color: tuple) -> None:
+    """Tiny dash boot icon -- juicy with highlight."""
+    pygame.draw.rect(screen, color, (x, y+2, 7, 5), border_radius=1)
+    pygame.draw.rect(screen, (min(255,color[0]+40), min(255,color[1]+30), min(255,color[2]+20)), (x+1, y+5, 3, 3))
+    pygame.draw.rect(screen, (255,255,220), (x+5, y+3, 1, 1))  # toe sparkle
+
+
+def _draw_mini_staff(screen: pygame.Surface, x: int, y: int, color: tuple) -> None:
+    """Tiny staff/sword icon -- juicy with leaf accent."""
+    pygame.draw.line(screen, color, (x+2, y), (x+2, y+8), 2)
+    pygame.draw.polygon(screen, (255, 230, 120), [(x+2, y), (x+6, y+3), (x+2, y+3)])
+    # mini leaf
+    pygame.draw.polygon(screen, (80, 160, 60), [(x+1, y+6), (x+3, y+4), (x+3, y+8)])
 
 
 # ---------------------------------------------------------------------------
@@ -131,7 +168,8 @@ class HUD:
         self.floating_texts = [ft for ft in self.floating_texts if ft.update(dt)]
 
     def draw(self, screen: pygame.Surface, player: Player,
-             level_num: int, camera: Camera) -> None:
+             level_num: int, camera: Camera, run_timer: float = 0.0,
+             daily_seed: int = 0) -> None:
         # HUD backing (tall if mana bar visible)
         hud_h = 100 if player.has_ice_magic else 85
         hud_surf = pygame.Surface((260, hud_h), pygame.SRCALPHA)
@@ -189,9 +227,19 @@ class HUD:
             draw_text(screen, f"{self.collected_bamboos}/{self.total_bamboos}",
                       14, (150, 220, 150), bx + self.total_bamboos * 14 + 15, by + 8)
 
-        # Level indicator (kept clear of the right edge)
+        # Level indicator + daily seed (Feature #3) 
         draw_text_shadow(screen, f"LEVEL {level_num}", 20, COL_WHITE,
-                         SCREEN_WIDTH - 64, 24)
+                         SCREEN_WIDTH - 78, 24)
+        if daily_seed:
+            draw_text(screen, f"DAILY {daily_seed}", 12, (160, 200, 160),
+                      SCREEN_WIDTH // 2, 8)
+
+        # Speedrun timer (next-level feature - visible in play)
+        if run_timer > 0:
+            m = int(run_timer // 60)
+            s = run_timer % 60
+            draw_text_shadow(screen, f"{m:02d}:{s:05.2f}", 16, COL_GOLD,
+                             SCREEN_WIDTH // 2, 18, bold=True)
 
         # Lives display (panda heads) — right-anchored so the row never clips the
         # screen edge, even with extra lives; heads grow leftward from the margin.
@@ -210,27 +258,33 @@ class HUD:
         lbl = get_font(14).render("LIVES:", True, (190, 190, 190))
         screen.blit(lbl, lbl.get_rect(midright=(leftmost_cx - head_r - 8, lives_y)))
 
-        # Power-up indicators (below lives) -- stack vertically to avoid overflow
-        pwr_x = SCREEN_WIDTH - 100
+        # Power-up indicators (below lives) -- richer timer pills + mini icons, juicy gradients/sparkles, bigger touch targets
+        pwr_x = SCREEN_WIDTH - 126
         pwr_y = lives_y + 18
         row = 0
-        if player.glide_time_remaining > 0:
-            gt = int(player.glide_time_remaining)
-            col = (140, 220, 255) if gt > 3 else (255, 100, 100)
-            pygame.draw.polygon(screen, col, [
-                (pwr_x, pwr_y + row * 16), (pwr_x + 4, pwr_y - 10 + row * 16),
-                (pwr_x + 8, pwr_y + row * 16)])
-            draw_text(screen, f"GLIDE {gt}s", 11, col, pwr_x + 14, pwr_y - 2 + row * 16)
-            row += 1
-        if player.dash_time_remaining > 0:
-            dt_ = int(player.dash_time_remaining)
-            col = (255, 180, 100) if dt_ > 5 else (255, 100, 100)
-            draw_text(screen, f"DASH {dt_}s", 11, col, pwr_x, pwr_y - 2 + row * 16)
-            row += 1
-        if player.has_bamboo_weapon:
-            wt = int(player.weapon_time_remaining)
-            col = (255, 230, 120) if wt > 10 else (255, 100, 80)
-            draw_text(screen, f"SWORD {wt}s", 11, col, pwr_x, pwr_y - 2 + row * 16)
+        pill_h = 16
+        pill_w = 78
+        for ptype, pval, pcol, picon in [
+            ("GLIDE", player.glide_time_remaining, (140, 220, 255), _draw_mini_feather),
+            ("DASH", player.dash_time_remaining, (255, 180, 100), _draw_mini_boot),
+        ] + ([("SWORD", player.weapon_time_remaining, (255, 230, 120), _draw_mini_staff)] if getattr(player, 'has_bamboo_weapon', False) else []):
+            if pval > 0:
+                val = int(pval)
+                col = pcol if val > (3 if ptype=="GLIDE" else 5) else (255, 120, 120)
+                # Juicy pill: SRC surface for alpha + gradient layers + border
+                pill = pygame.Surface((pill_w, pill_h + 4), pygame.SRCALPHA)
+                pill.fill((*col, 55))
+                # top gradient highlight
+                pygame.draw.rect(pill, (255, 255, 255, 35), (1, 1, pill_w-2, 6), border_radius=3)
+                pygame.draw.rect(pill, (*col, 220), (0, 0, pill_w, pill_h + 4), 2, border_radius=5)
+                # mini sparkle when fresh
+                if val > 6:
+                    spx = 8 + int((getattr(self, 'combo_scale', 1.0) * 3 + row) % 12)
+                    pygame.draw.circle(pill, (255, 255, 255, 200), (spx, 4), 2)
+                screen.blit(pill, (pwr_x - 2, pwr_y + row * 20 - 2))
+                picon(screen, pwr_x, pwr_y + row * 20 + 2, col)
+                draw_text(screen, f"{ptype} {val}s", 10, col, pwr_x + 14, pwr_y + row * 20 + 6)
+                row += 1
 
         # Combo counter
         if player.combo_count > 1:
@@ -489,6 +543,15 @@ class TitleScreen:
         # Dropdown state: gallery is HIDDEN by default to keep menu clean
         self.gallery_open: bool = False
         self._gallery_button_rect: pygame.Rect | None = None
+        # Speedrun mode toggle (menu option / flag)
+        self.speedrun_mode: bool = False
+        self._speedrun_btn_rect: pygame.Rect | None = None
+        # Daily challenge (Feature #3)
+        self.daily_mode: bool = False
+        self._daily_btn_rect: pygame.Rect | None = None
+        # Overgrown post-game challenge (plan vision, shown only if unlocked)
+        self.overgrown_mode: bool = False
+        self._overgrown_btn_rect: pygame.Rect | None = None
         # Gallery scroll state
         self._gallery_scroll: int = 0
         self._gallery_max_scroll: int = 0
@@ -534,6 +597,21 @@ class TitleScreen:
                 if rect.collidepoint(pos):
                     self.selected_char = char
                     return True
+        # Speedrun toggle button (even when gallery open it's harmless)
+        if (self._speedrun_btn_rect is not None
+                and self._speedrun_btn_rect.collidepoint(pos)):
+            self.speedrun_mode = not self.speedrun_mode
+            return True
+        # Daily toggle button
+        if (self._daily_btn_rect is not None
+                and self._daily_btn_rect.collidepoint(pos)):
+            self.daily_mode = not self.daily_mode
+            return True
+        # Overgrown challenge (only clickable if unlocked + visible)
+        if (self._overgrown_btn_rect is not None
+                and self._overgrown_btn_rect.collidepoint(pos)):
+            self.overgrown_mode = not self.overgrown_mode
+            return True
         return False
 
     def handle_key(self, key: int) -> bool:
@@ -555,6 +633,21 @@ class TitleScreen:
             if key in (pygame.K_DOWN, pygame.K_s, pygame.K_RIGHT, pygame.K_d):
                 self.scroll_gallery(103)
                 return True
+        if key in (pygame.K_s, pygame.K_S):
+            self.speedrun_mode = not self.speedrun_mode
+            return True
+        if key in (pygame.K_d, pygame.K_D):
+            self.daily_mode = not self.daily_mode
+            return True
+        if key in (pygame.K_o, pygame.K_O):
+            # Only allow toggle if unlocked (check live so button presence matches)
+            try:
+                from save import is_overgrown_unlocked
+                if is_overgrown_unlocked():
+                    self.overgrown_mode = not self.overgrown_mode
+            except Exception:
+                pass
+            return True
         return False
 
     def _ensure_bg(self) -> pygame.Surface:
@@ -587,71 +680,93 @@ class TitleScreen:
     def draw(self, screen: pygame.Surface) -> None:
         screen.blit(self._ensure_bg(), (0, 0))
 
-        # Title
+        # Title + juicy sparkles/leaves (non-gameplay feel matches gameplay)
+        import math as m
         draw_text_shadow(screen, "BAMBOO FOREST", 54, (200, 255, 200),
                          SCREEN_WIDTH // 2, int(self.title_y), bold=True)
         draw_text(screen, "~ The Legend of Pain-da ~", 18, (120, 180, 120),
                   SCREEN_WIDTH // 2, int(self.title_y) + 32)
+        # subtle title sparkles and leaves
+        for i in range(7):
+            sx = SCREEN_WIDTH//2 - 160 + (i * 55)
+            sy = int(self.title_y) - 8 + int(m.sin(self.prompt_timer * 2.3 + i) * 5)
+            pygame.draw.circle(screen, (255, 255, 200), (sx, sy), 2)
+            if i % 3 == 0:
+                pygame.draw.polygon(screen, (60, 130, 40), [(sx+18, sy+4), (sx+24, sy-2), (sx+21, sy+6)])
 
         self._card_rects.clear()
         mouse_pos = pygame.mouse.get_pos()
 
-        # === DROPDOWN BUTTON (always visible) ===
-        btn_w, btn_h = 280, 44
+        # === DROPDOWN BUTTON (always visible) -- larger, juicier, touch friendly ===
+        btn_w, btn_h = 360, 56
         btn_x = (SCREEN_WIDTH - btn_w) // 2
-        btn_y = int(SCREEN_HEIGHT * 0.28)
+        btn_y = int(SCREEN_HEIGHT * 0.26)
         self._gallery_button_rect = pygame.Rect(btn_x, btn_y, btn_w, btn_h)
         btn_hovered = self._gallery_button_rect.collidepoint(mouse_pos)
-        bg_color = (40, 70, 40, 250) if not btn_hovered else (60, 110, 60, 255)
+        # Rich gradient-ish bg (layered for depth + sparkle feel)
         btn_surf = pygame.Surface((btn_w, btn_h), pygame.SRCALPHA)
-        btn_surf.fill(bg_color)
-        pygame.draw.rect(btn_surf, (200, 255, 200), (0, 0, btn_w, btn_h),
-                         2, border_radius=6)
-        # Arrow indicator
-        arrow = "V" if not self.gallery_open else "^"
+        base = (35, 65, 35) if not btn_hovered else (55, 105, 55)
+        btn_surf.fill((*base, 245))
+        # Top highlight for gradient pop
+        pygame.draw.rect(btn_surf, (70, 130, 70, 90), (2, 2, btn_w-4, 12), border_radius=4)
+        pygame.draw.rect(btn_surf, (200, 255, 200), (0, 0, btn_w, btn_h), 3, border_radius=8)
+        # Sparkle accents on hover
+        if btn_hovered:
+            for si in range(5):
+                sx = 12 + (si * 67) % (btn_w - 24)
+                sy = 8 + int(math.sin(self.prompt_timer * 6 + si) * 6)
+                pygame.draw.circle(btn_surf, (255, 255, 220, 180), (sx, sy), 2)
         screen.blit(btn_surf, (btn_x, btn_y))
-        label = ("View Characters  " + arrow) if not self.gallery_open else \
-                ("Hide Characters  " + arrow)
-        draw_text_shadow(screen, label, 20, (230, 255, 230),
-                         btn_x + btn_w // 2, btn_y + btn_h // 2, bold=True)
+        arrow = "V" if not self.gallery_open else "^"
+        label = ("View Characters  " + arrow) if not self.gallery_open else ("Hide Characters  " + arrow)
+        draw_text_shadow(screen, label, 22, (230, 255, 230), btn_x + btn_w // 2, btn_y + btn_h // 2, bold=True)
 
         # === GALLERY (only when dropdown open) ===
         if self.gallery_open:
-            # 6-column × N-row grid: all 24 characters fit in one view on 960×540
-            cols = 4
-            rows = (len(_CHARACTERS) + cols - 1) // cols
-            card_w = 185
-            card_h = 72
-            gap_x = 8
-            gap_y = 5
+            # Use 5 cols + smaller cards on dense; recompute start_y / total_h / avail from SCREEN to stop clipping
+            # Auto-shrink primary (less scroll needed). Scroll still works as fallback. Keeps clickability.
+            n = len(_CHARACTERS)
+            cols = 5 if n > 18 else 4
+            rows = (n + cols - 1) // cols
+            gap_x = 5
+            gap_y = 3
+            btn_bottom = btn_y + btn_h
+            gallery_top = btn_bottom + 8
+            # reserve for prompt area (even though prompt hidden when open, leave margin) + arrows/hint
+            bottom_reserve = 48
+            avail_h = max(140, SCREEN_HEIGHT - gallery_top - bottom_reserve)
+            max_panel_w = SCREEN_WIDTH - 60
+            card_w = min(150, (max_panel_w - (cols-1)*gap_x) // cols)
+            card_w = max(108, card_w)
+            card_h = min(54, (avail_h - (rows-1)*gap_y - 10) // rows )
+            card_h = max(40, card_h)
+            if card_h < 46:
+                gap_y = 2
+                card_h = max(40, (avail_h - (rows-1)*gap_y - 10) // rows)
             total_w = cols * card_w + (cols - 1) * gap_x
             total_h = rows * card_h + (rows - 1) * gap_y
             start_x = (SCREEN_WIDTH - total_w) // 2
-            start_y = btn_y + btn_h + 14
-            # Available height: stop above "Press ENTER" prompt + small margin
-            prompt_reserve = 50
-            avail_h = SCREEN_HEIGHT - start_y - prompt_reserve
-            content_h = rows * card_h + (rows - 1) * gap_y
+            start_y = gallery_top
+            content_h = total_h
             self._gallery_max_scroll = max(0, content_h - avail_h)
-            self._gallery_scroll = max(
-                0, min(self._gallery_scroll, self._gallery_max_scroll))
+            self._gallery_scroll = max(0, min(self._gallery_scroll, self._gallery_max_scroll))
 
             # Scroll arrow button dimensions
-            arr_w, arr_h = 32, 32
-            arr_x = start_x + total_w + 8
+            arr_w, arr_h = 28, 28
+            arr_x = start_x + total_w + 6
 
             # Semi-opaque panel (sized to visible area only)
-            panel_w = total_w + arr_w + 20
-            panel = pygame.Surface((panel_w, avail_h + 20), pygame.SRCALPHA)
-            panel.fill((10, 20, 10, 230))
-            pygame.draw.rect(panel, (100, 150, 100),
-                             (0, 0, panel_w, avail_h + 20),
-                             2, border_radius=8)
-            screen.blit(panel, (start_x - 10, start_y - 10))
+            panel_w = total_w + arr_w + 16
+            panel = pygame.Surface((panel_w, avail_h + 14), pygame.SRCALPHA)
+            panel.fill((8, 16, 8, 230))
+            pygame.draw.rect(panel, (88, 138, 88),
+                             (0, 0, panel_w, avail_h + 14),
+                             2, border_radius=5)
+            screen.blit(panel, (start_x - 6, start_y - 4))
 
             # Clip drawing to the gallery viewport
             old_clip = screen.get_clip()
-            clip_rect = pygame.Rect(start_x - 10, start_y, total_w + 20, avail_h)
+            clip_rect = pygame.Rect(start_x - 6, start_y, total_w + 12, avail_h)
             screen.set_clip(clip_rect)
 
             for i, char in enumerate(_CHARACTERS):
@@ -679,31 +794,31 @@ class TitleScreen:
                 surf = pygame.Surface((arr_w, arr_h), pygame.SRCALPHA)
                 surf.fill((20, 40, 20, 180))
                 pygame.draw.rect(surf, (80, 120, 80, 160 if enabled else 60),
-                                 (0, 0, arr_w, arr_h), 1, border_radius=6)
+                                 (0, 0, arr_w, arr_h), 1, border_radius=5)
                 mid = arr_w // 2
-                pts = ([(mid, 6), (6, arr_h - 8), (arr_w - 6, arr_h - 8)]
+                pts = ([(mid, 5), (5, arr_h - 7), (arr_w - 5, arr_h - 7)]
                        if pointing_up else
-                       [(mid, arr_h - 6), (6, 8), (arr_w - 6, 8)])
+                       [(mid, arr_h - 5), (5, 7), (arr_w - 5, 7)])
                 pygame.draw.polygon(surf, c, pts)
                 screen.blit(surf, (ax, ay))
                 return pygame.Rect(ax, ay, arr_w, arr_h)
 
             self._scroll_up_rect = _draw_scroll_arrow(
-                True, can_up, arr_x, start_y + 4)
+                True, can_up, arr_x, start_y + 3)
             self._scroll_down_rect = _draw_scroll_arrow(
-                False, can_down, arr_x, start_y + avail_h - arr_h - 4)
+                False, can_down, arr_x, start_y + avail_h - arr_h - 3)
 
+            # simple scroll hint (always when open)
             if self._gallery_max_scroll > 0:
                 draw_text(screen,
-                          "▲▼ scroll  |  tap card to read  |  ESC to close",
-                          12, (180, 210, 180),
-                          start_x + total_w // 2, start_y + avail_h + 16)
+                          "▲▼ scroll or keys  •  click card  •  ESC close",
+                          10, (170, 200, 170),
+                          start_x + total_w // 2, start_y + avail_h + 6)
             else:
-                hint_y = start_y + content_h + 4
-                if hint_y + 14 <= SCREEN_HEIGHT:
-                    draw_text(screen,
-                              "Tap a character to read their story  |  ESC to close",
-                              11, (180, 210, 180), SCREEN_WIDTH // 2, hint_y)
+                hint_y = start_y + total_h + 3
+                if hint_y + 12 < SCREEN_HEIGHT - 30:
+                    draw_text(screen, "Click card for story  •  ESC close",
+                              9, (160, 190, 160), SCREEN_WIDTH // 2, hint_y)
 
         # Pulsing "Press ENTER" prompt (only when gallery is closed)
         if not self.gallery_open:
@@ -714,6 +829,56 @@ class TitleScreen:
             prompt.set_alpha(alpha)
             screen.blit(prompt, prompt.get_rect(center=(SCREEN_WIDTH // 2, prompt_y)))
 
+        # Daily challenge button (Feature #3)
+        if not self.gallery_open:
+            dbtn_w, dbtn_h = 180, 22
+            dbx = (SCREEN_WIDTH - dbtn_w) // 2
+            dby = SCREEN_HEIGHT - 94
+            self._daily_btn_rect = pygame.Rect(dbx, dby, dbtn_w, dbtn_h)
+            don = self.daily_mode
+            dbgc = (50, 90, 110) if don else (30, 45, 55)
+            pygame.draw.rect(screen, dbgc, (dbx, dby, dbtn_w, dbtn_h), border_radius=4)
+            pygame.draw.rect(screen, (140, 200, 220), (dbx, dby, dbtn_w, dbtn_h), 1, border_radius=4)
+            dseed = ""
+            try:
+                import datetime
+                dseed = str(int(datetime.date.today().strftime("%Y%m%d")))
+            except Exception:
+                dseed = "----"
+            dlabel = f"DAILY {dseed} ON" if don else f"DAILY {dseed} (D)"
+            draw_text(screen, dlabel, 12, (200, 230, 240) if don else (170, 190, 200), SCREEN_WIDTH // 2, dby + 11)
+
+        # Overgrown post-game challenge button (only if unlocked, Feature post-L18)
+        if not self.gallery_open:
+            try:
+                from save import is_overgrown_unlocked
+                if is_overgrown_unlocked():
+                    obtn_w, obtn_h = 210, 22
+                    obx = (SCREEN_WIDTH - obtn_w) // 2
+                    oby = SCREEN_HEIGHT - 120
+                    self._overgrown_btn_rect = pygame.Rect(obx, oby, obtn_w, obtn_h)
+                    oon = self.overgrown_mode
+                    obgc = (80, 50, 110) if oon else (45, 30, 60)
+                    pygame.draw.rect(screen, obgc, (obx, oby, obtn_w, obtn_h), border_radius=4)
+                    pygame.draw.rect(screen, (180, 140, 220), (obx, oby, obtn_w, obtn_h), 1, border_radius=4)
+                    olabel = "OVERGROWN ON" if oon else "OVERGROWN (O)"
+                    draw_text(screen, olabel, 12, (220, 200, 240) if oon else (180, 160, 200), SCREEN_WIDTH // 2, oby + 11)
+            except Exception:
+                pass
+
+        # Speedrun Mode toggle (small pill, visible when gallery closed)
+        if not self.gallery_open:
+            btn_w, btn_h = 160, 22
+            bx = (SCREEN_WIDTH - btn_w) // 2
+            by = SCREEN_HEIGHT - 68
+            self._speedrun_btn_rect = pygame.Rect(bx, by, btn_w, btn_h)
+            on = self.speedrun_mode
+            bgc = (60, 110, 60) if on else (40, 50, 40)
+            pygame.draw.rect(screen, bgc, (bx, by, btn_w, btn_h), border_radius=4)
+            pygame.draw.rect(screen, (140, 200, 140), (bx, by, btn_w, btn_h), 1, border_radius=4)
+            label = "SPEEDRUN: ON" if on else "SPEEDRUN: OFF  (S)"
+            draw_text(screen, label, 12, (220, 255, 220) if on else (170, 190, 170), SCREEN_WIDTH // 2, by + 11)
+
         # Controls (only when gallery is closed -- else it overlaps)
         if not self.gallery_open:
             draw_text(screen,
@@ -723,6 +888,8 @@ class TitleScreen:
             if best > 0:
                 draw_text_shadow(screen, f"Best: {best}", 18, COL_GOLD,
                                  SCREEN_WIDTH // 2, SCREEN_HEIGHT - 22)
+            draw_text(screen, "O: Accessibility Options", 12, (140, 180, 140),
+                      SCREEN_WIDTH // 2, SCREEN_HEIGHT - 8)
 
         # Detail popup on top of everything
         if self.selected_char is not None:
@@ -846,25 +1013,32 @@ class PauseOverlay:
         screen.blit(overlay, (0, 0))
         draw_text_shadow(screen, "PAUSED", 42, COL_WHITE,
                          SCREEN_WIDTH // 2, 36, bold=True)
-        draw_text(screen, "ESC to Resume  |  Q to Quit", 16, (180, 180, 180),
+        draw_text(screen, "ESC to Resume  |  Q to Quit  |  O Accessibility  |  G: The Grove", 14, (180, 180, 180),
                   SCREEN_WIDTH // 2, 62)
 
-        # Mini enemy encyclopedia -- 6-column × N-row grid
+        # Mini enemy encyclopedia -- use 5 cols + smaller cards on dense; fix start_y / row_h / col_w / total calc
+        # pixel-width wrap so text never clips card bounds. Scroll preserved.
         sprites = _get_sprite_cache()
-        col_w = 150
-        row_h = 90
-        cols = 4
+        n = len(_CHARACTERS)
+        cols = 5 if n > 18 else 4
+        margin = 20
+        col_w = max(124, min(148, (SCREEN_WIDTH - 2 * margin) // cols))
         start_x = (SCREEN_WIDTH - cols * col_w) // 2
-        start_y = 90
-        font_name = get_font(12, bold=True)
-        font_desc = get_font(10)
-
-        rows = (len(_CHARACTERS) + cols - 1) // cols
+        start_y = 78
+        row_h = 52 if n > 20 else 74
+        rows = (n + cols - 1) // cols
         content_h = rows * row_h
-        # Leave a small margin at the bottom so scroll arrows don't touch edge
-        avail_h = SCREEN_HEIGHT - start_y - 10
+        avail_h = SCREEN_HEIGHT - start_y - 12
         self._max_scroll = max(0, content_h - avail_h)
         self._scroll = max(0, min(self._max_scroll, self._scroll))
+        # shrink row if still would overflow
+        if start_y + rows * row_h > SCREEN_HEIGHT - 16:
+            row_h = max(42, (SCREEN_HEIGHT - start_y - 16) // max(1, rows))
+
+        font_name = get_font(11, bold=True)
+        font_desc = get_font(9)
+        text_left = 48
+        text_max_w = col_w - text_left - 6
 
         # Clip to the encyclopedia area
         old_clip = screen.get_clip()
@@ -878,39 +1052,41 @@ class PauseOverlay:
             if y + row_h < start_y or y > start_y + avail_h:
                 continue
             # Compact card
-            card = pygame.Surface((col_w - 8, row_h - 8), pygame.SRCALPHA)
-            card.fill((15, 25, 15, 230))
-            pygame.draw.rect(card, (*char["color"], 160),
-                             (0, 0, col_w - 8, row_h - 8), 1, border_radius=4)
+            cw = col_w - 6
+            ch = row_h - 6
+            card = pygame.Surface((cw, ch), pygame.SRCALPHA)
+            card.fill((14, 24, 14, 232))
+            pygame.draw.rect(card, (*char["color"], 155),
+                             (0, 0, cw, ch), 1, border_radius=4)
             screen.blit(card, (x, y))
             # Small sprite
             sprite = sprites.get(char["key"])
             if sprite:
-                sm = pygame.transform.scale(sprite, (38, 38))
-                screen.blit(sm, (x + 6, y + 9))
-            # Name + desc
+                ss = 34 if row_h < 55 else 38
+                sm = pygame.transform.scale(sprite, (ss, ss))
+                screen.blit(sm, (x + 5, y + 7))
+            # Name + role
             name = font_name.render(char["name"], True, char["color"])
-            screen.blit(name, (x + 52, y + 8))
-            role = font_desc.render(char["role"], True, (160, 200, 160))
-            screen.blit(role, (x + 52, y + 22))
-            # Word-wrap description (narrower column -- 16 chars per line)
+            screen.blit(name, (x + text_left, y + 5))
+            role = font_desc.render(char["role"], True, (155, 195, 155))
+            screen.blit(role, (x + text_left, y + 16))
+            # Pixel wrap (fixes overflow of old char-count wrap)
             desc = char["desc"]
-            max_chars = 16
-            if len(desc) > max_chars:
-                words = desc.split()
-                line1, line2 = "", ""
-                for w in words:
-                    if len(line1) + len(w) + 1 <= max_chars:
-                        line1 = line1 + " " + w if line1 else w
-                    else:
-                        line2 = line2 + " " + w if line2 else w
-                d1 = font_desc.render(line1, True, (200, 200, 200))
-                d2 = font_desc.render(line2, True, (200, 200, 200))
-                screen.blit(d1, (x + 52, y + 40))
-                screen.blit(d2, (x + 52, y + 54))
-            else:
-                d = font_desc.render(desc, True, (200, 200, 200))
-                screen.blit(d, (x + 52, y + 46))
+            words = desc.split()
+            lines = []
+            cur = ""
+            for w in words:
+                test = (cur + " " + w).strip()
+                if font_desc.size(test)[0] <= text_max_w and len(lines) < 2:
+                    cur = test
+                else:
+                    if cur: lines.append(cur)
+                    cur = w
+                    if len(lines) >= 2: break
+            if cur and len(lines) < 2: lines.append(cur)
+            for li, ln in enumerate(lines[:2]):
+                d = font_desc.render(ln, True, (195, 205, 195))
+                screen.blit(d, (x + text_left, y + 30 + li * 9))
 
         screen.set_clip(old_clip)
 
@@ -937,8 +1113,8 @@ class PauseOverlay:
             self._scroll_down_rect = _draw_arr(
                 False, self._scroll < self._max_scroll,
                 SCREEN_HEIGHT - arr_h - 14)
-            draw_text(screen, "▲▼  scroll", 10, (150, 190, 150),
-                      arr_x + arr_w // 2, SCREEN_HEIGHT - arr_h - 20)
+            draw_text(screen, "▲▼ scroll", 9, (145, 180, 145),
+                      arr_x + arr_w // 2, SCREEN_HEIGHT - arr_h - 22)
 
 
 # ---------------------------------------------------------------------------
@@ -966,39 +1142,135 @@ class GameOverScreen:
 
 
 # ---------------------------------------------------------------------------
+# Confetti for juicy non-gameplay victory (gradients, sparkles, leaves theme)
+# ---------------------------------------------------------------------------
+
+class _Confetto:
+    def __init__(self, x: float, y: float) -> None:
+        import random
+        self.x = x
+        self.y = y
+        self.vx = random.uniform(-120, 120)
+        self.vy = random.uniform(-80, 40)
+        self.life = random.uniform(2.2, 3.8)
+        self.max_life = self.life
+        self.color = random.choice([
+            (255, 215, 0), (76, 153, 0), (255, 120, 180), (140, 220, 255), (255, 180, 80)
+        ])
+        self.size = random.uniform(3, 7)
+        self.rot = random.uniform(0, 360)
+        self.rot_speed = random.uniform(-180, 180)
+        self.shape = random.choice(["rect", "leaf", "spark"])
+
+    def update(self, dt: float) -> None:
+        self.x += self.vx * dt
+        self.y += self.vy * dt
+        self.vy += 180 * dt  # gravity
+        self.vx *= 0.995
+        self.life -= dt
+        self.rot += self.rot_speed * dt
+
+    def draw(self, screen: pygame.Surface) -> None:
+        if self.life <= 0:
+            return
+        a = max(30, int(255 * (self.life / self.max_life)))
+        c = (*self.color, a) if len(self.color) == 3 else self.color
+        cx, cy = int(self.x), int(self.y)
+        s = max(2, int(self.size * (self.life / self.max_life + 0.2)))
+        if self.shape == "spark":
+            pygame.draw.circle(screen, self.color, (cx, cy), s)
+            pygame.draw.circle(screen, (255,255,255), (cx-1, cy-1), max(1, s//2))
+        elif self.shape == "leaf":
+            surf = pygame.Surface((s+4, s+2), pygame.SRCALPHA)
+            pygame.draw.ellipse(surf, (*self.color, a), (0, 0, s+4, max(1, s//2)))
+            rot = pygame.transform.rotate(surf, self.rot)
+            screen.blit(rot, (cx - rot.get_width()//2, cy - rot.get_height()//2))
+        else:
+            surf = pygame.Surface((s, s), pygame.SRCALPHA)
+            surf.fill((*self.color, a))
+            rot = pygame.transform.rotate(surf, self.rot)
+            screen.blit(rot, (cx - rot.get_width()//2, cy - rot.get_height()//2))
+
+
+# ---------------------------------------------------------------------------
 # Victory Screen
 # ---------------------------------------------------------------------------
 
 class VictoryScreen:
     def __init__(self) -> None:
         self.timer: float = 0.0
+        self.confetti: list = []
 
     def update(self, dt: float) -> None:
         self.timer += dt
+        # spawn juicy confetti + leaves + sparkles over time
+        import random
+        while len(self.confetti) < 42 and random.random() < 0.85:
+            self.confetti.append(_Confetto(
+                random.uniform(40, SCREEN_WIDTH-40),
+                random.uniform(-20, SCREEN_HEIGHT * 0.45)
+            ))
+        for c in self.confetti[:]:
+            c.update(dt)
+            if c.life <= 0:
+                self.confetti.remove(c)
 
     def draw(self, screen: pygame.Surface, final_score: int,
-             is_high_score: bool) -> None:
+             is_high_score: bool,
+             speedrun_time: float | None = None,
+             best_time: float | None = None,
+             has_ghost: bool = False) -> None:
+        # Richer gradient + subtle leaves/sparkle bg
         for y in range(SCREEN_HEIGHT):
             t = y / SCREEN_HEIGHT
-            r = int(20 * (1 - t) + 5 * t)
-            g = int(50 * (1 - t) + 20 * t)
+            r = int(12 + 14 * (1 - t))
+            g = int(38 + 22 * (1 - t))
             b = int(20 * (1 - t) + 5 * t)
             pygame.draw.line(screen, (r, g, b), (0, y), (SCREEN_WIDTH, y))
+        # ambient sparkles and leaves (non-gameplay juicy)
+        import random, math as m
+        for i in range(8):
+            sx = (SCREEN_WIDTH * 0.2 + (i * 97) % (SCREEN_WIDTH * 0.6)) + m.sin(self.timer * 1.6 + i) * 12
+            sy = 80 + ((i * 47) % 160) + m.cos(self.timer * 2 + i) * 8
+            pygame.draw.circle(screen, (255, 235, 120), (int(sx), int(sy)), 2)
+            if i % 2 == 0:
+                lx = sx + 40
+                ly = sy + 30 + m.sin(self.timer*3 + i)*4
+                pygame.draw.polygon(screen, (70, 140, 50), [(lx, ly), (lx+7, ly-5), (lx+3, ly+4)])
+
+        # draw falling confetti (reuse _Confetto if defined, else fallback simple)
+        for c in getattr(self, 'confetti', []):
+            if hasattr(c, 'draw'):
+                c.draw(screen)
 
         bounce = math.sin(self.timer * 3) * 8
         draw_text_shadow(screen, "VICTORY!", 72, COL_GOLD,
-                         SCREEN_WIDTH // 2, int(SCREEN_HEIGHT * 0.3 + bounce), bold=True)
+                         SCREEN_WIDTH // 2, int(SCREEN_HEIGHT * 0.28 + bounce), bold=True)
         draw_text(screen, f"Final Score: {final_score}", 36, COL_WHITE,
-                  SCREEN_WIDTH // 2, int(SCREEN_HEIGHT * 0.5))
+                  SCREEN_WIDTH // 2, int(SCREEN_HEIGHT * 0.48))
         if is_high_score:
             alpha = int(128 + 127 * math.sin(self.timer * 5))
             font = get_font(28, bold=True)
             surf = font.render("NEW HIGH SCORE!", True, COL_GOLD)
             surf.set_alpha(alpha)
             screen.blit(surf, surf.get_rect(center=(
-                SCREEN_WIDTH // 2, int(SCREEN_HEIGHT * 0.58))))
+                SCREEN_WIDTH // 2, int(SCREEN_HEIGHT * 0.56))))
+        # Speedrun + ghost polish feedback
+        if speedrun_time is not None:
+            m = int(speedrun_time // 60)
+            s = speedrun_time % 60
+            ts = f"{m}:{s:05.2f}" if m else f"{s:05.2f}"
+            draw_text(screen, f"YOUR TIME: {ts}", 20, COL_GOLD, SCREEN_WIDTH // 2, int(SCREEN_HEIGHT * 0.58))
+            if best_time is not None:
+                bm = int(best_time // 60)
+                bs = best_time % 60
+                bts = f"{bm}:{bs:05.2f}" if bm else f"{bs:05.2f}"
+                draw_text(screen, f"BEST: {bts}", 16, (200, 210, 170), SCREEN_WIDTH // 2, int(SCREEN_HEIGHT * 0.58) + 22)
+            if has_ghost:
+                draw_text(screen, "GHOST RECORDED  •  R replay  •  Y save", 14, (170, 190, 160),
+                          SCREEN_WIDTH // 2, int(SCREEN_HEIGHT * 0.78) - 22)
         draw_text(screen, "Press ENTER to Play Again", 24, (180, 180, 180),
-                  SCREEN_WIDTH // 2, int(SCREEN_HEIGHT * 0.75))
+                  SCREEN_WIDTH // 2, int(SCREEN_HEIGHT * 0.78))
 
 
 # ---------------------------------------------------------------------------
@@ -1016,10 +1288,30 @@ class LevelTransition:
         return self.timer >= self.duration
 
     def draw(self, screen: pygame.Surface) -> None:
-        screen.fill(COL_BLACK)
-        t = self.timer / self.duration
-        alpha = int(255 * (1 - abs(t - 0.5) * 2))
+        # Richer transition: deep gradient + sparkles + rising leaves (juicy non-gameplay)
+        for y in range(SCREEN_HEIGHT):
+            t = y / SCREEN_HEIGHT
+            r = int(8 + 12 * t)
+            g = int(22 + 18 * t)
+            b = int(12 + 6 * t)
+            pygame.draw.line(screen, (r, g, b), (0, y), (SCREEN_WIDTH, y))
+        tt = self.timer / self.duration
+        alpha = int(255 * (1 - abs(tt - 0.5) * 2))
         alpha = max(0, min(255, alpha))
+        import math as m
+        # drifting sparkles
+        for i in range(12):
+            sx = (80 + (i * 71) % (SCREEN_WIDTH - 160)) + m.sin(self.timer * 2.2 + i) * 18
+            sy = 60 + ((i * 31) % 420) * (0.6 + 0.4 * m.sin(tt * 3))
+            a = int(alpha * (0.6 + 0.4 * m.sin(self.timer * 7 + i)))
+            pygame.draw.circle(screen, (255, 250, 180), (int(sx), int(sy)), 2)
+        # rising leaves
+        for i in range(6):
+            lx = 100 + (i * 130) % (SCREEN_WIDTH - 200)
+            ly = (SCREEN_HEIGHT - 80) - ((self.timer * 110 + i * 60) % 380)
+            pygame.draw.polygon(screen, (65, 135, 45), [
+                (lx, ly), (lx + 6, ly - 5), (lx + 2, ly + 3)
+            ])
 
         font = get_font(56, bold=True)
         text = font.render(f"LEVEL {self.level_number}", True, COL_WHITE)
@@ -1050,3 +1342,300 @@ class DeathAnimation:
 
     def get_time_scale(self) -> float:
         return self.time_scale
+
+
+# ---------------------------------------------------------------------------
+# Basic Accessibility Options overlay (keyboard driven, persistent profile)
+# Reachable with O from title or pause. Simple +/- style.
+# ---------------------------------------------------------------------------
+
+class AccessibilityOptions:
+    """Basic options screen. Game owns the live settings dict and selected index.
+    Reachable via O on title/pause. Minimal: particle density, shake intensity, text scale, reduced motion.
+    """
+
+    OPTION_KEYS = [
+        "particle_density",
+        "shake_intensity",
+        "text_scale",
+        "reduced_motion",
+    ]
+    OPTION_TITLES = [
+        "Particle Density",
+        "Shake Intensity",
+        "Text Scale",
+        "Reduced Motion",
+    ]
+
+    def __init__(self) -> None:
+        self.selected: int = 0
+
+    def draw(self, screen: pygame.Surface, settings: dict) -> None:
+        # Dim background
+        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 210))
+        screen.blit(overlay, (0, 0))
+
+        draw_text_shadow(screen, "ACCESSIBILITY", 36, COL_WHITE,
+                         SCREEN_WIDTH // 2, 48, bold=True)
+        draw_text(screen, "Arrows: select + adjust   |   ESC: back", 14, (180, 200, 180),
+                  SCREEN_WIDTH // 2, 78)
+
+        start_y = 120
+        for i, (key, title) in enumerate(zip(self.OPTION_KEYS, self.OPTION_TITLES)):
+            y = start_y + i * 48
+            is_sel = (i == self.selected)
+            val = settings.get(key, 1.0 if "scale" in key or "intensity" in key or "speed" in key else 0)
+            label = ACCESSIBILITY_LABELS.get(key, lambda v: str(v))(val)
+
+            # Selection highlight bar
+            if is_sel:
+                bar = pygame.Surface((520, 38), pygame.SRCALPHA)
+                bar.fill((30, 70, 30, 200))
+                pygame.draw.rect(bar, (120, 200, 120), (0, 0, 520, 38), 2, border_radius=4)
+                screen.blit(bar, ((SCREEN_WIDTH - 520) // 2, y - 8))
+
+            col = (220, 255, 220) if is_sel else (170, 200, 170)
+            draw_text_left(screen, title, 20, col, SCREEN_WIDTH // 2 - 200, y, bold=is_sel)
+            draw_text(screen, label, 20, COL_GOLD if is_sel else COL_WHITE,
+                      SCREEN_WIDTH // 2 + 120, y, bold=True)
+
+        # Footer
+        draw_text(screen, "Changes save automatically to profile", 13, (140, 160, 140),
+                  SCREEN_WIDTH // 2, SCREEN_HEIGHT - 36)
+
+
+# ---------------------------------------------------------------------------
+# Grove: full functional combine bench. Select 2-3 essences (biome keys),
+# match exact recipe set from config.RECIPES, spend specifically, unlock graft,
+# persist + apply immediately to player (glide_efficiency, lava_resist,
+# dash_mastery, ice_armor + legacy). Nice UI: selection, bench slots, flash on craft, messages.
+# Root and web/ kept identical for parity.
+# ---------------------------------------------------------------------------
+
+GRAFT_DEFS: dict[str, str] = {
+    "glide_efficiency": "Glide Efficiency — slower fall while gliding (stronger lift)",
+    "lava_resist": "Lava Resist — rising lava deals heavy damage instead of instant death",
+    "dash_mastery": "Dash Mastery — shorter cooldown between dashes",
+    "ice_armor": "Ice Armor — resist hazards + minor defense",
+    "hp_boost": "+1 HP — start runs with an extra hit point",
+    "weak_glide": "Weak Glide — permanent light slow-fall",
+    "combo_bonus": "Combo Bonus — slightly stronger bamboo combos",
+    "bamboo_yield": "Bamboo Yield — +10 score per bamboo collected",
+}
+
+# Nice labels for biome keys (used for display)
+BIOME_LABELS: dict[str, str] = {
+    "forest": "Bamboo Grove",
+    "corrupted": "Corrupted Thicket",
+    "lair": "Mutant Lair",
+    "volcanic": "The Caldera",
+    "basalt": "Basalt Columns",
+    "desert": "The Arid Rift",
+    "cave": "Karst Caves",
+    "salt": "Salt Flats",
+    "mushroom": "Fungal Hollows",
+    "forge": "The Crucible",
+    "tidal": "Tidal Locks",
+    "void": "Phantom Corridor",
+    "gravity": "The Gravity Engine",
+}
+
+
+class GroveUI:
+    """Combine bench for Grove grafting.
+    Pick 2-3 essences from available biome essences.
+    Recipes in config.RECIPES define exact multisets -> graft id.
+    Supports selection, bench slots (2-3), craft, flash success, messages.
+    Keyboard driven. Spends exactly via spend_specific_essences.
+    """
+
+    def __init__(self) -> None:
+        self.essences: dict[str, int] = {}
+        self.grafts: list[str] = []
+        self.cursor: int = 0
+        self.bench: list[str] = []
+        self.message: str = ""
+        self.message_timer: float = 0.0
+        self.craft_flash: float = 0.0  # >0 = visual success flash
+
+    def refresh(self) -> None:
+        self.essences, self.grafts = get_profile_essences_and_grafts()
+        self.cursor = 0
+        self.bench = []
+        self.craft_flash = 0.0
+        total = sum(self.essences.values())
+        self.message = f"THE GROVE — Combine Bench. Essence: {total}. Pick 2-3 to craft."
+        self.message_timer = 4.0
+
+    def update(self, dt: float) -> None:
+        if self.message_timer > 0:
+            self.message_timer -= dt
+            if self.message_timer <= 0:
+                self.message = ""
+        if self.craft_flash > 0:
+            self.craft_flash -= dt
+
+    def _get_available(self) -> list[tuple[str, int]]:
+        av = []
+        for k in ESSENCE_BIOME_KEYS:
+            c = self.essences.get(k, 0)
+            if c > 0:
+                av.append((k, c))
+        return av
+
+    def handle_key(self, key: int) -> str | None:
+        """Handle input. Returns 'exit' or 'crafted'."""
+        avail = self._get_available()
+        n = len(avail)
+        if key in (pygame.K_ESCAPE, pygame.K_g):
+            return "exit"
+        if n == 0:
+            if key in (pygame.K_RETURN, pygame.K_SPACE):
+                return "exit"
+            return None
+
+        if key in (pygame.K_UP, pygame.K_w):
+            self.cursor = (self.cursor - 1) % n
+        elif key in (pygame.K_DOWN, pygame.K_s):
+            self.cursor = (self.cursor + 1) % n
+        elif key in (pygame.K_RETURN, pygame.K_SPACE, pygame.K_a):
+            # add current to bench (if room + not duplicate)
+            if len(self.bench) < 3:
+                ek = avail[self.cursor][0]
+                if ek not in self.bench:
+                    self.bench.append(ek)
+                    self.message = ""
+        elif key in (pygame.K_r, pygame.K_BACKSPACE):
+            if self.bench:
+                self.bench.pop()
+        elif key in (pygame.K_c, pygame.K_RETURN) and 2 <= len(self.bench) <= 3:
+            return self._attempt_craft()
+        return None
+
+    def _attempt_craft(self) -> str | None:
+        if len(self.bench) < 2 or len(self.bench) > 3:
+            self.message = "Select exactly 2 or 3 essences."
+            self.message_timer = 2.0
+            return None
+        chosen = sorted(self.bench)
+        for rec in RECIPES:
+            if sorted(rec.get("essences", [])) == chosen:
+                gid = rec["graft"]
+                if gid in self.grafts:
+                    self.message = "Already unlocked that graft."
+                    self.message_timer = 2.0
+                    return None
+                if not spend_specific_essences(chosen):
+                    self.message = "Could not spend those essences."
+                    self.message_timer = 2.0
+                    return None
+                if unlock_graft(gid):
+                    self.craft_flash = 0.9
+                    self.message = f"CRAFTED: {rec['name']} !"
+                    self.message_timer = 3.0
+                    self.essences, self.grafts = get_profile_essences_and_grafts()
+                    self.bench = []
+                    return "crafted"
+                else:
+                    self.message = "Unlock failed."
+                    self.message_timer = 2.0
+                    return None
+        self.message = "No recipe matches that combination."
+        self.message_timer = 2.5
+        return None
+
+    def draw(self, screen: pygame.Surface) -> None:
+        # Dark grove backdrop
+        overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((8, 18, 12, 245))
+        screen.blit(overlay, (0, 0))
+
+        title_col = (255, 240, 180) if self.craft_flash > 0 else (140, 220, 160)
+        draw_text_shadow(screen, "THE GROVE — COMBINE BENCH", 38, title_col,
+                         SCREEN_WIDTH // 2, 28, bold=True)
+        total_ess = sum(self.essences.values())
+        draw_text(screen, f"Essence: {total_ess}  •  Select 2-3  •  A=add  R=remove  C=craft  ESC/G=leave", 13,
+                  (160, 190, 160), SCREEN_WIDTH // 2, 54)
+
+        avail = self._get_available()
+        # Left column: available essences
+        y = 85
+        draw_text(screen, "AVAILABLE ESSENCES", 15, COL_GOLD, 110, y)
+        y += 20
+        if not avail:
+            draw_text_left(screen, "(none — collect bamboo in runs)", 13, (130, 140, 130), 60, y)
+            y += 18
+        for i, (k, cnt) in enumerate(avail):
+            prefix = ">" if i == self.cursor else " "
+            col = (255, 255, 180) if i == self.cursor else (200, 230, 200)
+            label = BIOME_LABELS.get(k, k)
+            line = f"{prefix} {label} x{cnt}"
+            draw_text_left(screen, line, 14, col, 60, y)
+            y += 17
+
+        # Bench (center-right)
+        bx = SCREEN_WIDTH // 2 + 40
+        by = 85
+        draw_text(screen, "COMBINE BENCH (2-3)", 15, COL_GOLD, bx + 90, by)
+        by += 22
+        # slots
+        for si in range(3):
+            slot = self.bench[si] if si < len(self.bench) else None
+            slot_label = BIOME_LABELS.get(slot, slot) if slot else "—"
+            col = (120, 255, 140) if slot else (90, 110, 90)
+            if self.craft_flash > 0 and slot:
+                col = (255, 255, 200)
+            draw_text_left(screen, f"[{si+1}] {slot_label}", 14, col, bx, by)
+            by += 18
+        # preview match
+        if 2 <= len(self.bench) <= 3:
+            ch = sorted(self.bench)
+            match = None
+            for rec in RECIPES:
+                if sorted(rec.get("essences", [])) == ch:
+                    match = rec
+                    break
+            if match:
+                draw_text_left(screen, f"→ {match['name']}: {match['desc']}", 12, (180, 255, 180), bx, by)
+            else:
+                draw_text_left(screen, "→ no matching recipe", 12, (200, 160, 160), bx, by)
+            by += 18
+
+        # Owned grafts (right)
+        rx = SCREEN_WIDTH - 260
+        ry = 85
+        draw_text(screen, "YOUR GRAFTS", 15, COL_GOLD, rx + 40, ry)
+        ry += 18
+        owned = [g for g in self.grafts if g in GRAFT_DEFS]
+        if owned:
+            for gid in owned[-7:]:
+                draw_text_left(screen, f"✓ {GRAFT_DEFS.get(gid, gid)[:28]}", 11, (90, 210, 110), rx, ry)
+                ry += 14
+        else:
+            draw_text_left(screen, "(none — craft some!)", 11, (120, 130, 120), rx, ry)
+
+        # Controls
+        cy = max(ry + 10, 280)
+        draw_text(screen, "UP/DOWN: select essence   A/SPACE: add to bench   R: remove last   C/ENTER: craft   G/ESC: leave", 11,
+                  (150, 180, 150), SCREEN_WIDTH // 2, cy + 8)
+
+        # Flash banner on craft success
+        if self.craft_flash > 0:
+            a = int(200 * min(1.0, self.craft_flash / 0.3))
+            flash_bg = pygame.Surface((340, 32), pygame.SRCALPHA)
+            flash_bg.fill((40, 80, 30, a))
+            pygame.draw.rect(flash_bg, (140, 255, 140), (0, 0, 340, 32), 2, border_radius=4)
+            screen.blit(flash_bg, ((SCREEN_WIDTH - 340) // 2, SCREEN_HEIGHT - 92))
+            draw_text(screen, "GRAFT UNLOCKED — APPLIED!", 16, (200, 255, 200),
+                      SCREEN_WIDTH // 2, SCREEN_HEIGHT - 78, bold=True)
+
+        # Message
+        if self.message and self.message_timer > 0:
+            mcol = (255, 255, 200) if self.craft_flash <= 0 else (180, 255, 180)
+            draw_text_shadow(screen, self.message, 16, mcol,
+                             SCREEN_WIDTH // 2, SCREEN_HEIGHT - 48)
+
+        # Footer
+        draw_text(screen, "Essence earned from bamboo + biome clears. Grafts are permanent.", 10,
+                  (100, 130, 100), SCREEN_WIDTH // 2, SCREEN_HEIGHT - 22)
